@@ -355,7 +355,7 @@ ipcMain.handle("update:apply", () => aplicarActualizacion());
 function crearVentana() {
   const area = require("electron").screen.getPrimaryDisplay().workAreaSize;
   win = new BrowserWindow({
-    width: Math.min(1280, area.width), height: Math.min(860, area.height), minWidth: 980, minHeight: 640, title: "CreaTuVideo", backgroundColor: "#14111c",
+    icon: path.join(__dirname, "build", "icon.png"), width: Math.min(1280, area.width), height: Math.min(860, area.height), minWidth: 980, minHeight: 640, title: "CreaTuVideo", backgroundColor: "#14111c",
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: false },
   });
   win.setMenuBarVisibility(false);
