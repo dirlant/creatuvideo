@@ -47,15 +47,21 @@
 
       <div class="paso" data-p="1">
         <h2>Guion y opciones del video</h2>
-        <p class="sub">Elige los guiones (rubros) que quieres convertir en video y la voz.</p>
+        <p class="sub">Las mismas opciones que el formulario de Dianchi. Elige <b>uno o varios</b> rubros y temáticas: la app calcula cuántos videos salen.</p>
+        <div class="tabs-fmt"><span class="tab on">Reels</span><span class="tab off" title="La app de escritorio genera videos; los carruseles se hacen en la web de Dianchi">Carruseles (solo en la web)</span></div>
+        <div id="brief-dianchi" class="brief"></div>
+        <div id="brief-contador" class="contador"></div>
+        <div class="barra"><button class="p fuerte" id="b-crear-guiones">Crear los guiones con Claude</button><span class="chico">Claude escribe un guion por cada combinación y los agrega a la lista de abajo.</span></div>
+
+        <h3 class="sep">Guiones disponibles para generar</h3>
         <div class="barra">
           <button data-acc="seleccionar" data-l="dianchi">Marcar todos</button>
           <button data-acc="ninguno" data-l="dianchi">Quitar marcas</button>
           <button data-acc="recargar" data-l="dianchi">Recargar lista</button>
-          <button id="b-guiones-nuevos">Pedir guiones nuevos a Claude</button>
         </div>
         <div id="lista-dianchi" class="lista"></div>
-        <div class="grid2"><div><label class="et">Voz</label><select class="sel-voz"></select></div></div>
+        <div id="contador-lista" class="contador"></div>
+        <div class="grid2"><div><label class="et">Voz del narrador</label><select class="sel-voz"></select></div></div>
       </div>
 
       <div class="paso oculto" data-p="2">

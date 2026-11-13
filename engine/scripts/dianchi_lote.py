@@ -17,8 +17,18 @@ REC = os.path.join(OPD, "recursos")
 CINTA = ["Guarda este audio y esta idea", "para tu negocio"]
 norm = lambda s: re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFD", s.lower()).encode("ascii", "ignore").decode())
 
-def R(slug, rubro, titulo, gancho, guion, cta, escenas, collage, A=None, hastaA=None, B=None, hastaB=None, bubble=None, marcar=(), sfx_ancla=None):
-    return dict(slug=slug, rubro=rubro, titulo=titulo, gancho=gancho, guion=guion, cta=cta, escenas=escenas, collage=collage, A=A, hastaA=hastaA, B=B, hastaB=hastaB, bubble=bubble, marcar=marcar, sfx_ancla=sfx_ancla)
+# Accion que se pide al final del video (la del formulario de Dianchi). La frase final del guion debe EMPEZAR con la palabra "ancla".
+CTAS = {
+    "guardar":   dict(ancla="Guarda",    cinta=["Guarda este audio y esta idea", "para tu negocio"], cierre="GUARDA ESTE AUDIO|Y ESTA IDEA|PARA TU NEGOCIO", icono="bm"),
+    "comentar":  dict(ancla="Comenta",   cinta=["Comenta tu experiencia", "y cuentanos tu caso"],      cierre="COMENTA|TU EXPERIENCIA|ABAJO", icono="sig"),
+    "seguir":    dict(ancla="Sígueme",   cinta=["Sígueme para más ideas", "para tu negocio"],         cierre="SÍGUEME|PARA MÁS IDEAS|PARA TU NEGOCIO", icono="sig"),
+    "compartir": dict(ancla="Comparte",  cinta=["Comparte este video", "con quien lo necesite"],       cierre="COMPARTE|ESTE VIDEO|CON QUIEN LO NECESITE", icono="sig"),
+    "like":      dict(ancla="Dale",      cinta=["Dale like si te sirvió", "y sigue aprendiendo"],      cierre="DALE LIKE|SI TE SIRVIÓ|ESTE VIDEO", icono="sig"),
+    "mensaje":   dict(ancla="Escríbeme", cinta=["Escríbeme un mensaje", "para agendar o consultar"],   cierre="ESCRÍBEME|UN MENSAJE|PARA AGENDAR", icono="sig"),
+}
+
+def R(slug, rubro, titulo, gancho, guion, cta, escenas, collage, A=None, hastaA=None, B=None, hastaB=None, bubble=None, marcar=(), sfx_ancla=None, cta_tipo="guardar", voz=None):
+    return dict(slug=slug, cta_tipo=cta_tipo, voz=voz, rubro=rubro, titulo=titulo, gancho=gancho, guion=guion, cta=cta, escenas=escenas, collage=collage, A=A, hastaA=hastaA, B=B, hastaB=hastaB, bubble=bubble, marcar=marcar, sfx_ancla=sfx_ancla)
 
 RUBROS = [
  R("cabello-keratina", "CABELLO", ["EL ALISADO SE CUIDA", "ANTES Y DESPUÉS DE", "LA *keratina*"],
@@ -105,17 +115,21 @@ def config(Rr, clips_dir, fotos):
     esc = []
     for i, (a, n, q) in enumerate(Rr["escenas"]):
         e = {"clip": "s%02d.mp4" % i}                       # se reemplaza por el archivo real al descargar
-        if a is not None: w, nn = an(a); e["ancla"] = w; e["n"] = nn
+        if a is not None:
+            w, nn = an(a)
+            if w == "Guarda": w = CTAS[Rr.get("cta_tipo") or "guardar"]["ancla"]      # la ultima escena se ancla en la palabra de la accion elegida
+            e["ancla"] = w; e["n"] = nn
         esc.append(e)
-    cfg = {"slug": Rr["slug"], "rubro": Rr["rubro"], "titulo": Rr["titulo"], "gancho": Rr["gancho"], "guion": marcado(Rr["guion"], Rr["marcar"]), "cta": Rr["cta"], "cinta": CINTA,
+    cfg = {"slug": Rr["slug"], "rubro": Rr["rubro"], "titulo": Rr["titulo"], "gancho": Rr["gancho"], "guion": marcado(Rr["guion"], Rr["marcar"]), "cta": Rr["cta"], "cinta": CTAS[Rr.get("cta_tipo") or "guardar"]["cinta"],
            "clips_dir": clips_dir, "salida": "dianchi/resultado", "operacion": "dianchi/_operacion", "efectos": os.environ.get("CTV_EFECTOS", "1") != "0", "voz": os.environ.get("CTV_VOZ", "es-MX-JorgeNeural"), "titulo_top": 420, "escenas": esc,
-           "sfx": [{"tipo": "sparkle", "ancla": an(Rr["collage"][0])[0], "n": an(Rr["collage"][0])[1], "desfase": 0.1}, {"tipo": "ding", "ancla": "Guarda"}],
-           "pildoras_top": 380, "pildoras_paso": 108, "cierre": {"ancla": "Guarda", "texto": "GUARDA ESTE AUDIO|Y ESTA IDEA|PARA TU NEGOCIO"}}
+           "sfx": [{"tipo": "sparkle", "ancla": an(Rr["collage"][0])[0], "n": an(Rr["collage"][0])[1], "desfase": 0.1}, {"tipo": "ding", "ancla": CTAS[Rr.get("cta_tipo") or "guardar"]["ancla"]}],
+           "pildoras_top": 380, "pildoras_paso": 108, "cierre": {"ancla": CTAS[Rr.get("cta_tipo") or "guardar"]["ancla"], "texto": CTAS[Rr.get("cta_tipo") or "guardar"]["cierre"], "icono": CTAS[Rr.get("cta_tipo") or "guardar"]["icono"]}}
     w, n = an(Rr["collage"][0]); cfg["collages"] = [{"ancla": w, "n": n, "centro": fotos + "/col-1.png", "izq": fotos + "/col-2.png", "der": fotos + "/col-3.png", "dur": 2.4}]
     if Rr["A"]: cfg["pildoras"] = [item(a, t) for a, t in Rr["A"]]; cfg["pildoras_hasta"] = an(Rr["hastaA"])[0]
     if Rr["B"]: cfg["pildoras2"] = [item(a, t) for a, t in Rr["B"]]; cfg["pildoras2_hasta"] = an(Rr["hastaB"])[0]
     if Rr["bubble"]:
         a, t, h = Rr["bubble"]; w, n = an(a); cfg["pildoras3"] = [{"ancla": w, "n": n, "texto": t}]; cfg["pildoras3_hasta"] = an(h)[0]
+    if Rr.get("voz"): cfg["voz"] = Rr["voz"]                          # voz propia del guion (por ejemplo, otro idioma)
     ev = lambda k: os.environ.get("CTV_EV_" + k, "1") != "0"          # eventos del video activables desde la app
     if not ev("COLLAGE"): cfg["collages"] = []; cfg["sfx"] = [x for x in cfg["sfx"] if x["tipo"] != "sparkle"]
     if not ev("PASOS"):
