@@ -143,7 +143,12 @@ def config(Rr, clips_dir, fotos):
 env = dict(os.environ); env["PYTHONIOENCODING"] = "utf-8"
 def sh(cmd, **kw):
     kw.setdefault("env", env); return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", **kw)
-SEL = [r for r in RUBROS if not SOLO or r["slug"] in SOLO]
+def _lote_actual():                  # slugs del lote que la app pidio crear (dianchi/prompt/lote_actual.txt, uno por linea)
+    f = os.path.join(AG, "dianchi", "prompt", "lote_actual.txt")
+    try: return [l.strip() for l in open(f, encoding="utf-8") if l.strip() and not l.startswith("#")]
+    except OSError: return []
+_LOTE = [] if SOLO or MODO == "listar" else _lote_actual()
+SEL = [r for r in RUBROS if (r["slug"] in SOLO if SOLO else (r["slug"] in _LOTE if _LOTE else True))]
 
 def rutas(Rr):
     base = os.path.join(REC, Rr["slug"]); return base, os.path.join(base, "clips"), os.path.join(base, "fotos")

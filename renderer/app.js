@@ -8,7 +8,7 @@ let ocupado = false;
 function ir(v) {
   $$(".vista").forEach((e) => e.classList.toggle("activa", e.id === "v-" + v));
   $$(".nav-b").forEach((b) => b.classList.toggle("activo", b.dataset.v === v));
-  if (v === "dianchi" || v === "diegao") cargarLista(v, false);
+  if (v === "diegao") cargarLista(v, false);
   if (v === "ajustes") comprobarEntorno();
   if (v === "claude") actualizarCuenta();
 }
@@ -31,7 +31,7 @@ $("#b-cancel").addEventListener("click", () => window.ctv.cancel());
 // ---------------------------------------------------------------- listas de videos del lote
 const listas = { dianchi: [], diegao: [] };
 async function cargarLista(linea, forzar) {
-  const cont = $("#lista-" + linea);
+  const cont = $("#lista-" + linea); if (!cont) return;
   if (listas[linea].length && !forzar) return;
   cont.innerHTML = '<span class="chico">Cargando lista… (la primera vez puede tardar mientras se prepara Python)</span>';
   const r = await window.ctv.listar(linea);
@@ -45,7 +45,6 @@ async function cargarLista(linea, forzar) {
     $("b", d).textContent = it.titulo; $("span", d).textContent = it.rubro + " · " + it.slug;
     cont.appendChild(d);
   }
-  actualizarContadorLista();
 }
 $$("[data-acc]").forEach((b) => b.addEventListener("click", () => {
   const l = b.dataset.l;
@@ -55,7 +54,7 @@ $$("[data-acc]").forEach((b) => b.addEventListener("click", () => {
 $$("[data-run]").forEach((b) => b.addEventListener("click", async () => {
   const [linea, modo] = b.dataset.run.split(":");
   const slugs = $$("#lista-" + linea + " input:checked").map((c) => c.value);
-  if (!slugs.length) return escribir("Marca al menos un video de la lista.");
+  if (!slugs.length && linea !== "dianchi") return escribir("Marca al menos un video de la lista.");
   const r = await window.ctv.run({ linea, modo, slugs });
   if (r && r.error) escribir("⚠ " + r.error);
 }));
@@ -108,23 +107,36 @@ const OPC = {
     ["Que escriba un mensaje", "invitar a enviar un mensaje privado con una palabra clave relacionada con el servicio para recibir información o agendar.", "mensaje", "Escríbeme"],
   ],
 };
-const BRIEF0 = { idioma: "Español", tema: "", rubros: [], formato: OPC.formatos[0][0], tono: "Cercano", tematicas: [], tendencia: "", gancho: OPC.ganchos[0][0], cta: "Que lo guarde", duracion: 25, variaciones: 1 };
+const BRIEF0 = { idioma: "Español", tema: "", rubros: [], formatos: [OPC.formatos[0][0]], tonos: ["Cercano"], tematicas: [], problemas: [], ganchos: [OPC.ganchos[0][0]], ctas: ["Que lo guarde"], duracion: 25, variaciones: 1 };
+// dimensiones que se combinan: [clave, singular, plural]
+const DIMS = [["rubros", "rubro", "rubros"], ["tematicas", "temática", "temáticas"], ["formatos", "formato", "formatos"], ["tonos", "emoción", "emociones"], ["ganchos", "gancho", "ganchos"], ["ctas", "acción", "acciones"]];
 function brief() {                               // siempre el MISMO objeto, completando solo lo que falte
   const p = ajustes.presets;
-  if (!p.brief) p.brief = { ...BRIEF0, rubros: [], tematicas: [] };
-  for (const k of Object.keys(BRIEF0)) if (!(k in p.brief)) p.brief[k] = Array.isArray(BRIEF0[k]) ? [] : BRIEF0[k];
-  return p.brief;
+  if (!p.brief) p.brief = { ...BRIEF0, rubros: [], tematicas: [], formatos: [...BRIEF0.formatos], tonos: [...BRIEF0.tonos], ganchos: [...BRIEF0.ganchos], ctas: [...BRIEF0.ctas] };
+  const b = p.brief;
+  for (const [nuevo, viejo] of [["formatos", "formato"], ["tonos", "tono"], ["ganchos", "gancho"], ["ctas", "cta"]])   // version anterior: un solo valor
+    if (!Array.isArray(b[nuevo]) && typeof b[viejo] === "string" && b[viejo]) b[nuevo] = [b[viejo]];
+  if (!Array.isArray(b.problemas) && typeof b.tendencia === "string" && b.tendencia.trim()) b.problemas = [b.tendencia.trim()];
+  for (const k of Object.keys(BRIEF0)) if (!(k in b)) b[k] = Array.isArray(BRIEF0[k]) ? [...BRIEF0[k]] : BRIEF0[k];
+  return b;
 }
 let tGuardarBrief = null;
 function guardarBrief() { clearTimeout(tGuardarBrief); tGuardarBrief = setTimeout(() => window.ctv.saveSettings(ajustes), 500); }
-const totalVideos = () => { const b = brief(); return b.rubros.length && b.tematicas.length ? b.rubros.length * b.tematicas.length * Number(b.variaciones) : 0; };
+const totalVideos = () => { const b = brief(); let n = (Number(b.variaciones) || 1) * Math.max(1, b.problemas.length); for (const [k] of DIMS) { if (!b[k].length) return 0; n *= b[k].length; } return n; };
+function desgloseBrief() {
+  const b = brief(), partes = DIMS.filter(([k]) => b[k].length > 1).map(([k, s, p]) => b[k].length + " " + p);
+  if (b.problemas.length > 1) partes.push(b.problemas.length + " problemas");
+  if (Number(b.variaciones) > 1) partes.push(b.variaciones + " variaciones");
+  return partes.length ? partes.join(" × ") : "una sola combinación";
+}
+const FALTA = () => { const b = brief(), f = DIMS.filter(([k]) => !b[k].length).map(([k, s]) => s); return f.length ? "Elige al menos un valor en: " + f.join(", ") + "." : ""; };
 
 function actualizarContador() {
   const b = brief(), el = $("#brief-contador"), n = totalVideos();
   el.className = "contador" + (n ? "" : " vacio");
-  if (!n) { el.textContent = "Elige al menos un rubro y una temática para ver cuántos videos se procesarán."; return resumenDianchi(); }
+  if (!n) { el.textContent = FALTA() + " Así se calcula cuántos videos se procesarán."; return resumenDianchi(); }
   const min = n * 5;
-  el.innerHTML = "Se procesarán <b>" + n + "</b> video" + (n === 1 ? "" : "s") + " — " + b.rubros.length + " rubro" + (b.rubros.length === 1 ? "" : "s") + " × " + b.tematicas.length + " temática" + (b.tematicas.length === 1 ? "" : "s") + " × " + b.variaciones + (Number(b.variaciones) === 1 ? " variación" : " variaciones")
+  el.innerHTML = "Se procesarán <b>" + n + "</b> video" + (n === 1 ? "" : "s") + " — " + desgloseBrief()
     + "<br><span class='chico'>Tiempo estimado: unos " + (min >= 60 ? Math.floor(min / 60) + " h " + (min % 60) + " min" : min + " min") + " (≈ 5 min por video)." + (ajustes.presets.rellenoLocal ? "" : " Descarga ≈ " + n * 80 + " solicitudes de Pexels (cupo: 20.000 al mes).") + "</span>"
     + (n > 16 ? "<br><span class='aviso-n'>⚠ Son muchos videos: conviene hacerlos en lotes de 16 o menos.</span>" : "");
   resumenDianchi();
@@ -150,6 +162,12 @@ function chipsMulti(lista, sel, alCambiar, titulo) {
   }
   pintar(); return { cont, todos: () => { sel.splice(0, sel.length, ...lista); pintar(); alCambiar(); }, ninguno: () => { sel.splice(0, sel.length); pintar(); alCambiar(); } };
 }
+function campoMulti(num, titulo, nombres, sel, cambio, plural) {
+  const m = chipsMulti(nombres, sel, cambio);
+  const f = campo(num, titulo, "", m.cont, true);
+  for (const [txt, fn] of [["Todos", m.todos], ["Ninguno", m.ninguno]]) { const x = document.createElement("button"); x.className = "mini"; x.type = "button"; x.textContent = txt; x.addEventListener("click", fn); $("label", f).appendChild(x); }
+  return f;
+}
 function pintarBrief() {
   const cont = $("#brief-dianchi"); if (!cont || !ajustes) return;
   const b = brief(); cont.innerHTML = "";
@@ -162,17 +180,24 @@ function pintarBrief() {
   const fr = campo(3, "Rubro (uno o varios)", "", rb.cont, true);
   for (const [txt, fn] of [["Todos", rb.todos], ["Ninguno", rb.ninguno]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", fr).appendChild(m); }
   cont.appendChild(fr);
-  cont.appendChild(campo(4, "Formato", "", selector(OPC.formatos, b.formato, (v) => { b.formato = v; cambio(); })));
-  cont.appendChild(campo(5, "Emoción que quieres proyectar", "", selector(OPC.tonos, b.tono, (v) => { b.tono = v; cambio(); })));
+  cont.appendChild(campoMulti(4, "Formato (uno o varios)", OPC.formatos.map((x) => x[0]), b.formatos, cambio));
+  cont.appendChild(campoMulti(5, "Emoción que quieres proyectar (una o varias)", OPC.tonos.map((x) => x[0]), b.tonos, cambio));
   const tm = chipsMulti(OPC.tematicas.map((t) => t[0]), b.tematicas, cambio);
   const ft = campo(6, "Temática (una o varias)", "", tm.cont, true);
   for (const [txt, fn] of [["Todas", tm.todos], ["Ninguna", tm.ninguno]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", ft).appendChild(m); }
   cont.appendChild(ft);
-  const tn = document.createElement("input"); tn.value = b.tendencia; tn.placeholder = "Escribe la tendencia o temática específica que quieres tratar…";
-  tn.addEventListener("input", () => { b.tendencia = tn.value; guardarBrief(); });
-  cont.appendChild(campo(7, "Tendencia (opcional)", "", tn));
-  cont.appendChild(campo(8, "Gancho", "", selector(OPC.ganchos, b.gancho, (v) => { b.gancho = v; cambio(); })));
-  cont.appendChild(campo(9, "¿Qué quieres que haga el usuario?", "", selector(OPC.ctas, b.cta, (v) => { b.cta = v; cambio(); })));
+  const pb = document.createElement("div"); pb.className = "problemas";
+  const fila = document.createElement("div"); fila.className = "fila";
+  const tn = document.createElement("input"); tn.placeholder = "Escribe una temática o problema a resolver y pulsa Enter…";
+  const ad = document.createElement("button"); ad.type = "button"; ad.textContent = "Agregar";
+  const et = document.createElement("div"); et.className = "etiquetas";
+  const pintarEt = () => { et.innerHTML = ""; b.problemas.forEach((p, i) => { const e = document.createElement("span"); e.className = "etiqueta"; e.appendChild(document.createTextNode(p)); const x = document.createElement("button"); x.type = "button"; x.title = "Quitar"; x.textContent = "×"; x.addEventListener("click", () => { b.problemas.splice(i, 1); pintarEt(); cambio(); }); e.appendChild(x); et.appendChild(e); }); };
+  const agregar = () => { const v = tn.value.trim(); if (!v) return; if (!b.problemas.includes(v)) b.problemas.push(v); tn.value = ""; pintarEt(); cambio(); tn.focus(); };
+  ad.addEventListener("click", agregar); tn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); agregar(); } });
+  fila.appendChild(tn); fila.appendChild(ad); pb.appendChild(fila); pb.appendChild(et); pintarEt();
+  cont.appendChild(campo(7, "Temática o problema a resolver", "Agrega uno o varios, de uno en uno: cada uno se convierte en un guion distinto (opcional).", pb, true));
+  cont.appendChild(campoMulti(8, "Gancho (uno o varios)", OPC.ganchos.map((x) => x[0]), b.ganchos, cambio));
+  cont.appendChild(campoMulti(9, "¿Qué quieres que haga el usuario? (una o varias)", OPC.ctas.map((x) => x[0]), b.ctas, cambio));
   const rg = document.createElement("div"); rg.className = "rango";
   const ir_ = document.createElement("input"); ir_.type = "range"; ir_.min = 10; ir_.max = 30; ir_.value = b.duracion;
   const bd = document.createElement("span"); bd.className = "badge"; bd.textContent = b.duracion + " seg";
@@ -180,45 +205,48 @@ function pintarBrief() {
   rg.appendChild(ir_); rg.appendChild(bd);
   cont.appendChild(campo("", "Duración", "Dianchi limita los videos a 30 segundos.", rg));
   const vs = selector([["1"], ["2"], ["3"], ["4"], ["5"]], String(b.variaciones), (v) => { b.variaciones = Number(v); cambio(); });
-  cont.appendChild(campo("", "Variaciones por combinación", "Cuántos guiones distintos (otro gancho y otro ángulo) por cada rubro × temática.", vs));
+  cont.appendChild(campo("", "Variaciones por combinación", "Cuántos guiones distintos (otro ángulo) por cada combinación de lo que elegiste arriba.", vs));
   actualizarContador();
 }
 function textoBrief() {
   const b = brief(), n = totalVideos();
-  const g = OPC.ganchos.find((x) => x[0] === b.gancho), f = OPC.formatos.find((x) => x[0] === b.formato), t = OPC.tonos.find((x) => x[0] === b.tono), ct = OPC.ctas.find((x) => x[0] === b.cta);
+  const busca = (lista, nombre) => lista.find((x) => x[0] === nombre) || [nombre, ""];
   const voz = OPC.idiomas.find((x) => x[0] === b.idioma)[1];
-  const combos = []; for (const r of b.rubros) for (const tm of b.tematicas) for (let v = 1; v <= b.variaciones; v++) combos.push("- " + r + " · " + tm + (b.variaciones > 1 ? " · variación " + v : ""));
+  const defs = (lista, sel) => sel.map((s) => "  · " + s + " → " + busca(lista, s)[1]).join("\n");
+  // una entrada por cada combinacion de las dimensiones elegidas
+  let combos = [[]];
+  const listas = [b.rubros, b.tematicas, b.formatos, b.tonos, b.ganchos, b.ctas];
+  if (b.problemas.length) listas.push(b.problemas);
+  for (const l of listas) combos = combos.flatMap((c) => l.map((x) => [...c, x]));
+  const lineas = [];
+  for (const c of combos) for (let v = 1; v <= b.variaciones; v++) {
+    const ct = busca(OPC.ctas, c[5]);
+    lineas.push("- " + c[0] + " · " + c[1] + " · formato " + c[2] + " · emoción " + c[3] + " · gancho " + c[4] + " · acción " + c[5] + (b.problemas.length ? " · problema/temática a resolver: «" + c[6] + "»" : "") + " (cta_tipo=\"" + ct[2] + "\", la frase final empieza con «" + ct[3] + "»)" + (b.variaciones > 1 ? " · variación " + v : ""));
+  }
   return "Crea " + n + " guion" + (n === 1 ? "" : "es") + " nuevo" + (n === 1 ? "" : "s") + " para Dianchi y agrégalos a la lista RUBROS de scripts/dianchi_lote.py, con el mismo formato que los existentes (escenas con consultas de Pexels, collage, píldoras de pasos, globo de objeción, marcar). "
-    + "Antes lee prompt/AJUSTES.md y prompt/rubros_hechos.md y no repitas lo ya hecho.\n\nOPCIONES (las mismas del formulario de Dianchi):\n"
+    + "Antes lee prompt/AJUSTES.md y prompt/rubros_hechos.md y no repitas lo ya hecho.\n\nOPCIONES (las mismas del formulario de Dianchi; cada guion usa UNA combinación de ellas):\n"
     + "- Idioma: " + b.idioma + (b.idioma === "Español" ? "" : " (usa el parámetro voz=\"" + voz + "\" en cada entrada)") + "\n"
     + (b.tema.trim() ? "- De qué hablar: " + b.tema.trim() + "\n" : "")
     + "- Rubros: " + b.rubros.join(", ") + "\n"
-    + "- Temáticas: " + b.tematicas.map((x) => x + " (" + OPC.tematicas.find((y) => y[0] === x)[1] + ")").join("; ") + "\n"
-    + "- Formato: " + f[0] + " → " + f[1] + "\n- Emoción: " + t[0] + " → " + t[1] + "\n"
-    + (b.tendencia.trim() ? "- Tendencia: " + b.tendencia.trim() + "\n" : "")
-    + "- Gancho: " + g[0] + " → " + g[1] + "\n"
-    + "- Acción del usuario: " + ct[0] + " → " + ct[1] + " Usa cta_tipo=\"" + ct[2] + "\" y haz que la frase final del guion EMPIECE con «" + ct[3] + "».\n"
+    + "- Temáticas:\n" + defs(OPC.tematicas, b.tematicas) + "\n"
+    + "- Formatos:\n" + defs(OPC.formatos, b.formatos) + "\n"
+    + "- Emociones:\n" + defs(OPC.tonos, b.tonos) + "\n"
+    + (b.problemas.length ? "- Temáticas o problemas a resolver (cada guion trata UNO): " + b.problemas.map((p) => "«" + p + "»").join("; ") + "\n" : "")
+    + "- Ganchos:\n" + defs(OPC.ganchos, b.ganchos) + "\n"
+    + "- Acciones del usuario:\n" + defs(OPC.ctas, b.ctas) + "\n"
     + "- Duración objetivo: " + b.duracion + " segundos (máximo 30; unas 2,5 palabras por segundo).\n"
-    + "- Variaciones por combinación: " + b.variaciones + (b.variaciones > 1 ? " (cada una con otro gancho y otro ángulo)" : "") + "\n\n"
-    + "Genera una entrada por combinación (" + n + " en total):\n" + (n <= 40 ? combos.join("\n") : combos.slice(0, 40).join("\n") + "\n… (y el resto del producto cartesiano)") + "\n\n"
-    + "Al terminar: agrega los slugs nuevos a prompt/rubros_hechos.md, ejecuta la verificación (dianchi_lote.py … verificar) para comprobar tiempos y choques, y avísame para que los marque en la app (botón «Recargar lista»).";
+    + "- Variaciones por combinación: " + b.variaciones + (b.variaciones > 1 ? " (cada una con otro ángulo)" : "") + "\n\n"
+    + "Genera una entrada por combinación (" + n + " en total), cada una con su propio gancho, formato, emoción y cta_tipo:\n" + (n <= 40 ? lineas.join("\n") : lineas.slice(0, 40).join("\n") + "\n… (y el resto de las combinaciones, hasta " + n + ")") + "\n\n"
+    + "Al terminar: agrega los slugs nuevos a prompt/rubros_hechos.md, escribe SOLO esos slugs nuevos (uno por línea, reemplazando el contenido) en prompt/lote_actual.txt — la app genera los videos de ese archivo — y ejecuta la verificación (dianchi_lote.py … verificar) para comprobar tiempos y choques.";
 }
 $("#b-crear-guiones").addEventListener("click", () => {
-  if (!totalVideos()) return escribir("Elige al menos un rubro y una temática para crear guiones.");
+  if (!totalVideos()) return escribir(FALTA() || "Elige al menos un valor en cada opción para crear guiones.");
   enviarClaude("dianchi", textoBrief());
 });
-function actualizarContadorLista() {
-  const el = $("#contador-lista"); if (!el) return;
-  const n = $$("#lista-dianchi input:checked").length, tot = $$("#lista-dianchi input").length;
-  el.className = "contador" + (n ? "" : " vacio");
-  el.innerHTML = n ? "Se generarán <b>" + n + "</b> de " + tot + " video" + (tot === 1 ? "" : "s") + " de la lista (≈ " + n * 5 + " min)." : "Marca los guiones que quieres convertir en video.";
-}
-
 // ---------------------------------------------------------------- asistente de Dianchi
 let pasoDianchi = 1;
 const TOTAL_PASOS = 6;
 function irPasoDianchi(n) {
-  if (n > pasoDianchi && pasoDianchi === 1 && !$$("#lista-dianchi input:checked").length) return escribir("Marca al menos un guion para continuar.");
   pasoDianchi = Math.max(1, Math.min(TOTAL_PASOS, n));
   $$("#v-dianchi .paso").forEach((p) => p.classList.toggle("oculto", Number(p.dataset.p) !== pasoDianchi));
   $$("#pasos-dianchi li").forEach((li) => { const k = Number(li.dataset.p); li.classList.toggle("act", k === pasoDianchi); li.classList.toggle("hecho", k < pasoDianchi); });
@@ -228,26 +256,24 @@ function irPasoDianchi(n) {
 }
 function resumenDianchi() {
   const r = $("#resumen-dianchi"); if (!r || !ajustes) return;
-  const sel = $$("#lista-dianchi input:checked").length, p = ajustes.presets, d = ajustes.dirs, ev = p.eventos;
+  const p = ajustes.presets, d = ajustes.dirs, ev = p.eventos;
   const voz = (VOCES.find((v) => v[0] === p.voz) || [0, p.voz])[1];
   const si = (b) => (b ? "sí" : "no");
   const carpeta = (x) => x || "dentro de la carpeta de trabajo";
   r.innerHTML = "";
   for (const [k, v] of [
-    ["Guiones", sel + " de la lista marcado(s) · voz " + voz + (totalVideos() ? " · " + totalVideos() + " por crear con Claude (" + brief().rubros.length + " rubros × " + brief().tematicas.length + " temáticas × " + brief().variaciones + " variaciones)" : "")],
+    ["Guiones", (totalVideos() ? totalVideos() + " video" + (totalVideos() === 1 ? "" : "s") + " según el formulario (" + desgloseBrief() + ")" : "los del último lote creado con Claude") + " · voz " + voz],
     ["Eventos", "efectos " + si(p.efectos) + " · objeción " + si(ev.burbuja) + " · pasos " + si(ev.pasos) + " · collage " + si(ev.collage) + " · sonidos " + si(ev.sfx) + " · tarjeta final " + si(ev.cierre)],
-    ["Imágenes", carpeta(d.imagenes) + (p.imagenesCollage ? " (se usan en el collage)" : "")],
-    ["Videos", carpeta(d.relleno) + (p.rellenoLocal ? " (se usan como relleno)" : " (se descargan de Pexels)")],
+    ["Imágenes", p.imagenesCollage ? "de la carpeta " + (d.imagenes || "(sin elegir: elige una en el paso 3)") : "automático (fotogramas de los videos descargados)"],
+    ["Videos", p.rellenoLocal ? "de la carpeta " + (d.relleno || "(sin elegir: elige una en el paso 4)") : "automático (se descargan de Pexels)"],
     ["Resultados", carpeta(d.dianchiResultado)],
   ]) { const f = document.createElement("div"); f.innerHTML = "<b></b>: <span></span>"; $("b", f).textContent = v === undefined ? "" : k; $("span", f).textContent = v; r.appendChild(f); }
 }
 $("#w-sig").addEventListener("click", () => irPasoDianchi(pasoDianchi + 1));
 $("#w-atras").addEventListener("click", () => irPasoDianchi(pasoDianchi - 1));
 $$("#pasos-dianchi li").forEach((li) => li.addEventListener("click", () => irPasoDianchi(Number(li.dataset.p))));
-$("#lista-dianchi").addEventListener("change", () => { resumenDianchi(); actualizarContadorLista(); });
 $("#b-generar-todo").addEventListener("click", async () => {
-  const slugs = $$("#lista-dianchi input:checked").map((c) => c.value);
-  if (!slugs.length) return escribir("Marca al menos un guion en el paso 1.");
+  const slugs = [];   // sin slugs: el motor usa el ultimo lote creado con Claude
   for (const modo of ["verificar", "descargar", "render"]) {
     const r = await window.ctv.run({ linea: "dianchi", modo, slugs });
     if (!r || !r.ok) return escribir("⚠ Se detuvo en «" + modo + "»" + (r && r.error ? ": " + r.error : ". Revisa el registro."));
@@ -303,16 +329,19 @@ function pintarSecciones() {
     $$("[data-x]", c).forEach((b) => b.addEventListener("click", () => { ajustes.dirs[b.dataset.x] = ""; guardarAuto(); }));
   }
   $("#pr-efectos").checked = !!ajustes.presets.efectos;
-  $("#pr-relleno").checked = !!ajustes.presets.rellenoLocal;
-  $("#pr-imagenes").checked = !!ajustes.presets.imagenesCollage;
+  for (const [nombre, preset, caja] of [["fuente-imagenes", "imagenesCollage", "#caja-imagenes"], ["fuente-videos", "rellenoLocal", "#caja-videos"]]) {
+    const v = ajustes.presets[preset] ? "carpeta" : "auto";
+    $$('input[name="' + nombre + '"]').forEach((r) => (r.checked = r.value === v));
+    $(caja).classList.toggle("oculto", v !== "carpeta");
+  }
   for (const k of ["burbuja", "pasos", "collage", "sfx", "cierre"]) $("#ev-" + k).checked = ajustes.presets.eventos[k] !== false;
   resumenDianchi();
   $$(".sel-voz").forEach((s) => (s.value = ajustes.presets.voz));
 }
-$("#pr-imagenes").addEventListener("change", (e) => { ajustes.presets.imagenesCollage = e.target.checked; guardarAuto(); });
+$$('input[name="fuente-imagenes"]').forEach((r) => r.addEventListener("change", (e) => { ajustes.presets.imagenesCollage = e.target.value === "carpeta"; guardarAuto(); }));
 for (const k of ["burbuja", "pasos", "collage", "sfx", "cierre"]) $("#ev-" + k).addEventListener("change", (e) => { ajustes.presets.eventos[k] = e.target.checked; guardarAuto(); });
 $("#pr-efectos").addEventListener("change", (e) => { ajustes.presets.efectos = e.target.checked; guardarAuto(); });
-$("#pr-relleno").addEventListener("change", (e) => { ajustes.presets.rellenoLocal = e.target.checked; guardarAuto(); });
+$$('input[name="fuente-videos"]').forEach((r) => r.addEventListener("change", (e) => { ajustes.presets.rellenoLocal = e.target.value === "carpeta"; guardarAuto(); }));
 $$(".sel-voz").forEach((s) => s.addEventListener("change", (e) => { ajustes.presets.voz = e.target.value; guardarAuto(); }));
 
 function pintarAjustes() {
@@ -428,17 +457,26 @@ function mostrarUpd(i) {
   if (!i.ok) { txt.textContent = i.motivo; aviso.classList.add("oculto"); btn.disabled = true; return; }
   if (i.hay) {
     txt.textContent = "Hay una versión nueva (" + i.corto + "): " + i.mensaje;
-    aviso.textContent = "Actualización disponible (" + i.corto + "). Clic para ver."; aviso.classList.remove("oculto"); btn.disabled = false;
+    aviso.textContent = "Actualización disponible (" + i.corto + "). Clic para descargar e instalar."; aviso.classList.remove("oculto"); btn.disabled = false;
   } else { txt.textContent = "Estás al día (" + i.actual + ")."; aviso.classList.add("oculto"); btn.disabled = true; }
 }
 window.ctv.onUpdate(mostrarUpd);
-$("#aviso-upd").addEventListener("click", () => ir("ajustes"));
-$("#b-upd").addEventListener("click", async () => { $("#txt-upd").textContent = "Buscando…"; mostrarUpd(await window.ctv.checkUpdate()); });
-$("#b-upd-ir").addEventListener("click", async () => {
-  $("#b-upd-ir").disabled = true; $("#txt-upd").textContent = "Actualizando…";
+let actualizando = false;
+async function actualizarAhora() {
+  if (actualizando) return; actualizando = true;
+  const aviso = $("#aviso-upd");
+  $("#b-upd-ir").disabled = true; $("#txt-upd").textContent = "Descargando la actualización…";
+  aviso.textContent = "Descargando la actualización… la app se reiniciará sola."; aviso.classList.remove("oculto");
   const r = await window.ctv.applyUpdate();
-  if (!r.ok) { $("#txt-upd").textContent = r.motivo || "No se pudo actualizar."; $("#b-upd-ir").disabled = false; }
-});
+  if (!r.ok) {
+    actualizando = false;
+    $("#txt-upd").textContent = r.motivo || "No se pudo actualizar."; $("#b-upd-ir").disabled = false;
+    aviso.textContent = "No se pudo actualizar: " + (r.motivo || "error") + ". Clic para reintentar.";
+  } else { aviso.textContent = "Actualización lista (" + r.corto + "). Reiniciando…"; $("#txt-upd").textContent = "Reiniciando…"; }
+}
+$("#aviso-upd").addEventListener("click", actualizarAhora);   // un clic en el aviso descarga e instala
+$("#b-upd").addEventListener("click", async () => { $("#txt-upd").textContent = "Buscando…"; mostrarUpd(await window.ctv.checkUpdate()); });
+$("#b-upd-ir").addEventListener("click", actualizarAhora);
 
 // ---------------------------------------------------------------- inicio
 (async function init() {

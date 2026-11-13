@@ -44,24 +44,15 @@
         <li data-p="1" class="act">1 · Guion</li><li data-p="2">2 · Eventos</li><li data-p="3">3 · Imágenes</li>
         <li data-p="4">4 · Videos</li><li data-p="5">5 · Resultados</li><li data-p="6">6 · Generar</li>
       </ol>
+      <div id="brief-contador" class="contador fijo"></div>
 
       <div class="paso" data-p="1">
         <h2>Guion y opciones del video</h2>
         <p class="sub">Las mismas opciones que el formulario de Dianchi. Elige <b>uno o varios</b> rubros y temáticas: la app calcula cuántos videos salen.</p>
         <div class="tabs-fmt"><span class="tab on">Reels</span><span class="tab off" title="La app de escritorio genera videos; los carruseles se hacen en la web de Dianchi">Carruseles (solo en la web)</span></div>
         <div id="brief-dianchi" class="brief"></div>
-        <div id="brief-contador" class="contador"></div>
-        <div class="barra"><button class="p fuerte" id="b-crear-guiones">Crear los guiones con Claude</button><span class="chico">Claude escribe un guion por cada combinación y los agrega a la lista de abajo.</span></div>
+        <div class="barra"><button class="p fuerte" id="b-crear-guiones">Crear los guiones con Claude</button><span class="chico">Claude escribe un guion por cada combinación; quedan listos para generarse en el paso 6.</span></div>
 
-        <h3 class="sep">Guiones disponibles para generar</h3>
-        <div class="barra">
-          <button data-acc="seleccionar" data-l="dianchi">Marcar todos</button>
-          <button data-acc="ninguno" data-l="dianchi">Quitar marcas</button>
-          <button data-acc="recargar" data-l="dianchi">Recargar lista</button>
-        </div>
-        <div id="lista-dianchi" class="lista"></div>
-        <div id="contador-lista" class="contador"></div>
-        <div class="grid2"><div><label class="et">Voz del narrador</label><select class="sel-voz"></select></div></div>
       </div>
 
       <div class="paso oculto" data-p="2">
@@ -75,20 +66,27 @@
           <label class="chk"><input type="checkbox" id="ev-sfx" /> Sonidos (chispa y ding)</label>
           <label class="chk"><input type="checkbox" id="ev-cierre" /> Tarjeta final «Guarda este audio»</label>
         </div>
+        <div class="grid2"><div><label class="et">Voz del narrador</label><select class="sel-voz"></select></div></div>
       </div>
 
       <div class="paso oculto" data-p="3">
         <h2>Imágenes</h2>
-        <p class="sub">Carpeta con tus imágenes (fotos del salón, trabajos, productos).</p>
-        <div class="cfg"><div id="cfg-dianchi-imagenes" class="filas"></div></div>
-        <label class="chk"><input type="checkbox" id="pr-imagenes" /> Usar mis imágenes en el collage (si no, se usan fotogramas de los videos)</label>
+        <p class="sub">¿De dónde salen las imágenes del collage?</p>
+        <div class="fuente">
+          <label class="opcion"><input type="radio" name="fuente-imagenes" value="auto" /><div><b>Automático</b><span>La app toma las imágenes de los propios videos que descarga. No necesitas hacer nada.</span></div></label>
+          <label class="opcion"><input type="radio" name="fuente-imagenes" value="carpeta" /><div><b>De una carpeta</b><span>Usa tus imágenes (fotos del salón, trabajos, productos).</span></div></label>
+        </div>
+        <div class="cfg" id="caja-imagenes"><div id="cfg-dianchi-imagenes" class="filas"></div></div>
       </div>
 
       <div class="paso oculto" data-p="4">
         <h2>Videos de relleno</h2>
-        <p class="sub">Carpeta con tus videos para las escenas del fondo.</p>
-        <div class="cfg"><div id="cfg-dianchi-videos" class="filas"></div></div>
-        <label class="chk"><input type="checkbox" id="pr-relleno" /> Usar mis videos de relleno en vez de descargar de Pexels</label>
+        <p class="sub">¿De dónde salen los videos de las escenas del fondo?</p>
+        <div class="fuente">
+          <label class="opcion"><input type="radio" name="fuente-videos" value="auto" /><div><b>Automático</b><span>La app busca y descarga los videos según el guion (Pexels).</span></div></label>
+          <label class="opcion"><input type="radio" name="fuente-videos" value="carpeta" /><div><b>De una carpeta</b><span>Usa tus propios videos de relleno.</span></div></label>
+        </div>
+        <div class="cfg" id="caja-videos"><div id="cfg-dianchi-videos" class="filas"></div></div>
       </div>
 
       <div class="paso oculto" data-p="5">
@@ -100,6 +98,7 @@
 
       <div class="paso oculto" data-p="6">
         <h2>Resumen y generar</h2>
+
         <div id="resumen-dianchi" class="resumen"></div>
         <div class="barra"><button class="p fuerte" id="b-generar-todo">Generar videos (verificar → descargar → generar)</button></div>
         <p class="chico">O paso a paso:</p>
