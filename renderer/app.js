@@ -8,6 +8,7 @@ let ocupado = false;
 function ir(v) {
   $$(".vista").forEach((e) => e.classList.toggle("activa", e.id === "v-" + v));
   $$(".nav-b").forEach((b) => b.classList.toggle("activo", b.dataset.v === v));
+  $("#barra-estado").classList.toggle("oculto", v !== "dianchi" && !(gen && !gen.fin));   // el conteo de videos queda fijo al pie, solo en Dianchi
   if (v === "diegao") cargarLista(v, false);
   if (v === "ajustes") comprobarEntorno();
   if (v === "claude") actualizarCuenta();
@@ -579,3 +580,14 @@ $$("[data-nuevo-prompt]").forEach((b) => b.addEventListener("click", () => {
     + "Antes léete el prompt actual solo como referencia y hazme las preguntas que necesites (público, tono, tipo de negocio, estilo) para que el nuevo prompt quede hecho a mi medida. "
     + "Al terminar dime cómo usarlo para generar con él.");
 }));
+
+// ---------------------------------------------------------------- compartir el enlace de descarga
+const LINK_DESCARGA = "https://github.com/dirlant/creatuvideo/releases/latest";
+$("#b-compartir").addEventListener("click", async () => {
+  let ok = false;
+  try { await navigator.clipboard.writeText(LINK_DESCARGA); ok = true; } catch {}
+  if (!ok) { const ta = document.createElement("textarea"); ta.value = LINK_DESCARGA; document.body.appendChild(ta); ta.select(); try { ok = document.execCommand("copy"); } catch {} ta.remove(); }
+  const b = $("#b-compartir"), t0 = "Compartir enlace de descarga";
+  b.textContent = ok ? "✔ Enlace copiado" : "No se pudo copiar"; setTimeout(() => (b.textContent = t0), 2500);
+  escribir((ok ? "✔ Enlace de descarga copiado: " : "Enlace de descarga: ") + LINK_DESCARGA);
+});

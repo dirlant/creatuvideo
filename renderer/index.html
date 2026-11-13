@@ -21,6 +21,7 @@
       <div id="v-app" class="chico"></div>
       <div id="aviso-upd" class="aviso oculto"></div>
       <button id="b-upd" class="nav-upd">Buscar actualización</button>
+      <button id="b-compartir" class="nav-upd" title="Copia el enlace de descarga para enviarlo a otra persona">Compartir enlace de descarga</button>
       <button id="b-upd-ir" class="p nav-upd oculto" hidden>Actualizar ahora</button>
       <div id="txt-upd" class="chico"></div>
       <button id="b-detener" class="nav-upd peligro oculto">■ Detener el proceso</button>
@@ -48,7 +49,6 @@
         <li data-p="1" class="act">1 · Guion</li><li data-p="2">2 · Eventos</li><li data-p="3">3 · Imágenes</li>
         <li data-p="4">4 · Videos</li><li data-p="5">5 · Resultados</li><li data-p="6">6 · Generar</li>
       </ol>
-      <div id="brief-contador" class="contador fijo"></div>
 
       <div class="paso" data-p="1">
         <h2>Guion y opciones del video</h2>
@@ -225,6 +225,8 @@
     </section>
   </main>
 </div>
+
+<div id="barra-estado" class="barra-estado oculto"><div id="brief-contador" class="contador fijo"></div></div>
 
 <footer class="registro" id="registro">
   <div class="reg-cab"><b>Registro</b><span id="ind-busy" class="oculto">● trabajando…</span><span class="esp"></span><button id="b-cancel" disabled>Cancelar</button><button id="b-limpiar">Limpiar</button></div>

@@ -3,8 +3,8 @@
   --acento: #d61480; --acento2: #ff3fa4; --ok: #3ccf8e; --mal: #ff6b6b; --aviso: #ffc857;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--txt); font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px; }
-.app { display: flex; height: calc(100vh - 190px); min-height: 380px; }
+html, body { margin: 0; height: 100%; display: flex; flex-direction: column; background: var(--bg); color: var(--txt); font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px; }
+.app { display: flex; flex: 1; min-height: 0; }
 .nav { width: 210px; flex: none; background: var(--panel); border-right: 1px solid var(--borde); display: flex; flex-direction: column; padding: 14px 10px; gap: 4px; }
 .marca { background: #fff; border-radius: 12px; padding: 10px 12px; margin: 0 0 14px; }
 .marca img { display: block; width: 100%; height: auto; }
@@ -63,7 +63,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .banner span { display: block; color: var(--suave); font-size: 12px; margin-top: 2px; }
 .cuenta { flex: 1; color: var(--txt); }
 .oculto { display: none !important; }
-.registro { height: 190px; background: #0e0c14; border-top: 1px solid var(--borde); display: flex; flex-direction: column; }
+.registro { flex: none; height: 190px; background: #0e0c14; border-top: 1px solid var(--borde); display: flex; flex-direction: column; }
 .reg-cab { display: flex; gap: 10px; align-items: center; padding: 6px 14px; border-bottom: 1px solid var(--borde); }
 .reg-cab .esp { flex: 1; }
 .reg-cab button { padding: 3px 10px; font-size: 12px; }
@@ -139,3 +139,5 @@ textarea { resize: vertical; line-height: 1.45; }
 .peligro { border-color: var(--mal); color: var(--mal); }
 .peligro:hover { background: #3a1820; }
 .mini-b { padding: 3px 12px; font-size: 12px; border-radius: 14px; }
+.barra-estado { flex: none; padding: 8px 28px; background: var(--bg); border-top: 1px solid var(--borde); box-shadow: 0 -8px 16px rgba(0,0,0,.4); }
+.barra-estado .contador, .barra-estado .contador.fijo { position: static; margin: 0; box-shadow: none; padding: 8px 16px; line-height: 1.45; }
