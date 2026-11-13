@@ -190,17 +190,29 @@ async function actualizarCuenta() {
   return cs;
 }
 let esperandoLogin = null;
+let urlLogin = "";
 async function iniciarSesion() {
+  ir("claude");
   const r = await window.ctv.claudeLogin();
   if (!r.ok) return escribir("⚠ " + r.error);
-  escribir("Se abrió el inicio de sesión de Claude: complétalo en el navegador. La app lo detecta sola.");
+  escribir("Iniciando sesión de Claude… se abrirá el navegador; si no, usa el enlace que aparece en esta pantalla.");
   if (esperandoLogin) clearInterval(esperandoLogin);
   let n = 0;
   esperandoLogin = setInterval(async () => {
     n++; const cs = await window.ctv.claudeStatus();
-    if (cs.sesion || n > 60) { clearInterval(esperandoLogin); esperandoLogin = null; actualizarCuenta(); comprobarEntorno(); if (cs.sesion) escribir("Sesión de Claude iniciada ✔"); }
+    if (cs.sesion || n > 90) {
+      clearInterval(esperandoLogin); esperandoLogin = null;
+      $("#login-ayuda").classList.add("oculto"); actualizarCuenta(); comprobarEntorno();
+      if (cs.sesion) escribir("Sesión de Claude iniciada ✔");
+    }
   }, 4000);
 }
+window.ctv.onLoginUrl(({ url }) => { urlLogin = url; $("#login-url").value = url; $("#login-ayuda").classList.remove("oculto"); });
+window.ctv.onLoginFin(({ ventana }) => { if (ventana) escribir("Se abrió una ventana de comandos para iniciar sesión: sigue sus instrucciones."); });
+$("#b-url-abrir").addEventListener("click", () => urlLogin && window.ctv.openUrl(urlLogin));
+$("#b-url-copiar").addEventListener("click", async () => { if (urlLogin) { await window.ctv.copiar(urlLogin); escribir("Enlace copiado: pégalo en tu navegador."); } });
+$("#b-codigo").addEventListener("click", async () => { const v = $("#login-codigo").value.trim(); if (!v) return; await window.ctv.claudeLoginCode(v); $("#login-codigo").value = ""; escribir("Código enviado."); });
+$("#b-login-ventana").addEventListener("click", () => window.ctv.claudeLoginVentana());
 $("#b-login").addEventListener("click", iniciarSesion);
 $("#b-logout").addEventListener("click", async () => { await window.ctv.claudeLogout(); actualizarCuenta(); comprobarEntorno(); });
 $("#b-cuenta").addEventListener("click", () => { actualizarCuenta(); comprobarEntorno(); });

@@ -116,6 +116,12 @@
           <button class="p fuerte oculto" id="b-login">Iniciar sesión</button>
           <button class="oculto" id="b-logout">Cerrar sesión</button>
           <button id="b-cuenta">Comprobar</button></div>
+        <div id="login-ayuda" class="login-ayuda oculto">
+          <b>Inicia sesión en el navegador.</b> Si no se abrió, usa el enlace:
+          <div class="fila"><input id="login-url" readonly /><button id="b-url-abrir">Abrir</button><button id="b-url-copiar">Copiar</button></div>
+          <div class="fila"><span class="et-f" style="width:auto">¿Te pidió un código? Pégalo aquí</span><input id="login-codigo" placeholder="código de Claude" /><button id="b-codigo">Enviar</button></div>
+          <div class="fila"><button id="b-login-ventana">No funciona: abrir en una ventana de comandos</button></div>
+        </div>
         <p class="chico">Cada persona usa su propia cuenta de Claude. El inicio de sesión se hace en el navegador, la app nunca ve tu contraseña.</p>
       </div>
       <label class="et">Línea</label>

@@ -2,7 +2,7 @@
 // - Muestra el panel (renderer/), guarda la configuracion y prepara la "carpeta de trabajo" con el motor (engine/).
 // - Ejecuta los scripts del motor con uv/ffmpeg y reenvia el registro a la interfaz.
 // - Se actualiza desde el repositorio de GitHub (engine/ y renderer/ se descargan a una carpeta "overlay").
-const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -317,15 +317,49 @@ async function estadoClaude() {
   catch { return { instalado: true, sesion: false }; }
 }
 ipcMain.handle("claude:status", () => estadoClaude());
-ipcMain.handle("claude:login", () => {
+let loginProc = null;
+function enviar(canal, dato) { if (win && !win.isDestroyed()) win.webContents.send(canal, dato); }
+function ventanaLogin(c) {            // alternativa: ventana de PowerShell con el inicio de sesion oficial
+  const cmd = "Write-Host 'Inicio de sesion de Claude Code: sigue las instrucciones y, cuando termines, vuelve a CreaTuVideo.' -ForegroundColor Cyan; & '" + c.replace(/'/g, "''") + "' auth login";
+  spawn("powershell.exe", ["-NoExit", "-NoProfile", "-Command", cmd], { detached: true, stdio: "ignore", windowsHide: false }).unref();
+}
+ipcMain.handle("claude:login", (_e, opts) => {
   const c = findClaude();
   if (!c) return { ok: false, error: "Claude Code no esta instalado. Usa \"Instalar todo lo que falta\"." };
-  // se abre una ventana con el inicio de sesion oficial: se completa en el navegador, con la cuenta de cada persona
-  const cmd = "Write-Host 'Inicio de sesion de Claude Code: se abrira tu navegador. Cuando termines, vuelve a CreaTuVideo.' -ForegroundColor Cyan; & '" + c.replace(/'/g, "''") + "' auth login";
-  const p = spawn("powershell.exe", ["-NoExit", "-NoProfile", "-Command", cmd], { detached: true, stdio: "ignore", windowsHide: false });
-  p.unref();
+  if (loginProc) { try { loginProc.kill(); } catch {} loginProc = null; }
+  // La app lanza el inicio de sesion, captura el enlace y lo abre ella misma (y lo muestra por si el navegador no se abre solo).
+  const args = ["auth", "login"]; if (opts && opts.consola) args.push("--console");
+  const ansi = /\x1b\[[0-9;?]*[A-Za-z]/g;
+  let url = null, buf = "";
+  const p = spawn(c, args, { env: process.env, windowsHide: true });
+  loginProc = p;
+  const alRecibir = (d) => {
+    const t = String(d).replace(ansi, ""); buf += t;
+    const mm = buf.match(/https?:\/\/[^\s"'<>]+/);
+    if (mm && !url) {
+      url = mm[0].replace(/[.,;)\]]+$/, "");
+      shell.openExternal(url);
+      enviar("login:url", { url });
+      log("Se abrio el navegador para iniciar sesion. Si no se ve, usa el enlace que aparece en la pantalla de Claude Code.");
+    }
+    t.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).forEach((l) => log("Claude: " + l.replace(/https?:\/\/\S+/g, "[enlace]")));
+  };
+  p.stdout.setEncoding("utf8"); p.stderr.setEncoding("utf8");
+  p.stdout.on("data", alRecibir); p.stderr.on("data", alRecibir);
+  p.on("error", (e) => { log("ERROR al iniciar sesion: " + e.message); if (loginProc === p) { loginProc = null; ventanaLogin(c); enviar("login:fin", { ventana: true }); } });
+  p.on("close", (code) => { if (loginProc === p) loginProc = null; enviar("login:fin", { code }); });
+  setTimeout(() => {                    // si no aparece ningun enlace, se usa la ventana de PowerShell
+    if (loginProc === p && !url) { log("No aparecio el enlace: se abre la ventana de inicio de sesion."); try { p.kill(); } catch {} loginProc = null; ventanaLogin(c); enviar("login:fin", { ventana: true }); }
+  }, 15000);
+  setTimeout(() => { if (loginProc === p) { try { p.kill(); } catch {} } }, 10 * 60 * 1000);
   return { ok: true };
 });
+ipcMain.handle("claude:login-code", (_e, codigo) => {
+  if (!loginProc || !loginProc.stdin || !codigo) return { ok: false };
+  loginProc.stdin.write(String(codigo).trim() + "\n"); return { ok: true };
+});
+ipcMain.handle("claude:login-ventana", () => { const c = findClaude(); if (!c) return { ok: false }; if (loginProc) { try { loginProc.kill(); } catch {} loginProc = null; } ventanaLogin(c); return { ok: true }; });
+ipcMain.handle("clip:copy", (_e, t) => { clipboard.writeText(String(t)); return true; });
 ipcMain.handle("claude:logout", async () => {
   const c = findClaude(); if (!c) return { ok: false };
   const r = await capturar(c, ["auth", "logout"]);
