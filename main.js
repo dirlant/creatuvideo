@@ -308,6 +308,40 @@ ipcMain.handle("claude:open", (_e, { linea, instruccion }) => {
   return { ok: true };
 });
 
+// ------------------------------------------------------------------ restos del instalador antiguo (Agente)
+// El instalador antiguo dejaba videos precargados (el recorte del mentor). CreaTuVideo no trae ninguno: si encuentra esos
+// archivos de una instalacion previa, pregunta y los manda a la papelera. Solo toca los videos que ese instalador dejo.
+const VIDEOS_PRECARGADOS_AGENTE = [path.join("por-cortar", "hook", "mentor_recorte.webm"), path.join("hook", "mentor_recorte.webm")];
+function restosAgente() {
+  const raices = process.env.CTV_AGENTE_RAIZ ? process.env.CTV_AGENTE_RAIZ.split(path.delimiter)
+    : [path.join(os.homedir(), "proyectos", "agente"), path.join(app.getPath("documents"), "proyectos", "agente")];
+  const vistos = new Set(), res = [];
+  for (const r of raices) for (const rel of VIDEOS_PRECARGADOS_AGENTE) {
+    const f = path.join(r, rel), k = f.toLowerCase();
+    if (vistos.has(k)) continue; vistos.add(k);
+    try { const st = fs.statSync(f); if (st.isFile()) res.push({ ruta: f, mb: st.size / 1048576 }); } catch {}
+  }
+  return res;
+}
+async function limpiarInstalacionPrevia() {
+  const s = getSettings();
+  if (s.agenteRevisado && !process.env.CTV_AGENTE_RAIZ) return;
+  const restos = restosAgente();
+  if (!restos.length) return;
+  let borrar = !!process.env.CTV_AUTO_SI;
+  if (!borrar) {
+    const r = await dialog.showMessageBox(win, {
+      type: "question", buttons: ["Mover a la papelera", "Conservar"], defaultId: 1, cancelId: 1, title: "Instalación anterior encontrada",
+      message: "Hay videos precargados de una instalación anterior (Agente).",
+      detail: restos.map((x) => x.ruta + "  (" + x.mb.toFixed(1) + " MB)").join("\n") + "\n\nCreaTuVideo ya no los necesita; los videos que uses son los de cada persona. Se mueven a la papelera, así que puedes recuperarlos.",
+    });
+    borrar = r.response === 0;
+  }
+  if (borrar) for (const x of restos) { try { await shell.trashItem(x.ruta); log("Movido a la papelera: " + x.ruta); } catch (e) { log("No se pudo mover " + x.ruta + ": " + e.message); } }
+  const g = getSettings(); g.agenteRevisado = true; saveSettings(g);
+}
+ipcMain.handle("agente:restos", () => restosAgente());
+
 // ------------------------------------------------------------------ cuenta de Claude Code (cada persona inicia sesion con la suya)
 async function estadoClaude() {
   const c = findClaude();
@@ -432,6 +466,7 @@ function crearVentana() {
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) shell.openExternal(url); return { action: "deny" }; });
   win.webContents.on("did-finish-load", async () => {
     try { syncWorkspace(); } catch (e) { log("ERROR al preparar la carpeta de trabajo: " + e.message); }
+    setTimeout(() => { limpiarInstalacionPrevia().catch((e) => log("Limpieza: " + e.message)); }, 4000);
     if (getSettings().autoUpdate) setTimeout(async () => { const i = await comprobarActualizacion(); if (win && !win.isDestroyed()) win.webContents.send("update:info", i); }, 3000);
   });
 }
