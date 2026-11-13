@@ -464,7 +464,7 @@ function mostrarUpd(i) {
   const aviso = $("#aviso-upd"), txt = $("#txt-upd"), btn = $("#b-upd-ir");
   if (!i.ok) { txt.textContent = i.motivo; aviso.classList.add("oculto"); btn.disabled = true; return; }
   if (i.hay) {
-    txt.textContent = "Hay una versión nueva (" + i.corto + "): " + i.mensaje;
+    txt.textContent = "";
     aviso.textContent = "Actualización disponible (" + i.corto + "). Clic para descargar e instalar."; aviso.classList.remove("oculto"); btn.disabled = false;
   } else { txt.textContent = "Estás al día (" + i.actual + ")."; aviso.classList.add("oculto"); btn.disabled = true; }
 }

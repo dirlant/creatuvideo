@@ -113,3 +113,5 @@ textarea { resize: vertical; line-height: 1.45; }
 .opcion span { display: block; color: var(--suave); font-size: 12px; margin-top: 2px; }
 .problemas.apagado .fila, .problemas.apagado .etiquetas { opacity: .45; }
 .chip.auto { align-self: flex-start; }
+.nav-upd { width: 100%; margin-top: 8px; }
+.nav-pie #txt-upd { margin-top: 6px; }
