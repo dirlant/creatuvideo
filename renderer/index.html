@@ -41,6 +41,14 @@
     <section id="v-dianchi" class="vista">
       <h1>Dianchi</h1>
       <p class="sub">Elige los videos del lote y sigue los pasos en orden: verificar → descargar → hoja de contacto → render.</p>
+      <div class="cfg"><h3>Carpetas y opciones de Dianchi</h3>
+        <div id="cfg-dianchi" class="filas"></div>
+        <div class="grid2">
+          <label class="chk"><input type="checkbox" id="pr-efectos" /> Efectos de tendencia (zoom, destello, barra de progreso)</label>
+          <label class="chk"><input type="checkbox" id="pr-relleno" /> Usar mis videos de relleno en vez de descargar de Pexels</label>
+          <div><label class="et">Voz</label><select class="sel-voz"></select></div>
+        </div>
+      </div>
       <div class="barra">
         <button data-acc="seleccionar" data-l="dianchi">Marcar todos</button>
         <button data-acc="ninguno" data-l="dianchi">Quitar marcas</button>
@@ -62,7 +70,11 @@
 
     <section id="v-diegao" class="vista">
       <h1>Diegao</h1>
-      <p class="sub">Videos de mentor sin hook: narración + animación, cortes cada ~3 s, sonidos de “bueno” y “malo”. Pon los videos del evento en la carpeta fuente (Ajustes).</p>
+      <p class="sub">Videos de mentor sin hook: narración + animación, cortes cada ~3 s, sonidos de “bueno” y “malo”. Pon los videos del evento en la carpeta fuente.</p>
+      <div class="cfg"><h3>Carpetas y opciones de Diegao</h3>
+        <div id="cfg-diegao" class="filas"></div>
+        <div class="grid2"><div><label class="et">Voz</label><select class="sel-voz"></select></div></div>
+      </div>
       <div class="barra">
         <button data-acc="seleccionar" data-l="diegao">Marcar todos</button>
         <button data-acc="ninguno" data-l="diegao">Quitar marcas</button>
@@ -83,6 +95,9 @@
     <section id="v-cortar" class="vista">
       <h1>Cortar y silencios</h1>
       <p class="sub">Pon el video en la carpeta de entrada. Claude Code lo transcribe, quita silencios, elige los clips y aplica el patrón de interrupción según <code>por-cortar/prompt/PROMPT_cortar.md</code>.</p>
+      <div class="cfg"><h3>Carpetas de Cortar y silencios</h3>
+        <div id="cfg-cortar" class="filas"></div>
+      </div>
       <div class="barra">
         <button data-abrir="por-cortar/entrada">Abrir carpeta de entrada</button>
         <button data-abrir="por-cortar/resultado">Abrir resultados</button>
@@ -96,6 +111,13 @@
     <section id="v-claude" class="vista">
       <h1>Claude Code</h1>
       <p class="sub">Escribe lo que quieres (un lote nuevo, un cambio de estilo, una regla nueva). Se abre Claude Code en la carpeta de trabajo, ya con las reglas de la línea elegida.</p>
+      <div class="cfg"><h3>Cuenta de Claude</h3>
+        <div class="fila"><span id="txt-cuenta" class="cuenta">Comprobando…</span>
+          <button class="p fuerte oculto" id="b-login">Iniciar sesión</button>
+          <button class="oculto" id="b-logout">Cerrar sesión</button>
+          <button id="b-cuenta">Comprobar</button></div>
+        <p class="chico">Cada persona usa su propia cuenta de Claude. El inicio de sesión se hace en el navegador, la app nunca ve tu contraseña.</p>
+      </div>
       <label class="et">Línea</label>
       <select id="sel-linea">
         <option value="dianchi">Dianchi</option>
@@ -117,26 +139,11 @@
 
     <section id="v-ajustes" class="vista">
       <h1>Ajustes</h1>
-      <h2>Carpetas</h2>
-      <p class="chico">Si dejas una vacía, se usa una carpeta dentro de la carpeta de trabajo. Las que elijas se enlazan sin copiar nada.</p>
-      <div id="filas-dirs" class="filas"></div>
+      <h2>Carpeta de trabajo</h2>
+      <p class="chico">Donde la app guarda los scripts y los archivos temporales. Las carpetas de resultados, imágenes y videos se eligen en cada sección (Dianchi, Diegao, Cortar).</p>
       <div class="fila">
         <span class="et-f">Carpeta de trabajo</span>
         <input id="in-ws" readonly /><button data-ws="elegir">Elegir</button><button data-abrir="">Abrir</button>
-      </div>
-
-      <h2>Predeterminados</h2>
-      <div class="grid2">
-        <label class="chk"><input type="checkbox" id="pr-efectos" /> Efectos de tendencia en Dianchi (zoom, destello, barra de progreso)</label>
-        <label class="chk"><input type="checkbox" id="pr-relleno" /> Usar mis videos de relleno en vez de descargar de Pexels</label>
-        <div><label class="et">Voz</label>
-          <select id="pr-voz">
-            <option value="es-MX-JorgeNeural">Jorge (México, hombre)</option>
-            <option value="es-MX-DaliaNeural">Dalia (México, mujer)</option>
-            <option value="es-CO-GonzaloNeural">Gonzalo (Colombia, hombre)</option>
-            <option value="es-CO-SalomeNeural">Salomé (Colombia, mujer)</option>
-            <option value="es-ES-AlvaroNeural">Álvaro (España, hombre)</option>
-          </select></div>
       </div>
 
       <div id="bloque-claves">

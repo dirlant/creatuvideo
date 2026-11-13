@@ -49,6 +49,7 @@ function saveSettings(s) {
 const OVERLAY = () => path.join(app.getPath("userData"), "overlay");
 function metaOverlay() { try { return JSON.parse(fs.readFileSync(path.join(OVERLAY(), "meta.json"), "utf8")); } catch { return null; } }
 function overlayValido() {
+  if (process.env.CTV_NO_OVERLAY) return false;                 // para probar cambios locales sin la version descargada
   const m = metaOverlay();
   return !!m && m.base === app.getVersion() && fs.existsSync(path.join(OVERLAY(), "engine"));   // un instalador nuevo descarta overlays viejos
 }
@@ -301,10 +302,34 @@ ipcMain.handle("claude:open", (_e, { linea, instruccion }) => {
   const pre = linea && linea !== "general" ? "Trabaja en la carpeta ./" + linea + ". Antes de empezar lee ./" + linea + "/CLAUDE.md y ./" + linea + "/prompt/AJUSTES.md.\n\n" : "";
   const archivo = path.join(ws, "_instruccion.txt");
   fs.writeFileSync(archivo, pre + instruccion + "\n\nLa app CreaTuVideo usa los scripts de ./scripts y las carpetas de entrada/resultado de cada linea; si cambias una regla que deba valer a futuro, anotala en prompt/AJUSTES.md.", "utf8");
-  const cmd = "claude 'Lee el archivo _instruccion.txt de esta carpeta y haz lo que pide.'";
+  const cmd = "& '" + claude.replace(/'/g, "''") + "' 'Lee el archivo _instruccion.txt de esta carpeta y haz lo que pide.'";
   const p = spawn("powershell.exe", ["-NoExit", "-NoProfile", "-Command", cmd], { cwd: ws, detached: true, stdio: "ignore", windowsHide: false });
   p.unref();
   return { ok: true };
+});
+
+// ------------------------------------------------------------------ cuenta de Claude Code (cada persona inicia sesion con la suya)
+async function estadoClaude() {
+  const c = findClaude();
+  if (!c) return { instalado: false, sesion: false };
+  const r = await Promise.race([capturar(c, ["auth", "status"]), new Promise((res) => setTimeout(() => res({ code: -1, out: "", err: "tiempo agotado" }), 20000))]);
+  try { const j = JSON.parse(r.out); return { instalado: true, sesion: !!j.loggedIn, email: j.email || "", metodo: j.authMethod || "" }; }
+  catch { return { instalado: true, sesion: false }; }
+}
+ipcMain.handle("claude:status", () => estadoClaude());
+ipcMain.handle("claude:login", () => {
+  const c = findClaude();
+  if (!c) return { ok: false, error: "Claude Code no esta instalado. Usa \"Instalar todo lo que falta\"." };
+  // se abre una ventana con el inicio de sesion oficial: se completa en el navegador, con la cuenta de cada persona
+  const cmd = "Write-Host 'Inicio de sesion de Claude Code: se abrira tu navegador. Cuando termines, vuelve a CreaTuVideo.' -ForegroundColor Cyan; & '" + c.replace(/'/g, "''") + "' auth login";
+  const p = spawn("powershell.exe", ["-NoExit", "-NoProfile", "-Command", cmd], { detached: true, stdio: "ignore", windowsHide: false });
+  p.unref();
+  return { ok: true };
+});
+ipcMain.handle("claude:logout", async () => {
+  const c = findClaude(); if (!c) return { ok: false };
+  const r = await capturar(c, ["auth", "logout"]);
+  return { ok: r.code === 0 };
 });
 
 // ------------------------------------------------------------------ actualizacion desde GitHub

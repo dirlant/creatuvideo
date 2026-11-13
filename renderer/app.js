@@ -10,6 +10,7 @@ function ir(v) {
   $$(".nav-b").forEach((b) => b.classList.toggle("activo", b.dataset.v === v));
   if (v === "dianchi" || v === "diegao") cargarLista(v, false);
   if (v === "ajustes") comprobarEntorno();
+  if (v === "claude") actualizarCuenta();
 }
 $$(".nav-b").forEach((b) => b.addEventListener("click", () => ir(b.dataset.v)));
 $$("[data-ir]").forEach((b) => b.addEventListener("click", () => ir(b.dataset.ir)));
@@ -63,6 +64,8 @@ $$("[data-abrir]").forEach((b) => b.addEventListener("click", () => window.ctv.o
 $$(".chip").forEach((c) => c.addEventListener("click", () => { $("#txt-claude").value = c.dataset.p; $("#txt-claude").focus(); }));
 async function enviarClaude(linea, texto) {
   if (!texto.trim()) return escribir("Escribe una instrucción primero.");
+  const cs = await window.ctv.claudeStatus();
+  if (cs.instalado && !cs.sesion) { ir("claude"); actualizarCuenta(); return escribir("⚠ Primero inicia sesión en Claude con tu cuenta (botón «Iniciar sesión» arriba)."); }
   const r = await window.ctv.openClaude({ linea, instruccion: texto });
   escribir(r.ok ? "Claude Code abierto en una ventana nueva." : "⚠ " + r.error);
 }
@@ -70,35 +73,49 @@ $("#b-claude").addEventListener("click", () => enviarClaude($("#sel-linea").valu
 $("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#txt-cortar").value));
 
 // ---------------------------------------------------------------- ajustes
-const DIRS = [
-  ["dianchiResultado", "Resultados de Dianchi"],
-  ["diegaoResultado", "Resultados de Diegao"],
-  ["cortarResultado", "Resultados de cortes"],
-  ["imagenes", "Carpeta de imágenes"],
-  ["relleno", "Videos de relleno (Dianchi)"],
-  ["diegaoFuente", "Videos fuente de Diegao"],
-  ["cortarEntrada", "Video a cortar (entrada)"],
-];
-function pintarDirs() {
-  const c = $("#filas-dirs"); c.innerHTML = "";
-  for (const [k, nombre] of DIRS) {
-    const f = document.createElement("div"); f.className = "fila";
-    f.innerHTML = '<span class="et-f"></span><input readonly placeholder="(dentro de la carpeta de trabajo)" /><button data-k="' + k + '">Elegir</button><button data-x="' + k + '">Quitar</button>';
-    $(".et-f", f).textContent = nombre; $("input", f).value = ajustes.dirs[k] || "";
-    c.appendChild(f);
-  }
-  $$("[data-k]", c).forEach((b) => b.addEventListener("click", async () => {
-    const p = await window.ctv.pickFolder("Elegir carpeta"); if (!p) return;
-    ajustes.dirs[b.dataset.k] = p; pintarDirs();
-  }));
-  $$("[data-x]", c).forEach((b) => b.addEventListener("click", () => { ajustes.dirs[b.dataset.x] = ""; pintarDirs(); }));
+// Las carpetas y opciones se eligen en la misma pantalla de cada tipo de edicion y se guardan solas.
+const NOMBRES_DIRS = {
+  dianchiResultado: "Resultados de Dianchi", imagenes: "Carpeta de imágenes", relleno: "Videos de relleno",
+  diegaoResultado: "Resultados de Diegao", diegaoFuente: "Videos fuente (evento)",
+  cortarEntrada: "Video a cortar (entrada)", cortarResultado: "Resultados de los cortes",
+};
+const SECCIONES = {
+  dianchi: ["dianchiResultado", "imagenes", "relleno"],
+  diegao: ["diegaoResultado", "diegaoFuente"],
+  cortar: ["cortarEntrada", "cortarResultado"],
+};
+const VOCES = [["es-MX-JorgeNeural", "Jorge (México, hombre)"], ["es-MX-DaliaNeural", "Dalia (México, mujer)"], ["es-CO-GonzaloNeural", "Gonzalo (Colombia, hombre)"], ["es-CO-SalomeNeural", "Salomé (Colombia, mujer)"], ["es-ES-AlvaroNeural", "Álvaro (España, hombre)"]];
+$$(".sel-voz").forEach((s) => { for (const [v, n] of VOCES) { const o = document.createElement("option"); o.value = v; o.textContent = n; s.appendChild(o); } });
+async function guardarAuto() {
+  ajustes = await window.ctv.saveSettings(ajustes);
+  pintarSecciones();
 }
-function pintarAjustes() {
-  pintarDirs();
-  $("#in-ws").value = ajustes.workspace;
+function pintarSecciones() {
+  for (const [sec, claves] of Object.entries(SECCIONES)) {
+    const c = $("#cfg-" + sec); c.innerHTML = "";
+    for (const k of claves) {
+      const f = document.createElement("div"); f.className = "fila";
+      f.innerHTML = '<span class="et-f"></span><input readonly placeholder="(carpeta predeterminada dentro de la carpeta de trabajo)" /><button data-k="' + k + '">Elegir</button><button data-x="' + k + '">Quitar</button>';
+      $(".et-f", f).textContent = NOMBRES_DIRS[k]; $("input", f).value = ajustes.dirs[k] || "";
+      c.appendChild(f);
+    }
+    $$("[data-k]", c).forEach((b) => b.addEventListener("click", async () => {
+      const p = await window.ctv.pickFolder(NOMBRES_DIRS[b.dataset.k]); if (!p) return;
+      ajustes.dirs[b.dataset.k] = p; guardarAuto();
+    }));
+    $$("[data-x]", c).forEach((b) => b.addEventListener("click", () => { ajustes.dirs[b.dataset.x] = ""; guardarAuto(); }));
+  }
   $("#pr-efectos").checked = !!ajustes.presets.efectos;
   $("#pr-relleno").checked = !!ajustes.presets.rellenoLocal;
-  $("#pr-voz").value = ajustes.presets.voz;
+  $$(".sel-voz").forEach((s) => (s.value = ajustes.presets.voz));
+}
+$("#pr-efectos").addEventListener("change", (e) => { ajustes.presets.efectos = e.target.checked; guardarAuto(); });
+$("#pr-relleno").addEventListener("change", (e) => { ajustes.presets.rellenoLocal = e.target.checked; guardarAuto(); });
+$$(".sel-voz").forEach((s) => s.addEventListener("change", (e) => { ajustes.presets.voz = e.target.value; guardarAuto(); }));
+
+function pintarAjustes() {
+  pintarSecciones();
+  $("#in-ws").value = ajustes.workspace;
   $("#in-pexels").value = ajustes.pexelsKey || "";
   const inc = ajustes.incluidas || {};                       // claves que vienen incluidas: ni se muestran ni se piden
   $("#bloque-pexels").classList.toggle("oculto", !!inc.pexels);
@@ -109,7 +126,6 @@ function pintarAjustes() {
 }
 $("[data-ws]").addEventListener("click", async () => { const p = await window.ctv.pickFolder("Carpeta de trabajo"); if (p) { ajustes.workspace = p; $("#in-ws").value = p; } });
 $("#b-guardar").addEventListener("click", async () => {
-  ajustes.presets = { efectos: $("#pr-efectos").checked, rellenoLocal: $("#pr-relleno").checked, voz: $("#pr-voz").value };
   ajustes.pexelsKey = $("#in-pexels").value.trim(); ajustes.githubToken = $("#in-gh").value.trim(); ajustes.autoUpdate = $("#pr-auto").checked;
   ajustes = await window.ctv.saveSettings(ajustes);
   $("#msg-guardar").textContent = "Guardado ✔";
@@ -133,6 +149,7 @@ $("#b-instalar-todo").addEventListener("click", instalarTodo);
 $("#b-instalar-todo2").addEventListener("click", instalarTodo);
 async function comprobarEntorno() {
   const e = await window.ctv.checkEnv();
+  const cs = await window.ctv.claudeStatus();
   const faltan = [["uv", "uv (Python)"], ["ffmpeg", "FFmpeg"], ["node", "Node.js"], ["claude", "Claude Code"]].filter(([k]) => !e[k]).map(([, n]) => n);
   $("#banner-falta").classList.toggle("oculto", !faltan.length);
   $("#txt-faltan").textContent = faltan.length ? "Falta: " + faltan.join(", ") + "." : "";
@@ -152,9 +169,41 @@ async function comprobarEntorno() {
       }
       cont.appendChild(f);
     }
+    if (cs.instalado) {                                         // sesion de Claude Code
+      const f = document.createElement("div"); f.className = "estado" + (cs.sesion ? " ok" : "");
+      f.innerHTML = '<span class="pt"></span><span class="n">Sesión de Claude</span><span class="r"></span>';
+      $(".r", f).textContent = cs.sesion ? "Iniciada" + (cs.email ? " (" + cs.email + ")" : "") : "Sin iniciar sesión";
+      if (!cs.sesion) { const b = document.createElement("button"); b.textContent = "Iniciar sesión"; b.addEventListener("click", iniciarSesion); f.appendChild(b); }
+      cont.appendChild(f);
+    }
   }
 }
 $("#b-entorno").addEventListener("click", comprobarEntorno);
+
+// ---------------------------------------------------------------- cuenta de Claude
+async function actualizarCuenta() {
+  const cs = await window.ctv.claudeStatus();
+  const t = $("#txt-cuenta");
+  $("#b-login").classList.toggle("oculto", !cs.instalado || cs.sesion);
+  $("#b-logout").classList.toggle("oculto", !cs.sesion);
+  t.textContent = !cs.instalado ? "Claude Code no está instalado (usa «Instalar todo lo que falta» en Ajustes)." : cs.sesion ? "● Sesión iniciada" + (cs.email ? " como " + cs.email : "") : "● Sin sesión iniciada";
+  return cs;
+}
+let esperandoLogin = null;
+async function iniciarSesion() {
+  const r = await window.ctv.claudeLogin();
+  if (!r.ok) return escribir("⚠ " + r.error);
+  escribir("Se abrió el inicio de sesión de Claude: complétalo en el navegador. La app lo detecta sola.");
+  if (esperandoLogin) clearInterval(esperandoLogin);
+  let n = 0;
+  esperandoLogin = setInterval(async () => {
+    n++; const cs = await window.ctv.claudeStatus();
+    if (cs.sesion || n > 60) { clearInterval(esperandoLogin); esperandoLogin = null; actualizarCuenta(); comprobarEntorno(); if (cs.sesion) escribir("Sesión de Claude iniciada ✔"); }
+  }, 4000);
+}
+$("#b-login").addEventListener("click", iniciarSesion);
+$("#b-logout").addEventListener("click", async () => { await window.ctv.claudeLogout(); actualizarCuenta(); comprobarEntorno(); });
+$("#b-cuenta").addEventListener("click", () => { actualizarCuenta(); comprobarEntorno(); });
 
 // ---------------------------------------------------------------- actualizaciones
 let ultimaInfo = null;
