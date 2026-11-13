@@ -4,3 +4,12 @@ dist/
 .DS_Store
 build/defaults.json
 trabajo/
+
+# Los videos son de cada persona: nunca van en el repositorio ni en el instalador
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.avi
+*.mp3
+*.wav
