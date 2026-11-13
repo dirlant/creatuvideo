@@ -107,7 +107,7 @@ const OPC = {
     ["Que escriba un mensaje", "invitar a enviar un mensaje privado con una palabra clave relacionada con el servicio para recibir información o agendar.", "mensaje", "Escríbeme"],
   ],
 };
-const BRIEF0 = { idioma: "Español", tema: "", rubros: [], formatos: [OPC.formatos[0][0]], tonos: ["Cercano"], tematicas: [], problemas: [], ganchos: [OPC.ganchos[0][0]], ctas: ["Que lo guarde"], duracion: 25, variaciones: 1 };
+const BRIEF0 = { idioma: "Español", problemasAuto: true, rubros: [], formatos: [OPC.formatos[0][0]], tonos: ["Cercano"], tematicas: [], problemas: [], ganchos: [OPC.ganchos[0][0]], ctas: ["Que lo guarde"], duracion: 25, variaciones: 1 };
 // dimensiones que se combinan: [clave, singular, plural]
 const DIMS = [["rubros", "rubro", "rubros"], ["tematicas", "temática", "temáticas"], ["formatos", "formato", "formatos"], ["tonos", "emoción", "emociones"], ["ganchos", "gancho", "ganchos"], ["ctas", "acción", "acciones"]];
 function brief() {                               // siempre el MISMO objeto, completando solo lo que falte
@@ -116,20 +116,24 @@ function brief() {                               // siempre el MISMO objeto, com
   const b = p.brief;
   for (const [nuevo, viejo] of [["formatos", "formato"], ["tonos", "tono"], ["ganchos", "gancho"], ["ctas", "cta"]])   // version anterior: un solo valor
     if (!Array.isArray(b[nuevo]) && typeof b[viejo] === "string" && b[viejo]) b[nuevo] = [b[viejo]];
+  if (!Array.isArray(b.problemas)) b.problemas = [];
+  if (typeof b.tema === "string" && b.tema.trim() && !b.problemas.includes(b.tema.trim())) { b.problemas.push(b.tema.trim()); b.tema = ""; }   // el antiguo "de qué hablar" pasa a ser un problema
+  if (!("problemasAuto" in b)) b.problemasAuto = !b.problemas.length;
   if (!Array.isArray(b.problemas) && typeof b.tendencia === "string" && b.tendencia.trim()) b.problemas = [b.tendencia.trim()];
   for (const k of Object.keys(BRIEF0)) if (!(k in b)) b[k] = Array.isArray(BRIEF0[k]) ? [...BRIEF0[k]] : BRIEF0[k];
   return b;
 }
 let tGuardarBrief = null;
 function guardarBrief() { clearTimeout(tGuardarBrief); tGuardarBrief = setTimeout(() => window.ctv.saveSettings(ajustes), 500); }
-const totalVideos = () => { const b = brief(); let n = (Number(b.variaciones) || 1) * Math.max(1, b.problemas.length); for (const [k] of DIMS) { if (!b[k].length) return 0; n *= b[k].length; } return n; };
+const problemasEf = (b) => (b.problemasAuto ? [] : b.problemas);
+const totalVideos = () => { const b = brief(); let n = (Number(b.variaciones) || 1) * (b.problemasAuto ? 1 : b.problemas.length); for (const [k] of DIMS) { if (!b[k].length) return 0; n *= b[k].length; } return n; };
 function desgloseBrief() {
   const b = brief(), partes = DIMS.filter(([k]) => b[k].length > 1).map(([k, s, p]) => b[k].length + " " + p);
-  if (b.problemas.length > 1) partes.push(b.problemas.length + " problemas");
+  if (!b.problemasAuto && b.problemas.length > 1) partes.push(b.problemas.length + " problemas");
   if (Number(b.variaciones) > 1) partes.push(b.variaciones + " variaciones");
   return partes.length ? partes.join(" × ") : "una sola combinación";
 }
-const FALTA = () => { const b = brief(), f = DIMS.filter(([k]) => !b[k].length).map(([k, s]) => s); return f.length ? "Elige al menos un valor en: " + f.join(", ") + "." : ""; };
+const FALTA = () => { const b = brief(), f = DIMS.filter(([k]) => !b[k].length).map(([k, s]) => s); if (!b.problemasAuto && !b.problemas.length) f.push("temática o problema (o activa Automático)"); return f.length ? "Elige al menos un valor en: " + f.join(", ") + "." : ""; };
 
 function actualizarContador() {
   const b = brief(), el = $("#brief-contador"), n = totalVideos();
@@ -141,7 +145,9 @@ function actualizarContador() {
     + (n > 16 ? "<br><span class='aviso-n'>⚠ Son muchos videos: conviene hacerlos en lotes de 16 o menos.</span>" : "");
   resumenDianchi();
 }
+let nCampo = 0;
 function campo(num, titulo, ayuda, nodo, ancho) {
+  if (num) num = ++nCampo;
   const d = document.createElement("div"); d.className = "campo" + (ancho ? " ancho" : "");
   const l = document.createElement("label"); l.className = "et"; l.textContent = (num ? num + ". " : "") + titulo.toUpperCase(); d.appendChild(l);
   if (ayuda) { const a = document.createElement("div"); a.className = "ayuda"; a.textContent = ayuda; d.appendChild(a); }
@@ -170,12 +176,9 @@ function campoMulti(num, titulo, nombres, sel, cambio, plural) {
 }
 function pintarBrief() {
   const cont = $("#brief-dianchi"); if (!cont || !ajustes) return;
-  const b = brief(); cont.innerHTML = "";
+  const b = brief(); cont.innerHTML = ""; nCampo = 0;
   const cambio = () => { guardarBrief(); actualizarContador(); };
   cont.appendChild(campo(1, "Idioma", "", selector(OPC.idiomas, b.idioma, (v) => { b.idioma = v; cambio(); })));
-  const ta = document.createElement("textarea"); ta.rows = 3; ta.value = b.tema; ta.placeholder = "Ej: Lifting de pestañas + Tinte, Diseño de cejas con henna…";
-  ta.addEventListener("input", () => { b.tema = ta.value; guardarBrief(); });
-  cont.appendChild(campo(2, "¿De qué quieres hablar?", "Escribe el servicio, producto o tema principal de tu contenido.", ta));
   const rb = chipsMulti(OPC.rubros, b.rubros, cambio);
   const fr = campo(3, "Rubro (uno o varios)", "", rb.cont, true);
   for (const [txt, fn] of [["Todos", rb.todos], ["Ninguno", rb.ninguno]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", fr).appendChild(m); }
@@ -187,15 +190,21 @@ function pintarBrief() {
   for (const [txt, fn] of [["Todas", tm.todos], ["Ninguna", tm.ninguno]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", ft).appendChild(m); }
   cont.appendChild(ft);
   const pb = document.createElement("div"); pb.className = "problemas";
+  const auto = document.createElement("button"); auto.type = "button"; auto.className = "chip auto";
   const fila = document.createElement("div"); fila.className = "fila";
   const tn = document.createElement("input"); tn.placeholder = "Escribe una temática o problema a resolver y pulsa Enter…";
   const ad = document.createElement("button"); ad.type = "button"; ad.textContent = "Agregar";
   const et = document.createElement("div"); et.className = "etiquetas";
-  const pintarEt = () => { et.innerHTML = ""; b.problemas.forEach((p, i) => { const e = document.createElement("span"); e.className = "etiqueta"; e.appendChild(document.createTextNode(p)); const x = document.createElement("button"); x.type = "button"; x.title = "Quitar"; x.textContent = "×"; x.addEventListener("click", () => { b.problemas.splice(i, 1); pintarEt(); cambio(); }); e.appendChild(x); et.appendChild(e); }); };
+  const pintarEt = () => {
+    auto.classList.toggle("on", !!b.problemasAuto); auto.textContent = (b.problemasAuto ? "✓ " : "") + "Automático: la app elige temáticas del rubro al azar";
+    tn.disabled = ad.disabled = !!b.problemasAuto; pb.classList.toggle("apagado", !!b.problemasAuto);
+    et.innerHTML = ""; b.problemas.forEach((p, i) => { const e = document.createElement("span"); e.className = "etiqueta"; e.appendChild(document.createTextNode(p)); const x = document.createElement("button"); x.type = "button"; x.title = "Quitar"; x.textContent = "×"; x.addEventListener("click", () => { b.problemas.splice(i, 1); pintarEt(); cambio(); }); e.appendChild(x); et.appendChild(e); });
+  };
   const agregar = () => { const v = tn.value.trim(); if (!v) return; if (!b.problemas.includes(v)) b.problemas.push(v); tn.value = ""; pintarEt(); cambio(); tn.focus(); };
+  auto.addEventListener("click", () => { b.problemasAuto = !b.problemasAuto; pintarEt(); cambio(); });
   ad.addEventListener("click", agregar); tn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); agregar(); } });
-  fila.appendChild(tn); fila.appendChild(ad); pb.appendChild(fila); pb.appendChild(et); pintarEt();
-  cont.appendChild(campo(7, "Temática o problema a resolver", "Agrega uno o varios, de uno en uno: cada uno se convierte en un guion distinto (opcional).", pb, true));
+  fila.appendChild(tn); fila.appendChild(ad); pb.appendChild(auto); pb.appendChild(fila); pb.appendChild(et); pintarEt();
+  cont.appendChild(campo(7, "Temática o problema a resolver", "Automático, o agrega los tuyos de uno en uno: cada uno se convierte en un guion distinto.", pb, true));
   cont.appendChild(campoMulti(8, "Gancho (uno o varios)", OPC.ganchos.map((x) => x[0]), b.ganchos, cambio));
   cont.appendChild(campoMulti(9, "¿Qué quieres que haga el usuario? (una o varias)", OPC.ctas.map((x) => x[0]), b.ctas, cambio));
   const rg = document.createElement("div"); rg.className = "rango";
@@ -216,22 +225,21 @@ function textoBrief() {
   // una entrada por cada combinacion de las dimensiones elegidas
   let combos = [[]];
   const listas = [b.rubros, b.tematicas, b.formatos, b.tonos, b.ganchos, b.ctas];
-  if (b.problemas.length) listas.push(b.problemas);
+  if (!b.problemasAuto) listas.push(b.problemas);
   for (const l of listas) combos = combos.flatMap((c) => l.map((x) => [...c, x]));
   const lineas = [];
   for (const c of combos) for (let v = 1; v <= b.variaciones; v++) {
     const ct = busca(OPC.ctas, c[5]);
-    lineas.push("- " + c[0] + " · " + c[1] + " · formato " + c[2] + " · emoción " + c[3] + " · gancho " + c[4] + " · acción " + c[5] + (b.problemas.length ? " · problema/temática a resolver: «" + c[6] + "»" : "") + " (cta_tipo=\"" + ct[2] + "\", la frase final empieza con «" + ct[3] + "»)" + (b.variaciones > 1 ? " · variación " + v : ""));
+    lineas.push("- " + c[0] + " · " + c[1] + " · formato " + c[2] + " · emoción " + c[3] + " · gancho " + c[4] + " · acción " + c[5] + (!b.problemasAuto ? " · problema/temática a resolver: «" + c[6] + "»" : " · temática a resolver: elígela tú al azar, propia del rubro y distinta en cada guion") + " (cta_tipo=\"" + ct[2] + "\", la frase final empieza con «" + ct[3] + "»)" + (b.variaciones > 1 ? " · variación " + v : ""));
   }
   return "Crea " + n + " guion" + (n === 1 ? "" : "es") + " nuevo" + (n === 1 ? "" : "s") + " para Dianchi y agrégalos a la lista RUBROS de scripts/dianchi_lote.py, con el mismo formato que los existentes (escenas con consultas de Pexels, collage, píldoras de pasos, globo de objeción, marcar). "
     + "Antes lee prompt/AJUSTES.md y prompt/rubros_hechos.md y no repitas lo ya hecho.\n\nOPCIONES (las mismas del formulario de Dianchi; cada guion usa UNA combinación de ellas):\n"
     + "- Idioma: " + b.idioma + (b.idioma === "Español" ? "" : " (usa el parámetro voz=\"" + voz + "\" en cada entrada)") + "\n"
-    + (b.tema.trim() ? "- De qué hablar: " + b.tema.trim() + "\n" : "")
     + "- Rubros: " + b.rubros.join(", ") + "\n"
     + "- Temáticas:\n" + defs(OPC.tematicas, b.tematicas) + "\n"
     + "- Formatos:\n" + defs(OPC.formatos, b.formatos) + "\n"
     + "- Emociones:\n" + defs(OPC.tonos, b.tonos) + "\n"
-    + (b.problemas.length ? "- Temáticas o problemas a resolver (cada guion trata UNO): " + b.problemas.map((p) => "«" + p + "»").join("; ") + "\n" : "")
+    + (b.problemasAuto ? "- Temática o problema a resolver: AUTOMÁTICO. Elige tú, al azar, un problema o tema concreto y real del rubro para cada guion, sin repetir entre guiones ni con prompt/rubros_hechos.md.\n" : "- Temáticas o problemas a resolver (cada guion trata UNO): " + b.problemas.map((p) => "«" + p + "»").join("; ") + "\n")
     + "- Ganchos:\n" + defs(OPC.ganchos, b.ganchos) + "\n"
     + "- Acciones del usuario:\n" + defs(OPC.ctas, b.ctas) + "\n"
     + "- Duración objetivo: " + b.duracion + " segundos (máximo 30; unas 2,5 palabras por segundo).\n"
