@@ -464,7 +464,7 @@ async function aplicarActualizacion() {
     if (fs.existsSync(path.join(src, "renderer"))) copiar(path.join(src, "renderer"), path.join(OVERLAY(), "renderer"));
     let version = ""; try { version = JSON.parse(fs.readFileSync(path.join(src, "package.json"), "utf8")).version; } catch {}
     fs.writeFileSync(path.join(OVERLAY(), "meta.json"), JSON.stringify({ sha: info.sha, base: app.getVersion(), version, fecha: new Date().toISOString() }, null, 2));
-    syncWorkspace(true);
+    try { syncWorkspace(true); } catch (e) { log("Aviso: la carpeta de trabajo se terminara de preparar al reiniciar (" + e.message + ")"); }   // un archivo bloqueado por OneDrive no debe impedir el reinicio
     log("Actualizado a " + info.corto + (version ? " (v" + version + ")" : "") + ". Reiniciando...");
     setTimeout(() => { app.relaunch(); app.exit(0); }, 1200);
     return { ok: true, corto: info.corto };
