@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("ctv", {
   pickFile: inv("pick-file"),
   checkEnv: inv("env:check"),
   installDep: inv("env:install"),
+  installAll: inv("env:installAll"),
   listar: inv("lote:listar"),
   run: inv("lote:run"),
   cancel: inv("lote:cancel"),

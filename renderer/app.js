@@ -120,8 +120,18 @@ const ITEMS_ENTORNO = [
   ["claude", "Claude Code", null, null],
   ["pexels", "Clave de Pexels", null, null],
 ];
+async function instalarTodo() {
+  const r = await window.ctv.installAll();
+  if (r && r.error) escribir("⚠ " + r.error);
+  comprobarEntorno();
+}
+$("#b-instalar-todo").addEventListener("click", instalarTodo);
+$("#b-instalar-todo2").addEventListener("click", instalarTodo);
 async function comprobarEntorno() {
   const e = await window.ctv.checkEnv();
+  const faltan = [["uv", "uv (Python)"], ["ffmpeg", "FFmpeg"], ["node", "Node.js"], ["claude", "Claude Code"]].filter(([k]) => !e[k]).map(([, n]) => n);
+  $("#banner-falta").classList.toggle("oculto", !faltan.length);
+  $("#txt-faltan").textContent = faltan.length ? "Falta: " + faltan.join(", ") + "." : "";
   for (const cont of [$("#lista-entorno"), $("#estado-entorno")]) {
     cont.innerHTML = "";
     for (const [k, nombre, , instalar] of ITEMS_ENTORNO) {

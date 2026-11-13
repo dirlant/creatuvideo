@@ -78,8 +78,16 @@ function winget(prefijo, archivo) {
 }
 const findUv = () => where("uv") || winget("astral-sh.uv", "uv.exe") || (fs.existsSync(path.join(os.homedir(), ".local", "bin", "uv.exe")) ? path.join(os.homedir(), ".local", "bin", "uv.exe") : null);
 const findFfmpeg = () => where("ffmpeg") || winget("Gyan.FFmpeg", "ffmpeg.exe");
-const findNode = () => where("node");
-const findClaude = () => where("claude");
+const findNode = () => where("node") || [path.join(process.env.ProgramFiles || "C:\\Program Files", "nodejs", "node.exe"), path.join(process.env.LOCALAPPDATA || "", "Programs", "nodejs", "node.exe")].find((p) => fs.existsSync(p)) || null;
+function findClaude() {
+  const w = where("claude"); if (w) return w;
+  const c = path.join(os.homedir(), ".local", "bin", "claude.exe"); if (fs.existsSync(c)) return c;
+  try {                                         // binario que trae la extension de Claude Code para VS Code
+    const ext = path.join(os.homedir(), ".vscode", "extensions");
+    for (const d of fs.readdirSync(ext).filter((x) => x.toLowerCase().startsWith("anthropic.claude-code")).sort().reverse()) { const r = buscarEn(path.join(ext, d), "claude.exe", 4); if (r) return r; }
+  } catch {}
+  return null;
+}
 
 // ------------------------------------------------------------------ carpeta de trabajo (workspace)
 function copiar(src, dst) { if (fs.existsSync(src)) fs.cpSync(src, dst, { recursive: true, force: true }); }
@@ -144,7 +152,9 @@ function entorno(extra = {}) {
   if (s.pexelsKey) env.PEXELS_API_KEY = s.pexelsKey;
   env.CTV_EFECTOS = s.presets.efectos ? "1" : "0";
   env.CTV_VOZ = s.presets.voz || "es-MX-JorgeNeural";
-  if (ff) env.PATH = path.dirname(ff) + path.delimiter + (env.PATH || env.Path || "");
+  const base = env.PATH || env.Path || "";
+  const rutas = [ff && path.dirname(ff), findNode() && path.dirname(findNode())].filter(Boolean);     // winget no actualiza el PATH de esta sesion
+  env.PATH = [...rutas, base].join(path.delimiter);
   return env;
 }
 function correr(cmd, args, opts = {}) {
@@ -212,6 +222,39 @@ ipcMain.handle("env:install", async (_e, que) => {
   if (!where("winget")) return { ok: false, error: "No se encontro winget. Instala manualmente " + que + "." };
   const c = await correr("winget", ["install", "--id", id, "-e", "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"]);
   return { ok: c === 0 };
+});
+
+ipcMain.handle("env:installAll", async () => {
+  if (hijo) return { ok: false, error: "Hay un proceso en marcha." };
+  const faltan = { uv: !findUv(), ffmpeg: !findFfmpeg(), node: !findNode(), claude: !findClaude() };
+  const lista = Object.entries(faltan).filter(([, v]) => v).map(([k]) => ({ uv: "uv (Python)", ffmpeg: "FFmpeg", node: "Node.js", claude: "Claude Code (instalador oficial de claude.ai)" }[k]));
+  const r = await dialog.showMessageBox(win, { type: "question", buttons: ["Instalar", "Cancelar"], defaultId: 0, cancelId: 1, title: "Instalar componentes",
+    message: lista.length ? "Se instalarán: " + lista.join(", ") + "." : "No falta nada. Se prepararán Python 3.12, las librerías y hyperframes para el primer uso.",
+    detail: "Puede pedir permisos de administrador y tardar unos minutos. Necesita internet." });
+  if (r.response !== 0) return { ok: false, error: "Cancelado." };
+  log("=== Instalando componentes ===");
+  const w = where("winget");
+  for (const k of ["ffmpeg", "uv", "node"]) {
+    if (!faltan[k]) continue;
+    if (!w) { log("No se encontro winget: instala " + k + " a mano."); continue; }
+    log("Instalando " + k + "...");
+    await correr("winget", ["install", "--id", WINGET_IDS[k], "-e", "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"]);
+  }
+  if (faltan.claude) {
+    log("Instalando Claude Code (instalador oficial)...");
+    await correr("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://claude.ai/install.ps1 | iex"]);
+  }
+  const uv = findUv();
+  if (uv) {
+    log("Preparando Python 3.12 y librerias (edge-tts, pillow, numpy)...");
+    await correr(uv, ["python", "install", "3.12"]);
+    await correr(uv, ["run", "--python", "3.12", "--with", "edge-tts", "--with", "pillow", "--with", "numpy", "python", "-c", "import edge_tts, PIL, numpy; print('librerias listas')"]);
+  }
+  if (findNode()) { log("Preparando hyperframes..."); await correr("cmd.exe", ["/c", "npx", "--yes", "hyperframes@0.9.28", "--version"]); }
+  const e = { uv: !!findUv(), ffmpeg: !!findFfmpeg(), node: !!findNode(), claude: !!findClaude() };
+  log("=== Listo: " + Object.entries(e).map(([k, v]) => k + (v ? " OK" : " FALTA")).join(", ") + (e.claude ? "" : " (si Claude Code recien se instalo, reinicia la app) ") + " ===");
+  if (e.claude) log("Recuerda iniciar sesion en Claude Code la primera vez (abre Claude Code desde la app y sigue los pasos).");
+  return { ok: Object.values(e).every(Boolean), estado: e };
 });
 
 ipcMain.handle("lote:listar", async (_e, linea) => {
