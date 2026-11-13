@@ -1,0 +1,26 @@
+{
+  "name": "creatuvideo",
+  "version": "0.1.0",
+  "description": "CreaTuVideo: panel de escritorio para generar videos de Dianchi, Diegao y cortes, con Claude Code",
+  "main": "main.js",
+  "author": "dirlant",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.creatuvideo.app",
+    "productName": "CreaTuVideo",
+    "files": ["main.js", "preload.js", "renderer/**", "package.json"],
+    "extraResources": [{ "from": "engine", "to": "engine" }],
+    "directories": { "output": "dist" },
+    "win": { "target": "nsis", "signAndEditExecutable": false },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "perMachine": false, "shortcutName": "CreaTuVideo" }
+  }
+}

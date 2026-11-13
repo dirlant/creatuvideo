@@ -1,0 +1,23 @@
+// Puente seguro entre la interfaz (renderer) y el proceso principal. La interfaz solo usa window.ctv.*
+const { contextBridge, ipcRenderer } = require("electron");
+const inv = (canal) => (...a) => ipcRenderer.invoke(canal, ...a);
+contextBridge.exposeInMainWorld("ctv", {
+  version: inv("version"),
+  getSettings: inv("settings:get"),
+  saveSettings: inv("settings:save"),
+  pickFolder: inv("pick-folder"),
+  pickFile: inv("pick-file"),
+  checkEnv: inv("env:check"),
+  installDep: inv("env:install"),
+  listar: inv("lote:listar"),
+  run: inv("lote:run"),
+  cancel: inv("lote:cancel"),
+  openPath: inv("open-path"),
+  openClaude: inv("claude:open"),
+  openUrl: inv("open-url"),
+  checkUpdate: inv("update:check"),
+  applyUpdate: inv("update:apply"),
+  onLog: (cb) => ipcRenderer.on("log", (_e, m) => cb(m)),
+  onBusy: (cb) => ipcRenderer.on("busy", (_e, b) => cb(b)),
+  onUpdate: (cb) => ipcRenderer.on("update:info", (_e, i) => cb(i)),
+});

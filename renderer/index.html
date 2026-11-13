@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<title>CreaTuVideo</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="nav">
+    <div class="marca"><span class="punto"></span> CreaTuVideo</div>
+    <button class="nav-b activo" data-v="inicio">Inicio</button>
+    <button class="nav-b" data-v="dianchi">Dianchi</button>
+    <button class="nav-b" data-v="diegao">Diegao</button>
+    <button class="nav-b" data-v="cortar">Cortar y silencios</button>
+    <button class="nav-b" data-v="claude">Claude Code</button>
+    <button class="nav-b" data-v="ajustes">Ajustes</button>
+    <div class="nav-pie">
+      <div id="v-app" class="chico"></div>
+      <div id="aviso-upd" class="aviso oculto"></div>
+    </div>
+  </aside>
+
+  <main class="centro">
+    <section id="v-inicio" class="vista activa">
+      <h1>¿Qué quieres crear hoy?</h1>
+      <div class="tarjetas">
+        <button class="tarjeta" data-ir="dianchi"><h3>Dianchi</h3><p>Videos de rubros de belleza con imágenes y B-roll, objeción y 3 pasos.</p></button>
+        <button class="tarjeta" data-ir="diegao"><h3>Diegao</h3><p>Videos de mentor para dueñas de salón con cortes del evento.</p></button>
+        <button class="tarjeta" data-ir="cortar"><h3>Cortar y silencios</h3><p>Corta un video largo, quita silencios y aplica el patrón de interrupción.</p></button>
+        <button class="tarjeta" data-ir="claude"><h3>Claude Code</h3><p>Pide un lote nuevo o un cambio de reglas en lenguaje normal.</p></button>
+      </div>
+      <h2>Estado</h2>
+      <div id="estado-entorno" class="lista-estado"></div>
+      <p class="chico">Si algo falta, ve a <b>Ajustes → Comprobar entorno</b>.</p>
+    </section>
+
+    <section id="v-dianchi" class="vista">
+      <h1>Dianchi</h1>
+      <p class="sub">Elige los videos del lote y sigue los pasos en orden: verificar → descargar → hoja de contacto → render.</p>
+      <div class="barra">
+        <button data-acc="seleccionar" data-l="dianchi">Marcar todos</button>
+        <button data-acc="ninguno" data-l="dianchi">Quitar marcas</button>
+        <button data-acc="recargar" data-l="dianchi">Recargar lista</button>
+      </div>
+      <div id="lista-dianchi" class="lista"></div>
+      <div class="barra">
+        <button class="p" data-run="dianchi:verificar">1 · Verificar tiempos</button>
+        <button class="p" data-run="dianchi:descargar">2 · Descargar imágenes y clips</button>
+        <button class="p" data-run="dianchi:hoja">3 · Hoja de contacto</button>
+        <button class="p fuerte" data-run="dianchi:render">4 · Generar videos</button>
+      </div>
+      <div class="barra">
+        <button data-abrir="dianchi/resultado">Abrir resultados</button>
+        <button data-abrir="dianchi/_operacion/lote">Abrir hojas de contacto</button>
+        <button data-abrir="dianchi/prompt">Abrir prompt y ajustes</button>
+      </div>
+    </section>
+
+    <section id="v-diegao" class="vista">
+      <h1>Diegao</h1>
+      <p class="sub">Videos de mentor sin hook: narración + animación, cortes cada ~3 s, sonidos de “bueno” y “malo”. Pon los videos del evento en la carpeta fuente (Ajustes).</p>
+      <div class="barra">
+        <button data-acc="seleccionar" data-l="diegao">Marcar todos</button>
+        <button data-acc="ninguno" data-l="diegao">Quitar marcas</button>
+        <button data-acc="recargar" data-l="diegao">Recargar lista</button>
+      </div>
+      <div id="lista-diegao" class="lista"></div>
+      <div class="barra">
+        <button class="p" data-run="diegao:preparar">1 · Preparar (voz, tiempos y cortes)</button>
+        <button class="p fuerte" data-run="diegao:render">2 · Generar videos</button>
+      </div>
+      <div class="barra">
+        <button data-abrir="diegao/resultado">Abrir resultados</button>
+        <button data-abrir="diegao/entrada/evento-receta">Abrir videos fuente</button>
+        <button data-abrir="diegao/prompt">Abrir prompt y ajustes</button>
+      </div>
+    </section>
+
+    <section id="v-cortar" class="vista">
+      <h1>Cortar y silencios</h1>
+      <p class="sub">Pon el video en la carpeta de entrada. Claude Code lo transcribe, quita silencios, elige los clips y aplica el patrón de interrupción según <code>por-cortar/prompt/PROMPT_cortar.md</code>.</p>
+      <div class="barra">
+        <button data-abrir="por-cortar/entrada">Abrir carpeta de entrada</button>
+        <button data-abrir="por-cortar/resultado">Abrir resultados</button>
+        <button data-abrir="por-cortar/prompt">Abrir prompt y ajustes</button>
+      </div>
+      <label class="et">Instrucción para Claude Code</label>
+      <textarea id="txt-cortar" rows="6">Corta el video que está en ./por-cortar/entrada: transcríbelo, quita los silencios, elige los mejores clips de 20 a 40 segundos y aplica el patrón de interrupción. Deja los clips terminados en ./por-cortar/resultado y cuéntame cuántos hiciste.</textarea>
+      <div class="barra"><button class="p fuerte" id="b-cortar">Cortar con Claude Code</button></div>
+    </section>
+
+    <section id="v-claude" class="vista">
+      <h1>Claude Code</h1>
+      <p class="sub">Escribe lo que quieres (un lote nuevo, un cambio de estilo, una regla nueva). Se abre Claude Code en la carpeta de trabajo, ya con las reglas de la línea elegida.</p>
+      <label class="et">Línea</label>
+      <select id="sel-linea">
+        <option value="dianchi">Dianchi</option>
+        <option value="diegao">Diegao</option>
+        <option value="por-cortar">Cortar y silencios</option>
+        <option value="ads">Ads</option>
+        <option value="general">General</option>
+      </select>
+      <div class="chips">
+        <button class="chip" data-p="Crea un lote nuevo de 8 videos para Dianchi con rubros que no estén en prompt/rubros_hechos.md, siguiendo prompt/AJUSTES.md. Agrégalos a scripts/dianchi_lote.py y avísame cuando estén listos para verificar.">Nuevo lote Dianchi</button>
+        <button class="chip" data-p="Crea 6 videos nuevos de Diegao sobre dolores de dueñas de salón que no existan en scripts/diegao_lote.py, con objeción, 3 pasos y CTA Sígueme.">Nuevos videos Diegao</button>
+        <button class="chip" data-p="Cambia esta regla por defecto y regístrala en prompt/AJUSTES.md y en los scripts: ">Cambiar una regla</button>
+        <button class="chip" data-p="Actualiza las animaciones con efectos de tendencia en scripts/generar_dianchi.py y scripts/hf_collage.py, sin romper los videos existentes.">Nuevos efectos</button>
+      </div>
+      <textarea id="txt-claude" rows="9" placeholder="Escribe aquí tu instrucción…"></textarea>
+      <div class="barra"><button class="p fuerte" id="b-claude">Enviar a Claude Code</button></div>
+      <p class="chico">Claude Code debe estar instalado y con sesión iniciada (Ajustes → Comprobar entorno). Se abre en una ventana aparte, donde apruebas lo que hace.</p>
+    </section>
+
+    <section id="v-ajustes" class="vista">
+      <h1>Ajustes</h1>
+      <h2>Carpetas</h2>
+      <p class="chico">Si dejas una vacía, se usa una carpeta dentro de la carpeta de trabajo. Las que elijas se enlazan sin copiar nada.</p>
+      <div id="filas-dirs" class="filas"></div>
+      <div class="fila">
+        <span class="et-f">Carpeta de trabajo</span>
+        <input id="in-ws" readonly /><button data-ws="elegir">Elegir</button><button data-abrir="">Abrir</button>
+      </div>
+
+      <h2>Predeterminados</h2>
+      <div class="grid2">
+        <label class="chk"><input type="checkbox" id="pr-efectos" /> Efectos de tendencia en Dianchi (zoom, destello, barra de progreso)</label>
+        <label class="chk"><input type="checkbox" id="pr-relleno" /> Usar mis videos de relleno en vez de descargar de Pexels</label>
+        <div><label class="et">Voz</label>
+          <select id="pr-voz">
+            <option value="es-MX-JorgeNeural">Jorge (México, hombre)</option>
+            <option value="es-MX-DaliaNeural">Dalia (México, mujer)</option>
+            <option value="es-CO-GonzaloNeural">Gonzalo (Colombia, hombre)</option>
+            <option value="es-CO-SalomeNeural">Salomé (Colombia, mujer)</option>
+            <option value="es-ES-AlvaroNeural">Álvaro (España, hombre)</option>
+          </select></div>
+      </div>
+
+      <h2>Claves</h2>
+      <label class="et">Clave de Pexels (para descargar imágenes y clips)</label>
+      <input id="in-pexels" type="password" placeholder="pega tu clave de pexels.com/api" />
+      <label class="et">Token de GitHub (solo lectura; hace falta si el repositorio es privado)</label>
+      <input id="in-gh" type="password" placeholder="github_pat_… (opcional)" />
+      <label class="chk"><input type="checkbox" id="pr-auto" /> Buscar actualizaciones al abrir</label>
+      <div class="barra"><button class="p fuerte" id="b-guardar">Guardar ajustes</button><span id="msg-guardar" class="chico"></span></div>
+
+      <h2>Comprobar entorno</h2>
+      <div id="lista-entorno" class="lista-estado"></div>
+      <div class="barra"><button id="b-entorno">Comprobar de nuevo</button></div>
+
+      <h2>Actualizaciones</h2>
+      <p id="txt-version" class="chico"></p>
+      <div class="barra"><button id="b-upd">Buscar actualización</button><button class="p" id="b-upd-ir" disabled>Actualizar ahora</button></div>
+      <p id="txt-upd" class="chico"></p>
+    </section>
+  </main>
+</div>
+
+<footer class="registro" id="registro">
+  <div class="reg-cab"><b>Registro</b><span id="ind-busy" class="oculto">● trabajando…</span><span class="esp"></span><button id="b-cancel" disabled>Cancelar</button><button id="b-limpiar">Limpiar</button></div>
+  <pre id="log"></pre>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
