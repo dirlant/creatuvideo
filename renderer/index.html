@@ -40,32 +40,74 @@
 
     <section id="v-dianchi" class="vista">
       <h1>Dianchi</h1>
-      <p class="sub">Elige los videos del lote y sigue los pasos en orden: verificar → descargar → hoja de contacto → render.</p>
-      <div class="cfg"><h3>Carpetas y opciones de Dianchi</h3>
-        <div id="cfg-dianchi" class="filas"></div>
+      <ol class="pasos" id="pasos-dianchi">
+        <li data-p="1" class="act">1 · Guion</li><li data-p="2">2 · Eventos</li><li data-p="3">3 · Imágenes</li>
+        <li data-p="4">4 · Videos</li><li data-p="5">5 · Resultados</li><li data-p="6">6 · Generar</li>
+      </ol>
+
+      <div class="paso" data-p="1">
+        <h2>Guion y opciones del video</h2>
+        <p class="sub">Elige los guiones (rubros) que quieres convertir en video y la voz.</p>
+        <div class="barra">
+          <button data-acc="seleccionar" data-l="dianchi">Marcar todos</button>
+          <button data-acc="ninguno" data-l="dianchi">Quitar marcas</button>
+          <button data-acc="recargar" data-l="dianchi">Recargar lista</button>
+          <button id="b-guiones-nuevos">Pedir guiones nuevos a Claude</button>
+        </div>
+        <div id="lista-dianchi" class="lista"></div>
+        <div class="grid2"><div><label class="et">Voz</label><select class="sel-voz"></select></div></div>
+      </div>
+
+      <div class="paso oculto" data-p="2">
+        <h2>Eventos del video</h2>
+        <p class="sub">Qué aparece durante el video. Desmarca lo que no quieras.</p>
         <div class="grid2">
           <label class="chk"><input type="checkbox" id="pr-efectos" /> Efectos de tendencia (zoom, destello, barra de progreso)</label>
-          <label class="chk"><input type="checkbox" id="pr-relleno" /> Usar mis videos de relleno en vez de descargar de Pexels</label>
-          <div><label class="et">Voz</label><select class="sel-voz"></select></div>
+          <label class="chk"><input type="checkbox" id="ev-burbuja" /> Globo con la objeción de la clienta</label>
+          <label class="chk"><input type="checkbox" id="ev-pasos" /> Píldoras con los pasos</label>
+          <label class="chk"><input type="checkbox" id="ev-collage" /> Collage de imágenes</label>
+          <label class="chk"><input type="checkbox" id="ev-sfx" /> Sonidos (chispa y ding)</label>
+          <label class="chk"><input type="checkbox" id="ev-cierre" /> Tarjeta final «Guarda este audio»</label>
         </div>
       </div>
-      <div class="barra">
-        <button data-acc="seleccionar" data-l="dianchi">Marcar todos</button>
-        <button data-acc="ninguno" data-l="dianchi">Quitar marcas</button>
-        <button data-acc="recargar" data-l="dianchi">Recargar lista</button>
+
+      <div class="paso oculto" data-p="3">
+        <h2>Imágenes</h2>
+        <p class="sub">Carpeta con tus imágenes (fotos del salón, trabajos, productos).</p>
+        <div class="cfg"><div id="cfg-dianchi-imagenes" class="filas"></div></div>
+        <label class="chk"><input type="checkbox" id="pr-imagenes" /> Usar mis imágenes en el collage (si no, se usan fotogramas de los videos)</label>
       </div>
-      <div id="lista-dianchi" class="lista"></div>
-      <div class="barra">
-        <button class="p" data-run="dianchi:verificar">1 · Verificar tiempos</button>
-        <button class="p" data-run="dianchi:descargar">2 · Descargar imágenes y clips</button>
-        <button class="p" data-run="dianchi:hoja">3 · Hoja de contacto</button>
-        <button class="p fuerte" data-run="dianchi:render">4 · Generar videos</button>
+
+      <div class="paso oculto" data-p="4">
+        <h2>Videos de relleno</h2>
+        <p class="sub">Carpeta con tus videos para las escenas del fondo.</p>
+        <div class="cfg"><div id="cfg-dianchi-videos" class="filas"></div></div>
+        <label class="chk"><input type="checkbox" id="pr-relleno" /> Usar mis videos de relleno en vez de descargar de Pexels</label>
       </div>
-      <div class="barra">
-        <button data-abrir="dianchi/resultado">Abrir resultados</button>
-        <button data-abrir="dianchi/_operacion/lote">Abrir hojas de contacto</button>
-        <button data-abrir="dianchi/prompt">Abrir prompt y ajustes</button>
+
+      <div class="paso oculto" data-p="5">
+        <h2>Carpeta de resultados</h2>
+        <p class="sub">Dónde se guardan los videos terminados.</p>
+        <div class="cfg"><div id="cfg-dianchi-resultados" class="filas"></div></div>
+        <div class="barra"><button data-abrir="dianchi/resultado">Abrir resultados</button></div>
       </div>
+
+      <div class="paso oculto" data-p="6">
+        <h2>Resumen y generar</h2>
+        <div id="resumen-dianchi" class="resumen"></div>
+        <div class="barra"><button class="p fuerte" id="b-generar-todo">Generar videos (verificar → descargar → generar)</button></div>
+        <p class="chico">O paso a paso:</p>
+        <div class="barra">
+          <button class="p" data-run="dianchi:verificar">Verificar tiempos</button>
+          <button class="p" data-run="dianchi:descargar">Descargar imágenes y clips</button>
+          <button class="p" data-run="dianchi:hoja">Hoja de contacto</button>
+          <button class="p" data-run="dianchi:render">Generar videos</button>
+          <button data-abrir="dianchi/_operacion/lote">Abrir hojas de contacto</button>
+          <button data-abrir="dianchi/prompt">Abrir prompt y ajustes</button>
+        </div>
+      </div>
+
+      <div class="barra nav-wiz"><button id="w-atras" class="oculto">← Atrás</button><button class="p fuerte" id="w-sig">Siguiente →</button></div>
     </section>
 
     <section id="v-diegao" class="vista">

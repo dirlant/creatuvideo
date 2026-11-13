@@ -23,7 +23,7 @@ const DEFAULTS = () => ({
   pexelsKey: "",
   githubToken: "",
   autoUpdate: true,
-  presets: { efectos: true, voz: "es-MX-JorgeNeural", rellenoLocal: false },
+  presets: { efectos: true, voz: "es-MX-JorgeNeural", rellenoLocal: false, imagenesCollage: false, eventos: { burbuja: true, pasos: true, collage: true, sfx: true, cierre: true } },
 });
 // Claves que vienen incluidas en el instalador (build/defaults.json, fuera de git): el usuario no tiene que pegarlas.
 let _defs = null;
@@ -37,7 +37,7 @@ function getSettings() {
   let s = {};
   try { s = JSON.parse(fs.readFileSync(SETTINGS_FILE(), "utf8")); } catch {}
   const d = DEFAULTS();
-  return { ...d, ...s, dirs: { ...d.dirs, ...(s.dirs || {}) }, presets: { ...d.presets, ...(s.presets || {}) }, incluidas: { pexels: !!defs().pexelsKey, github: !!defs().githubToken } };
+  return { ...d, ...s, dirs: { ...d.dirs, ...(s.dirs || {}) }, presets: { ...d.presets, ...(s.presets || {}), eventos: { ...d.presets.eventos, ...((s.presets || {}).eventos || {}) } }, incluidas: { pexels: !!defs().pexelsKey, github: !!defs().githubToken } };
 }
 function saveSettings(s) {
   s = { ...s }; delete s.incluidas;
@@ -162,6 +162,9 @@ function entorno(extra = {}) {
   if (clavePexels()) env.PEXELS_API_KEY = clavePexels();
   env.CTV_EFECTOS = s.presets.efectos ? "1" : "0";
   env.CTV_VOZ = s.presets.voz || "es-MX-JorgeNeural";
+  const ev = s.presets.eventos || {};                                  // eventos del video (asistente de Dianchi)
+  for (const k of ["burbuja", "pasos", "collage", "sfx", "cierre"]) env["CTV_EV_" + k.toUpperCase()] = ev[k] === false ? "0" : "1";
+  env.CTV_IMAGENES_COLLAGE = s.presets.imagenesCollage ? "1" : "0";
   const base = env.PATH || env.Path || "";
   const rutas = [ff && path.dirname(ff), findNode() && path.dirname(findNode())].filter(Boolean);     // winget no actualiza el PATH de esta sesion
   env.PATH = [...rutas, base].join(path.delimiter);

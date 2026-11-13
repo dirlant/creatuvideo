@@ -116,6 +116,14 @@ def config(Rr, clips_dir, fotos):
     if Rr["B"]: cfg["pildoras2"] = [item(a, t) for a, t in Rr["B"]]; cfg["pildoras2_hasta"] = an(Rr["hastaB"])[0]
     if Rr["bubble"]:
         a, t, h = Rr["bubble"]; w, n = an(a); cfg["pildoras3"] = [{"ancla": w, "n": n, "texto": t}]; cfg["pildoras3_hasta"] = an(h)[0]
+    ev = lambda k: os.environ.get("CTV_EV_" + k, "1") != "0"          # eventos del video activables desde la app
+    if not ev("COLLAGE"): cfg["collages"] = []; cfg["sfx"] = [x for x in cfg["sfx"] if x["tipo"] != "sparkle"]
+    if not ev("PASOS"):
+        for k in ("pildoras", "pildoras_hasta", "pildoras2", "pildoras2_hasta"): cfg.pop(k, None)
+    if not ev("BURBUJA"):
+        for k in ("pildoras3", "pildoras3_hasta"): cfg.pop(k, None)
+    if not ev("SFX"): cfg["sfx"] = []
+    if not ev("CIERRE"): cfg.pop("cierre", None)
     return cfg
 
 env = dict(os.environ); env["PYTHONIOENCODING"] = "utf-8"
@@ -232,3 +240,20 @@ elif MODO == "render":
         print("== %s" % Rr["slug"], flush=True)
         r = sh([sys.executable, os.path.join(AG, "scripts", "generar_dianchi.py"), FF, p], cwd=AG, env=dict(env, PATH=os.path.dirname(FF) + os.pathsep + env["PATH"]))
         print((r.stdout.strip().splitlines() or [""])[-1] if r.returncode == 0 else r.stderr[-600:], flush=True)
+
+# ---- collage con las imagenes propias de la persona (dianchi/entrada/imagenes), si se activo en la app
+if MODO == "descargar" and os.environ.get("CTV_IMAGENES_COLLAGE") == "1":
+    import random
+    from PIL import ImageOps
+    raiz = os.path.join(AG, "dianchi", "entrada", "imagenes"); imgs = []
+    for ext in ("jpg", "jpeg", "png", "webp"): imgs += glob.glob(os.path.join(raiz, "**", "*." + ext), recursive=True)
+    imgs = [f for f in imgs if os.sep + "fotos" + os.sep not in f]
+    if not imgs: print("Aviso: no hay imagenes en dianchi/entrada/imagenes; el collage usara fotogramas de los videos.", flush=True)
+    else:
+        random.shuffle(imgs)
+        for Rr in SEL:
+            fotos = rutas(Rr)[2]; os.makedirs(fotos, exist_ok=True)
+            for k in range(3):
+                im = ImageOps.exif_transpose(Image.open(imgs[(k + 3 * SEL.index(Rr)) % len(imgs)])).convert("RGB")
+                ImageOps.fit(im, (700, 700), Image.LANCZOS).save(os.path.join(fotos, "col-%d.png" % (k + 1)))
+            print("%s: collage con %d imagenes propias" % (Rr["slug"], min(3, len(imgs))), flush=True)

@@ -60,6 +60,48 @@ $$("[data-run]").forEach((b) => b.addEventListener("click", async () => {
 }));
 $$("[data-abrir]").forEach((b) => b.addEventListener("click", () => window.ctv.openPath(b.dataset.abrir || (ajustes && ajustes.workspace) || "")));
 
+// ---------------------------------------------------------------- asistente de Dianchi
+let pasoDianchi = 1;
+const TOTAL_PASOS = 6;
+function irPasoDianchi(n) {
+  if (n > pasoDianchi && pasoDianchi === 1 && !$$("#lista-dianchi input:checked").length) return escribir("Marca al menos un guion para continuar.");
+  pasoDianchi = Math.max(1, Math.min(TOTAL_PASOS, n));
+  $$("#v-dianchi .paso").forEach((p) => p.classList.toggle("oculto", Number(p.dataset.p) !== pasoDianchi));
+  $$("#pasos-dianchi li").forEach((li) => { const k = Number(li.dataset.p); li.classList.toggle("act", k === pasoDianchi); li.classList.toggle("hecho", k < pasoDianchi); });
+  $("#w-atras").classList.toggle("oculto", pasoDianchi === 1);
+  $("#w-sig").classList.toggle("oculto", pasoDianchi === TOTAL_PASOS);
+  if (pasoDianchi === TOTAL_PASOS) resumenDianchi();
+}
+function resumenDianchi() {
+  const r = $("#resumen-dianchi"); if (!r || !ajustes) return;
+  const sel = $$("#lista-dianchi input:checked").length, p = ajustes.presets, d = ajustes.dirs, ev = p.eventos;
+  const voz = (VOCES.find((v) => v[0] === p.voz) || [0, p.voz])[1];
+  const si = (b) => (b ? "sí" : "no");
+  const carpeta = (x) => x || "dentro de la carpeta de trabajo";
+  r.innerHTML = "";
+  for (const [k, v] of [
+    ["Guiones", sel + " seleccionado(s) · voz " + voz],
+    ["Eventos", "efectos " + si(p.efectos) + " · objeción " + si(ev.burbuja) + " · pasos " + si(ev.pasos) + " · collage " + si(ev.collage) + " · sonidos " + si(ev.sfx) + " · tarjeta final " + si(ev.cierre)],
+    ["Imágenes", carpeta(d.imagenes) + (p.imagenesCollage ? " (se usan en el collage)" : "")],
+    ["Videos", carpeta(d.relleno) + (p.rellenoLocal ? " (se usan como relleno)" : " (se descargan de Pexels)")],
+    ["Resultados", carpeta(d.dianchiResultado)],
+  ]) { const f = document.createElement("div"); f.innerHTML = "<b></b>: <span></span>"; $("b", f).textContent = v === undefined ? "" : k; $("span", f).textContent = v; r.appendChild(f); }
+}
+$("#w-sig").addEventListener("click", () => irPasoDianchi(pasoDianchi + 1));
+$("#w-atras").addEventListener("click", () => irPasoDianchi(pasoDianchi - 1));
+$$("#pasos-dianchi li").forEach((li) => li.addEventListener("click", () => irPasoDianchi(Number(li.dataset.p))));
+$("#lista-dianchi").addEventListener("change", resumenDianchi);
+$("#b-guiones-nuevos").addEventListener("click", () => enviarClaude("dianchi", "Crea un lote nuevo de 8 videos para Dianchi con rubros que no estén en prompt/rubros_hechos.md, siguiendo prompt/AJUSTES.md. Agrégalos a scripts/dianchi_lote.py y avísame cuando estén listos para verificar."));
+$("#b-generar-todo").addEventListener("click", async () => {
+  const slugs = $$("#lista-dianchi input:checked").map((c) => c.value);
+  if (!slugs.length) return escribir("Marca al menos un guion en el paso 1.");
+  for (const modo of ["verificar", "descargar", "render"]) {
+    const r = await window.ctv.run({ linea: "dianchi", modo, slugs });
+    if (!r || !r.ok) return escribir("⚠ Se detuvo en «" + modo + "»" + (r && r.error ? ": " + r.error : ". Revisa el registro."));
+  }
+  escribir("✔ Videos de Dianchi generados. Revisa la carpeta de resultados.");
+});
+
 // ---------------------------------------------------------------- Claude Code
 $$(".chip").forEach((c) => c.addEventListener("click", () => { $("#txt-claude").value = c.dataset.p; $("#txt-claude").focus(); }));
 async function enviarClaude(linea, texto) {
@@ -80,7 +122,9 @@ const NOMBRES_DIRS = {
   cortarEntrada: "Video a cortar (entrada)", cortarResultado: "Resultados de los cortes",
 };
 const SECCIONES = {
-  dianchi: ["dianchiResultado", "imagenes", "relleno"],
+  "dianchi-imagenes": ["imagenes"],
+  "dianchi-videos": ["relleno"],
+  "dianchi-resultados": ["dianchiResultado"],
   diegao: ["diegaoResultado", "diegaoFuente"],
   cortar: ["cortarEntrada", "cortarResultado"],
 };
@@ -107,8 +151,13 @@ function pintarSecciones() {
   }
   $("#pr-efectos").checked = !!ajustes.presets.efectos;
   $("#pr-relleno").checked = !!ajustes.presets.rellenoLocal;
+  $("#pr-imagenes").checked = !!ajustes.presets.imagenesCollage;
+  for (const k of ["burbuja", "pasos", "collage", "sfx", "cierre"]) $("#ev-" + k).checked = ajustes.presets.eventos[k] !== false;
+  resumenDianchi();
   $$(".sel-voz").forEach((s) => (s.value = ajustes.presets.voz));
 }
+$("#pr-imagenes").addEventListener("change", (e) => { ajustes.presets.imagenesCollage = e.target.checked; guardarAuto(); });
+for (const k of ["burbuja", "pasos", "collage", "sfx", "cierre"]) $("#ev-" + k).addEventListener("change", (e) => { ajustes.presets.eventos[k] = e.target.checked; guardarAuto(); });
 $("#pr-efectos").addEventListener("change", (e) => { ajustes.presets.efectos = e.target.checked; guardarAuto(); });
 $("#pr-relleno").addEventListener("change", (e) => { ajustes.presets.rellenoLocal = e.target.checked; guardarAuto(); });
 $$(".sel-voz").forEach((s) => s.addEventListener("change", (e) => { ajustes.presets.voz = e.target.value; guardarAuto(); }));
