@@ -25,13 +25,22 @@ const DEFAULTS = () => ({
   autoUpdate: true,
   presets: { efectos: true, voz: "es-MX-JorgeNeural", rellenoLocal: false },
 });
+// Claves que vienen incluidas en el instalador (build/defaults.json, fuera de git): el usuario no tiene que pegarlas.
+let _defs = null;
+function defs() {
+  if (_defs) return _defs;
+  try { _defs = JSON.parse(fs.readFileSync(app.isPackaged ? path.join(process.resourcesPath, "defaults.json") : path.join(__dirname, "build", "defaults.json"), "utf8")); } catch { _defs = {}; }
+  return _defs;
+}
+const clavePexels = () => getSettings().pexelsKey || defs().pexelsKey || "";
 function getSettings() {
   let s = {};
   try { s = JSON.parse(fs.readFileSync(SETTINGS_FILE(), "utf8")); } catch {}
   const d = DEFAULTS();
-  return { ...d, ...s, dirs: { ...d.dirs, ...(s.dirs || {}) }, presets: { ...d.presets, ...(s.presets || {}) } };
+  return { ...d, ...s, dirs: { ...d.dirs, ...(s.dirs || {}) }, presets: { ...d.presets, ...(s.presets || {}) }, incluidas: { pexels: !!defs().pexelsKey, github: !!defs().githubToken } };
 }
 function saveSettings(s) {
+  s = { ...s }; delete s.incluidas;
   fs.mkdirSync(path.dirname(SETTINGS_FILE()), { recursive: true });
   fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(s, null, 2));
 }
@@ -149,7 +158,7 @@ function syncWorkspace(actualizando = false) {
 function entorno(extra = {}) {
   const s = getSettings(), ff = findFfmpeg();
   const env = { ...process.env, PYTHONIOENCODING: "utf-8", ...extra };
-  if (s.pexelsKey) env.PEXELS_API_KEY = s.pexelsKey;
+  if (clavePexels()) env.PEXELS_API_KEY = clavePexels();
   env.CTV_EFECTOS = s.presets.efectos ? "1" : "0";
   env.CTV_VOZ = s.presets.voz || "es-MX-JorgeNeural";
   const base = env.PATH || env.Path || "";
@@ -214,7 +223,7 @@ ipcMain.handle("open-url", (_e, u) => { if (/^https:\/\//.test(u)) shell.openExt
 
 ipcMain.handle("env:check", () => {
   const s = getSettings();
-  return { uv: findUv(), ffmpeg: findFfmpeg(), node: findNode(), claude: findClaude(), winget: where("winget"), pexels: !!s.pexelsKey, workspace: s.workspace };
+  return { uv: findUv(), ffmpeg: findFfmpeg(), node: findNode(), claude: findClaude(), winget: where("winget"), pexels: s.pexelsKey ? true : defs().pexelsKey ? "incluida con la aplicación" : false, workspace: s.workspace };
 });
 const WINGET_IDS = { ffmpeg: "Gyan.FFmpeg", uv: "astral-sh.uv", node: "OpenJS.NodeJS.LTS" };
 ipcMain.handle("env:install", async (_e, que) => {
@@ -268,7 +277,7 @@ ipcMain.handle("lote:run", async (_e, { linea, modo, slugs }) => {
   const uv = findUv(), ff = findFfmpeg();
   if (!uv || !ff) return { ok: false, error: "Falta " + (!uv ? "uv" : "FFmpeg") + ". Ve a Ajustes > Comprobar entorno." };
   const s = getSettings();
-  if (modo === "descargar" && !s.pexelsKey && !s.presets.rellenoLocal) return { ok: false, error: "Falta la clave de Pexels (Ajustes) o activa \"usar mis videos de relleno\"." };
+  if (modo === "descargar" && !clavePexels() && !s.presets.rellenoLocal) return { ok: false, error: "Falta la clave de Pexels (Ajustes) o activa \"usar mis videos de relleno\"." };
   const ws = syncWorkspace();
   const script = linea === "diegao" ? "diegao_lote.py" : "dianchi_lote.py";
   const env = entorno({ CTV_RELLENO_LOCAL: s.presets.rellenoLocal ? "1" : "0" });
@@ -302,6 +311,7 @@ ipcMain.handle("claude:open", (_e, { linea, instruccion }) => {
 function ghToken() {
   const s = getSettings();
   if (s.githubToken) return s.githubToken;
+  if (defs().githubToken) return defs().githubToken;
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
   const gh = where("gh");
   if (gh) { const r = spawnSync(gh, ["auth", "token"], { encoding: "utf8", windowsHide: true }); if (r.status === 0 && r.stdout.trim()) return r.stdout.trim(); }

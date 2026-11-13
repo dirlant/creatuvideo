@@ -100,6 +100,7 @@ function pintarAjustes() {
   $("#pr-relleno").checked = !!ajustes.presets.rellenoLocal;
   $("#pr-voz").value = ajustes.presets.voz;
   $("#in-pexels").value = ajustes.pexelsKey || "";
+  if (ajustes.incluidas && ajustes.incluidas.pexels) $("#in-pexels").placeholder = "Incluida con la aplicación (opcional: pega otra para cambiarla)";
   $("#in-gh").value = ajustes.githubToken || "";
   $("#pr-auto").checked = ajustes.autoUpdate !== false;
 }

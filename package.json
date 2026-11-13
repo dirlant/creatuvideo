@@ -30,6 +30,10 @@
       {
         "from": "engine",
         "to": "engine"
+      },
+      {
+        "from": "build/defaults.json",
+        "to": "defaults.json"
       }
     ],
     "directories": {
