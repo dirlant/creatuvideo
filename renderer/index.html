@@ -54,7 +54,7 @@
         <p class="sub">Las mismas opciones que el formulario de Dianchi. Elige <b>uno o varios</b> rubros y temáticas: la app calcula cuántos videos salen.</p>
         <div class="tabs-fmt"><span class="tab on">Reels</span><span class="tab off" title="La app de escritorio genera videos; los carruseles se hacen en la web de Dianchi">Carruseles (solo en la web)</span></div>
         <div id="brief-dianchi" class="brief"></div>
-        <div class="barra"><button class="p fuerte" id="b-crear-guiones">Crear los guiones con Claude</button><span class="chico">Claude escribe un guion por cada combinación; quedan listos para generarse en el paso 6.</span></div>
+        <div class="barra"><button class="p fuerte" id="b-crear-guiones">Crear los guiones con Claude</button><button data-nuevo-prompt="dianchi">Crear un prompt nuevo con Claude</button><span class="chico">Claude escribe un guion por cada combinación; quedan listos para generarse en el paso 6.</span></div>
 
       </div>
 
@@ -76,8 +76,8 @@
         <h2>Imágenes</h2>
         <p class="sub">¿De dónde salen las imágenes del collage?</p>
         <div class="fuente">
-          <label class="opcion"><input type="radio" name="fuente-imagenes" value="auto" /><div><b>Automático</b><span>La app toma las imágenes de los propios videos que descarga. No necesitas hacer nada.</span></div></label>
-          <label class="opcion"><input type="radio" name="fuente-imagenes" value="carpeta" /><div><b>De una carpeta</b><span>Usa tus imágenes (fotos del salón, trabajos, productos).</span></div></label>
+          <label class="opcion"><span class="ico-g" data-ico="auto"></span><div><b>Automático</b><span>La app toma las imágenes de los propios videos que descarga. No necesitas hacer nada.</span></div><input type="radio" name="fuente-imagenes" value="auto" /></label>
+          <label class="opcion"><span class="ico-g" data-ico="carpeta"></span><div><b>De una carpeta</b><span>Usa tus imágenes (fotos del salón, trabajos, productos).</span></div><input type="radio" name="fuente-imagenes" value="carpeta" /></label>
         </div>
         <div class="cfg" id="caja-imagenes"><div id="cfg-dianchi-imagenes" class="filas"></div></div>
       </div>
@@ -86,8 +86,8 @@
         <h2>Videos de relleno</h2>
         <p class="sub">¿De dónde salen los videos de las escenas del fondo?</p>
         <div class="fuente">
-          <label class="opcion"><input type="radio" name="fuente-videos" value="auto" /><div><b>Automático</b><span>La app busca y descarga los videos según el guion (Pexels).</span></div></label>
-          <label class="opcion"><input type="radio" name="fuente-videos" value="carpeta" /><div><b>De una carpeta</b><span>Usa tus propios videos de relleno.</span></div></label>
+          <label class="opcion"><span class="ico-g" data-ico="auto"></span><div><b>Automático</b><span>La app busca y descarga los videos según el guion (Pexels).</span></div><input type="radio" name="fuente-videos" value="auto" /></label>
+          <label class="opcion"><span class="ico-g" data-ico="carpeta"></span><div><b>De una carpeta</b><span>Usa tus propios videos de relleno.</span></div><input type="radio" name="fuente-videos" value="carpeta" /></label>
         </div>
         <div class="cfg" id="caja-videos"><div id="cfg-dianchi-videos" class="filas"></div></div>
       </div>
@@ -111,7 +111,6 @@
           <button class="p" data-run="dianchi:hoja">Hoja de contacto</button>
           <button class="p" data-run="dianchi:render">Generar videos</button>
           <button data-abrir="dianchi/_operacion/lote">Abrir hojas de contacto</button>
-          <button data-abrir="dianchi/prompt">Abrir prompt y ajustes</button>
         </div>
       </div>
 
@@ -138,7 +137,7 @@
       <div class="barra">
         <button data-abrir="diegao/resultado">Abrir resultados</button>
         <button data-abrir="diegao/entrada/evento-receta">Abrir videos fuente</button>
-        <button data-abrir="diegao/prompt">Abrir prompt y ajustes</button>
+        <button data-nuevo-prompt="diegao">Crear un prompt nuevo con Claude</button>
       </div>
     </section>
 
@@ -151,7 +150,7 @@
       <div class="barra">
         <button data-abrir="por-cortar/entrada">Abrir carpeta de entrada</button>
         <button data-abrir="por-cortar/resultado">Abrir resultados</button>
-        <button data-abrir="por-cortar/prompt">Abrir prompt y ajustes</button>
+        <button data-nuevo-prompt="por-cortar">Crear un prompt nuevo con Claude</button>
       </div>
       <label class="et">Instrucción para Claude Code</label>
       <textarea id="txt-cortar" rows="6">Corta el video que está en ./por-cortar/entrada: transcríbelo, quita los silencios, elige los mejores clips de 20 a 40 segundos y aplica el patrón de interrupción. Deja los clips terminados en ./por-cortar/resultado y cuéntame cuántos hiciste.</textarea>
@@ -185,7 +184,6 @@
       <div class="chips">
         <button class="chip" data-p="Crea un lote nuevo de 8 videos para Dianchi con rubros que no estén en prompt/rubros_hechos.md, siguiendo prompt/AJUSTES.md. Agrégalos a scripts/dianchi_lote.py y avísame cuando estén listos para verificar.">Nuevo lote Dianchi</button>
         <button class="chip" data-p="Crea 6 videos nuevos de Diegao sobre dolores de dueñas de salón que no existan en scripts/diegao_lote.py, con objeción, 3 pasos y CTA Sígueme.">Nuevos videos Diegao</button>
-        <button class="chip" data-p="Cambia esta regla por defecto y regístrala en prompt/AJUSTES.md y en los scripts: ">Cambiar una regla</button>
         <button class="chip" data-p="Actualiza las animaciones con efectos de tendencia en scripts/generar_dianchi.py y scripts/hf_collage.py, sin romper los videos existentes.">Nuevos efectos</button>
       </div>
       <textarea id="txt-claude" rows="9" placeholder="Escribe aquí tu instrucción…"></textarea>

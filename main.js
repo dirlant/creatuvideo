@@ -100,7 +100,24 @@ function findClaude() {
 }
 
 // ------------------------------------------------------------------ carpeta de trabajo (workspace)
-function copiar(src, dst) { if (fs.existsSync(src)) fs.cpSync(src, dst, { recursive: true, force: true }); }
+function copiarArchivo(s, d) {                  // reintenta: OneDrive o el antivirus pueden bloquear un archivo un instante (EPERM/EBUSY)
+  for (let i = 0; i < 5; i++) {
+    try { fs.copyFileSync(s, d); return; }
+    catch (e) {
+      if (!["EPERM", "EBUSY", "EACCES", "UNKNOWN"].includes(e.code)) throw e;
+      if (i === 4) { if (fs.existsSync(d)) { log("Aviso: no se pudo actualizar " + path.basename(d) + " (en uso); se conserva la copia que ya habia."); return; } throw e; }
+      try { fs.chmodSync(d, 0o666); } catch {}
+      try { fs.unlinkSync(d); } catch {}
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300 * (i + 1));
+    }
+  }
+}
+function copiar(src, dst) {
+  if (!fs.existsSync(src)) return;
+  if (!fs.statSync(src).isDirectory()) { fs.mkdirSync(path.dirname(dst), { recursive: true }); return copiarArchivo(src, dst); }
+  fs.mkdirSync(dst, { recursive: true });
+  for (const e of fs.readdirSync(src, { withFileTypes: true })) copiar(path.join(src, e.name), path.join(dst, e.name));
+}
 function copiarSiFalta(src, dst, avisar) {
   if (!fs.existsSync(src)) return;
   fs.mkdirSync(dst, { recursive: true });

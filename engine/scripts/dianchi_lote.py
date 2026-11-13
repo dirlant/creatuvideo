@@ -149,6 +149,8 @@ def _lote_actual():                  # slugs del lote que la app pidio crear (di
     except OSError: return []
 _LOTE = [] if SOLO or MODO == "listar" else _lote_actual()
 SEL = [r for r in RUBROS if (r["slug"] in SOLO if SOLO else (r["slug"] in _LOTE if _LOTE else True))]
+def prog(i, Rr):                     # la app muestra "N de M" con esta linea (no es para leer)
+    print("CTV_PROGRESO %s %d %d %s" % (MODO, i, len(SEL), Rr["slug"]), flush=True)
 
 def rutas(Rr):
     base = os.path.join(REC, Rr["slug"]); return base, os.path.join(base, "clips"), os.path.join(base, "fotos")
@@ -167,7 +169,8 @@ if MODO == "listar":
     print(json.dumps([{"slug": r["slug"], "rubro": r["rubro"], "titulo": " ".join(r["titulo"]).replace("*", "")} for r in RUBROS], ensure_ascii=False))
 
 elif MODO == "verificar":
-    for Rr in SEL:
+    for _i, Rr in enumerate(SEL, 1):
+        prog(_i, Rr)
         pal = len(marcado(Rr["guion"], ()).split()); print("== %s | guion %d palabras" % (Rr["slug"], pal), flush=True)
         c = cfg_final(Rr); p = os.path.join(LOTE, Rr["slug"] + ".json"); json.dump(c, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         r = sh([sys.executable, os.path.join(AG, "scripts", "generar_dianchi.py"), FF, p], cwd=AG, env=dict(env, SOLO_TIEMPOS="1"))
@@ -191,7 +194,8 @@ if MODO == "descargar" and os.environ.get("CTV_RELLENO_LOCAL") == "1":
     fuentes = relleno_local(); random.shuffle(fuentes)
     if not fuentes: sys.exit("No hay videos en la carpeta de relleno (dianchi/entrada/videos). Elige una en Ajustes.")
     usados = 0
-    for Rr in SEL:
+    for _i, Rr in enumerate(SEL, 1):
+        prog(_i, Rr)
         base, clips, fotos = rutas(Rr); os.makedirs(os.path.join(clips, "_collage"), exist_ok=True); os.makedirs(fotos, exist_ok=True)
         for i in range(len(Rr["escenas"])):
             if glob.glob(os.path.join(clips, "s%02d-*.mp4" % i)): continue
@@ -206,7 +210,8 @@ if MODO == "descargar" and os.environ.get("CTV_RELLENO_LOCAL") == "1":
 
 elif MODO == "descargar":
     ov = ovr()
-    for Rr in SEL:
+    for _i, Rr in enumerate(SEL, 1):
+        prog(_i, Rr)
         base, clips, fotos = rutas(Rr); os.makedirs(clips, exist_ok=True); os.makedirs(os.path.join(clips, "_collage"), exist_ok=True); os.makedirs(fotos, exist_ok=True)
         grupos = {}
         for i, (a, n, q) in enumerate(Rr["escenas"]): grupos.setdefault(ov.get(Rr["slug"], {}).get(str(i), q), []).append(i)
@@ -226,7 +231,8 @@ elif MODO == "descargar":
 
 elif MODO == "hoja":
     fnt = ImageFont.truetype(r"C:\Windows\Fonts\verdanab.ttf", 15)
-    for Rr in SEL:
+    for _i, Rr in enumerate(SEL, 1):
+        prog(_i, Rr)
         base, clips, fotos = rutas(Rr); celdas = []
         for i in range(len(Rr["escenas"])):
             g = sorted(glob.glob(os.path.join(clips, "s%02d-*.mp4" % i)))
@@ -254,7 +260,8 @@ elif MODO == "reemplazar":
     for f in sorted(set(glob.glob(os.path.join(clips, "q*.mp4"))) - antes): os.rename(f, os.path.join(clips, "s%02d-%s" % (idx, os.path.basename(f).split("-", 1)[1]))); print("escena %d ->" % idx, os.path.basename(f))
 
 elif MODO == "render":
-    for Rr in SEL:
+    for _i, Rr in enumerate(SEL, 1):
+        prog(_i, Rr)
         c = cfg_final(Rr); p = os.path.join(LOTE, Rr["slug"] + ".json"); json.dump(c, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         print("== %s" % Rr["slug"], flush=True)
         r = sh([sys.executable, os.path.join(AG, "scripts", "generar_dianchi.py"), FF, p], cwd=AG, env=dict(env, PATH=os.path.dirname(FF) + os.pathsep + env["PATH"]))

@@ -115,3 +115,22 @@ textarea { resize: vertical; line-height: 1.45; }
 .chip.auto { align-self: flex-start; }
 .nav-upd { width: 100%; margin-top: 8px; }
 .nav-pie #txt-upd { margin-top: 6px; }
+.opcion { align-items: center; gap: 14px; padding: 16px 18px; transition: border-color .15s, background .15s, transform .15s; }
+.opcion:hover { border-color: var(--acento2); transform: translateY(-1px); }
+.opcion input[type=radio] { width: 20px; height: 20px; margin: 0 0 0 auto; accent-color: var(--acento); flex: none; }
+.opcion b { font-size: 15px; }
+.opcion span:not(.ico-g) { line-height: 1.4; }
+.ico-g { flex: none; width: 46px; height: 46px; border-radius: 12px; background: #3a1a40; color: var(--acento2); display: grid; place-items: center; }
+.opcion:has(input:checked) .ico-g { background: var(--acento); color: #fff; }
+.ico svg, .ico-g svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.pasos li { display: inline-flex; align-items: center; gap: 7px; }
+.pasos li .ico svg { width: 15px; height: 15px; }
+.contador.clic { cursor: pointer; }
+.contador .ico { display: inline-block; vertical-align: -4px; margin-right: 6px; color: var(--aviso); }
+.contador .ico svg { width: 18px; height: 18px; }
+@media (max-width: 900px) { .fuente { grid-template-columns: 1fr; } }
+.contador.progreso { border-color: var(--ok); background: #14261f; }
+.contador.progreso.fin { border-color: var(--ok); }
+.prog-fila { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.prog-barra { height: 8px; border-radius: 6px; background: #0e0e18; overflow: hidden; margin: 8px 0 2px; }
+.prog-barra > i { display: block; height: 100%; background: linear-gradient(90deg, var(--acento), var(--ok)); transition: width .4s; }

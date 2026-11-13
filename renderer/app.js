@@ -18,15 +18,64 @@ $$("[data-ir]").forEach((b) => b.addEventListener("click", () => ir(b.dataset.ir
 // ---------------------------------------------------------------- registro
 const logEl = $("#log");
 function escribir(t) { logEl.textContent += t + "\n"; if (logEl.textContent.length > 120000) logEl.textContent = logEl.textContent.slice(-80000); logEl.scrollTop = logEl.scrollHeight; }
-window.ctv.onLog(escribir);
+// progreso de la generacion: el motor imprime "CTV_PROGRESO <modo> <i> <n> <slug>" al empezar cada video
+let gen = null;
+const FASES_TXT = { verificar: "Verificando tiempos", descargar: "Descargando imágenes y clips", hoja: "Preparando hoja de contacto", render: "Creando los videos" };
+function lineaProgreso(l) {
+  const m = l.match(/^CTV_PROGRESO (\w+) (\d+) (\d+) (\S+)/); if (!m) return false;
+  if (!gen) gen = { plan: 1, render: 0 };
+  Object.assign(gen, { modo: m[1], i: Number(m[2]), n: Number(m[3]), slug: m[4], fin: false });
+  if (gen.modo === "render") gen.render = Math.max(gen.render, gen.i - 1);
+  pintarProgreso(); return true;
+}
+function pintarProgreso() {
+  const el = $("#brief-contador"); if (!el || !gen || !gen.n) return;
+  const orden = gen.plan === 3 ? ["verificar", "descargar", "render"].indexOf(gen.modo) : 0, fi = Math.max(0, orden);
+  const hechasFase = gen.fin ? gen.n : gen.i - 1;
+  const pct = Math.min(100, Math.round(((fi * gen.n + hechasFase) / (gen.plan * gen.n)) * 100));
+  const term = gen.modo === "render" ? (gen.fin ? gen.n : gen.render) : (gen.plan === 3 || gen.fin ? gen.render : 0);
+  const faltan = Math.max(0, gen.n - term);
+  el.className = "contador fijo progreso";
+  el.innerHTML = "";
+  const f1 = document.createElement("div"); f1.className = "prog-fila";
+  const a = document.createElement("span"); a.innerHTML = (gen.fin ? "✔ " : "") + "<b></b>"; a.querySelector("b").textContent = (gen.fin && gen.modo === "render" ? "Listo: videos generados" : (FASES_TXT[gen.modo] || "Procesando") + (gen.plan === 3 ? " (fase " + (fi + 1) + " de 3)" : ""));
+  const b = document.createElement("span"); b.textContent = gen.fin ? "Terminado" : "Video " + Math.min(gen.i, gen.n) + " de " + gen.n + " · " + gen.slug;
+  f1.appendChild(a); f1.appendChild(b);
+  const bar = document.createElement("div"); bar.className = "prog-barra"; bar.innerHTML = "<i></i>"; bar.firstChild.style.width = pct + "%";
+  const f2 = document.createElement("div"); f2.className = "prog-fila chico"; f2.textContent = "Generados: " + term + " de " + gen.n + " · Faltan: " + faltan + " · " + pct + " %";
+  el.appendChild(f1); el.appendChild(bar); el.appendChild(f2);
+}
+window.ctv.onLog((t) => {
+  const limpias = String(t).split(/\r?\n/).filter((l) => !lineaProgreso(l));
+  if (limpias.length) escribir(limpias.join("\n"));
+});
 window.ctv.onBusy((b) => {
   ocupado = b;
+  if (!b && gen) { if (gen.plan === 1) { gen.fin = true; pintarProgreso(); gen = null; } }
   $("#ind-busy").classList.toggle("oculto", !b);
   $("#b-cancel").disabled = !b;
   $$("[data-run], #b-upd-ir").forEach((x) => { if (b) x.disabled = true; else if (x.id !== "b-upd-ir") x.disabled = false; });
 });
 $("#b-limpiar").addEventListener("click", () => (logEl.textContent = ""));
 $("#b-cancel").addEventListener("click", () => window.ctv.cancel());
+
+// ---------------------------------------------------------------- iconos (SVG en linea)
+const ICO = {
+  auto: '<svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+  carpeta: '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  guion: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
+  eventos: '<svg viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>',
+  imagen: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-9 9"/></svg>',
+  video: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>',
+  resultados: '<svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 19h14"/></svg>',
+  generar: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5 3.5-5 3.5z"/></svg>',
+  aviso: '<svg viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg>',
+};
+function pintarIconos() {
+  $$("[data-ico]").forEach((e) => { e.classList.add("ico"); e.innerHTML = ICO[e.dataset.ico] || ""; });
+  const orden = ["guion", "eventos", "imagen", "video", "resultados", "generar"];
+  $$("#pasos-dianchi li").forEach((li, i) => { if (li.querySelector(".ico")) return; const s = document.createElement("span"); s.className = "ico"; s.innerHTML = ICO[orden[i]]; li.prepend(s); });
+}
 
 // ---------------------------------------------------------------- listas de videos del lote
 const listas = { dianchi: [], diegao: [] };
@@ -55,6 +104,7 @@ $$("[data-run]").forEach((b) => b.addEventListener("click", async () => {
   const [linea, modo] = b.dataset.run.split(":");
   const slugs = $$("#lista-" + linea + " input:checked").map((c) => c.value);
   if (!slugs.length && linea !== "dianchi") return escribir("Marca al menos un video de la lista.");
+  gen = linea === "dianchi" ? { plan: 1, render: 0 } : null;
   const r = await window.ctv.run({ linea, modo, slugs });
   if (r && r.error) escribir("⚠ " + r.error);
 }));
@@ -136,9 +186,11 @@ function desgloseBrief() {
 const FALTA = () => { const b = brief(), f = DIMS.filter(([k]) => !b[k].length).map(([k, s]) => s); if (!b.problemasAuto && !b.problemas.length) f.push("temática o problema (o activa Automático)"); return f.length ? "Elige al menos un valor en: " + f.join(", ") + "." : ""; };
 
 function actualizarContador() {
+  if (gen && !gen.fin) return;
   const b = brief(), el = $("#brief-contador"), n = totalVideos();
   el.className = "contador" + (n ? "" : " vacio");
-  if (!n) { el.textContent = FALTA() + " Así se calcula cuántos videos se procesarán."; return resumenDianchi(); }
+  el.classList.toggle("clic", !n); el.title = n ? "" : "Ir al paso 1";
+  if (!n) { el.innerHTML = '<span class="ico">' + ICO.aviso + "</span>"; el.appendChild(document.createTextNode("Falta completar el paso 1. " + FALTA().replace("Elige al menos un valor en: ", "Elige al menos uno en: ") + " Así se calcula cuántos videos se procesarán.")); return resumenDianchi(); }
   const min = n * 5;
   el.innerHTML = "Se procesarán <b>" + n + "</b> video" + (n === 1 ? "" : "s") + " — " + desgloseBrief()
     + "<br><span class='chico'>Tiempo estimado: unos " + (min >= 60 ? Math.floor(min / 60) + " h " + (min % 60) + " min" : min + " min") + " (≈ 5 min por video)." + (ajustes.presets.rellenoLocal ? "" : " Descarga ≈ " + n * 80 + " solicitudes de Pexels (cupo: 20.000 al mes).") + "</span>"
@@ -277,15 +329,18 @@ function resumenDianchi() {
     ["Resultados", carpeta(d.dianchiResultado)],
   ]) { const f = document.createElement("div"); f.innerHTML = "<b></b>: <span></span>"; $("b", f).textContent = v === undefined ? "" : k; $("span", f).textContent = v; r.appendChild(f); }
 }
+$("#brief-contador").addEventListener("click", () => { if (!totalVideos()) irPasoDianchi(1); });
 $("#w-sig").addEventListener("click", () => irPasoDianchi(pasoDianchi + 1));
 $("#w-atras").addEventListener("click", () => irPasoDianchi(pasoDianchi - 1));
 $$("#pasos-dianchi li").forEach((li) => li.addEventListener("click", () => irPasoDianchi(Number(li.dataset.p))));
 $("#b-generar-todo").addEventListener("click", async () => {
   const slugs = [];   // sin slugs: el motor usa el ultimo lote creado con Claude
+  gen = { plan: 3, render: 0 };
   for (const modo of ["verificar", "descargar", "render"]) {
     const r = await window.ctv.run({ linea: "dianchi", modo, slugs });
-    if (!r || !r.ok) return escribir("⚠ Se detuvo en «" + modo + "»" + (r && r.error ? ": " + r.error : ". Revisa el registro."));
+    if (!r || !r.ok) { gen = null; actualizarContador(); return escribir("⚠ Se detuvo en «" + modo + "»" + (r && r.error ? ": " + r.error : ". Revisa el registro.")); }
   }
+  if (gen) { gen.fin = true; gen.modo = "render"; pintarProgreso(); gen = null; }
   escribir("✔ Videos de Dianchi generados. Revisa la carpeta de resultados.");
 });
 
@@ -487,6 +542,7 @@ $("#b-upd").addEventListener("click", async () => { $("#txt-upd").textContent = 
 $("#b-upd-ir").addEventListener("click", actualizarAhora);
 
 // ---------------------------------------------------------------- inicio
+pintarIconos();
 (async function init() {
   ajustes = await window.ctv.getSettings();
   pintarAjustes();
@@ -495,3 +551,12 @@ $("#b-upd-ir").addEventListener("click", actualizarAhora);
   $("#txt-version").textContent = "App v" + v.app + " · motor: " + v.motor + " · carpeta de trabajo: " + v.workspace;
   comprobarEntorno();
 })();
+
+// ---------------------------------------------------------------- prompt nuevo (los existentes no se editan)
+const NOMBRE_LINEA = { dianchi: "Dianchi", diegao: "Diegao", "por-cortar": "Cortar y silencios" };
+$$("[data-nuevo-prompt]").forEach((b) => b.addEventListener("click", () => {
+  const l = b.dataset.nuevoPrompt;
+  enviarClaude(l, "Quiero un PROMPT NUEVO para la línea " + NOMBRE_LINEA[l] + ". No modifiques ni sobrescribas ningún archivo de prompt existente (ni AJUSTES.md): crea uno nuevo, por ejemplo prompt/prompt-nuevo-" + new Date().toISOString().slice(0, 10) + ".md. "
+    + "Antes léete el prompt actual solo como referencia y hazme las preguntas que necesites (público, tono, tipo de negocio, estilo) para que el nuevo prompt quede hecho a mi medida. "
+    + "Al terminar dime cómo usarlo para generar con él.");
+}));
