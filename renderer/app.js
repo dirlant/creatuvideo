@@ -100,7 +100,10 @@ function pintarAjustes() {
   $("#pr-relleno").checked = !!ajustes.presets.rellenoLocal;
   $("#pr-voz").value = ajustes.presets.voz;
   $("#in-pexels").value = ajustes.pexelsKey || "";
-  if (ajustes.incluidas && ajustes.incluidas.pexels) $("#in-pexels").placeholder = "Incluida con la aplicación (opcional: pega otra para cambiarla)";
+  const inc = ajustes.incluidas || {};                       // claves que vienen incluidas: ni se muestran ni se piden
+  $("#bloque-pexels").classList.toggle("oculto", !!inc.pexels);
+  $("#bloque-gh").classList.toggle("oculto", !!inc.github);
+  $("#bloque-claves").classList.toggle("oculto", !!inc.pexels && !!inc.github);
   $("#in-gh").value = ajustes.githubToken || "";
   $("#pr-auto").checked = ajustes.autoUpdate !== false;
 }
@@ -136,6 +139,7 @@ async function comprobarEntorno() {
   for (const cont of [$("#lista-entorno"), $("#estado-entorno")]) {
     cont.innerHTML = "";
     for (const [k, nombre, , instalar] of ITEMS_ENTORNO) {
+      if (k === "pexels" && ajustes && ajustes.incluidas && ajustes.incluidas.pexels) continue;
       const ok = !!e[k]; const f = document.createElement("div"); f.className = "estado" + (ok ? " ok" : "");
       f.innerHTML = '<span class="pt"></span><span class="n"></span><span class="r"></span>';
       $(".n", f).textContent = nombre;

@@ -139,11 +139,17 @@
           </select></div>
       </div>
 
-      <h2>Claves</h2>
-      <label class="et">Clave de Pexels (para descargar imágenes y clips)</label>
-      <input id="in-pexels" type="password" placeholder="pega tu clave de pexels.com/api" />
-      <label class="et">Token de GitHub (solo lectura; hace falta si el repositorio es privado)</label>
-      <input id="in-gh" type="password" placeholder="github_pat_… (opcional)" />
+      <div id="bloque-claves">
+        <h2>Claves</h2>
+        <div id="bloque-pexels">
+          <label class="et">Clave de Pexels (para descargar imágenes y clips)</label>
+          <input id="in-pexels" type="password" placeholder="pega tu clave de pexels.com/api" />
+        </div>
+        <div id="bloque-gh">
+          <label class="et">Token de GitHub (solo lectura; hace falta si el repositorio es privado)</label>
+          <input id="in-gh" type="password" placeholder="github_pat_… (opcional)" />
+        </div>
+      </div>
       <label class="chk"><input type="checkbox" id="pr-auto" /> Buscar actualizaciones al abrir</label>
       <div class="barra"><button class="p fuerte" id="b-guardar">Guardar ajustes</button><span id="msg-guardar" class="chico"></span></div>
 
