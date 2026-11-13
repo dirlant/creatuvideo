@@ -134,3 +134,8 @@ textarea { resize: vertical; line-height: 1.45; }
 .prog-fila { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .prog-barra { height: 8px; border-radius: 6px; background: #0e0e18; overflow: hidden; margin: 8px 0 2px; }
 .prog-barra > i { display: block; height: 100%; background: linear-gradient(90deg, var(--acento), var(--ok)); transition: width .4s; }
+.aviso.bloqueado { opacity: .55; cursor: not-allowed; }
+#b-upd:disabled { cursor: not-allowed; }
+.peligro { border-color: var(--mal); color: var(--mal); }
+.peligro:hover { background: #3a1820; }
+.mini-b { padding: 3px 12px; font-size: 12px; border-radius: 14px; }

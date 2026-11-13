@@ -31,16 +31,18 @@ function lineaProgreso(l) {
 function pintarProgreso() {
   const el = $("#brief-contador"); if (!el || !gen || !gen.n) return;
   const orden = gen.plan === 3 ? ["verificar", "descargar", "render"].indexOf(gen.modo) : 0, fi = Math.max(0, orden);
-  const hechasFase = gen.fin ? gen.n : gen.i - 1;
+  const hechasFase = gen.fin && !gen.detenido ? gen.n : gen.i - 1;
   const pct = Math.min(100, Math.round(((fi * gen.n + hechasFase) / (gen.plan * gen.n)) * 100));
-  const term = gen.modo === "render" ? (gen.fin ? gen.n : gen.render) : (gen.plan === 3 || gen.fin ? gen.render : 0);
+  const term = gen.modo === "render" ? (gen.fin && !gen.detenido ? gen.n : gen.render) : (gen.plan === 3 || gen.fin ? gen.render : 0);
   const faltan = Math.max(0, gen.n - term);
   el.className = "contador fijo progreso";
   el.innerHTML = "";
   const f1 = document.createElement("div"); f1.className = "prog-fila";
   const a = document.createElement("span"); a.innerHTML = (gen.fin ? "✔ " : "") + "<b></b>"; a.querySelector("b").textContent = (gen.fin && gen.modo === "render" ? "Listo: videos generados" : (FASES_TXT[gen.modo] || "Procesando") + (gen.plan === 3 ? " (fase " + (fi + 1) + " de 3)" : ""));
   const b = document.createElement("span"); b.textContent = gen.fin ? "Terminado" : "Video " + Math.min(gen.i, gen.n) + " de " + gen.n + " · " + gen.slug;
+  if (gen.detenido) { a.innerHTML = "<b>Proceso detenido</b>"; b.textContent = "Se canceló lo que faltaba"; }
   f1.appendChild(a); f1.appendChild(b);
+  if (!gen.fin) { const d = document.createElement("button"); d.type = "button"; d.className = "peligro mini-b"; d.textContent = "■ Detener"; d.addEventListener("click", detener); f1.appendChild(d); }
   const bar = document.createElement("div"); bar.className = "prog-barra"; bar.innerHTML = "<i></i>"; bar.firstChild.style.width = pct + "%";
   const f2 = document.createElement("div"); f2.className = "prog-fila chico"; f2.textContent = "Generados: " + term + " de " + gen.n + " · Faltan: " + faltan + " · " + pct + " %";
   el.appendChild(f1); el.appendChild(bar); el.appendChild(f2);
@@ -51,7 +53,9 @@ window.ctv.onLog((t) => {
 });
 window.ctv.onBusy((b) => {
   ocupado = b;
-  if (!b && gen) { if (gen.plan === 1) { gen.fin = true; pintarProgreso(); gen = null; } }
+  bloqueoActualizar(b);
+  if (!b && gen) { if (gen.plan === 1) { gen.fin = true; gen.detenido = detenido; pintarProgreso(); gen = null; } }
+  if (!b) detenido = false;
   $("#ind-busy").classList.toggle("oculto", !b);
   $("#b-cancel").disabled = !b;
   $$("[data-run], #b-upd-ir").forEach((x) => { if (b) x.disabled = true; else if (x.id !== "b-upd-ir") x.disabled = false; });
@@ -338,7 +342,7 @@ $("#b-generar-todo").addEventListener("click", async () => {
   gen = { plan: 3, render: 0 };
   for (const modo of ["verificar", "descargar", "render"]) {
     const r = await window.ctv.run({ linea: "dianchi", modo, slugs });
-    if (!r || !r.ok) { gen = null; actualizarContador(); return escribir("⚠ Se detuvo en «" + modo + "»" + (r && r.error ? ": " + r.error : ". Revisa el registro.")); }
+    if (!r || !r.ok) { if (detenido && gen) { gen.fin = true; gen.detenido = true; pintarProgreso(); gen = null; return escribir("■ Proceso detenido."); } gen = null; actualizarContador(); return escribir("⚠ Se detuvo en «" + modo + "»" + (r && r.error ? ": " + r.error : ". Revisa el registro.")); }
   }
   if (gen) { gen.fin = true; gen.modo = "render"; pintarProgreso(); gen = null; }
   escribir("✔ Videos de Dianchi generados. Revisa la carpeta de resultados.");
@@ -516,6 +520,7 @@ $("#b-cuenta").addEventListener("click", () => { actualizarCuenta(); comprobarEn
 let ultimaInfo = null;
 function mostrarUpd(i) {
   ultimaInfo = i;
+  if (ocupado) return bloqueoActualizar(true);   // mientras trabaja se muestra el motivo del bloqueo, no el resultado de la busqueda
   const aviso = $("#aviso-upd"), txt = $("#txt-upd"), btn = $("#b-upd-ir");
   if (!i.ok) { txt.textContent = i.motivo; aviso.classList.add("oculto"); btn.disabled = true; return; }
   if (i.hay) {
@@ -524,9 +529,23 @@ function mostrarUpd(i) {
   } else { txt.textContent = "Estás al día (" + i.actual + ")."; aviso.classList.add("oculto"); btn.disabled = true; }
 }
 window.ctv.onUpdate(mostrarUpd);
+const MOTIVO_BLOQUEO = "No se puede actualizar mientras la app está trabajando: al actualizar se reinicia y se cortaría lo que se está generando. Espera a que termine o detén el proceso.";
+let detenido = false;
+function detener() { detenido = true; window.ctv.cancel(); escribir("■ Deteniendo el proceso…"); }
+$("#b-detener").addEventListener("click", detener);
+function bloqueoActualizar(b) {
+  $("#b-detener").classList.toggle("oculto", !b);
+  const btn = $("#b-upd"), txt = $("#txt-upd"), aviso = $("#aviso-upd");
+  btn.disabled = b; btn.title = b ? MOTIVO_BLOQUEO : "";
+  aviso.classList.toggle("bloqueado", b); aviso.title = b ? MOTIVO_BLOQUEO : "";
+  if (b) txt.textContent = "Actualizar está bloqueado: la app está trabajando. Se podrá cuando termine o si detienes el proceso.";
+  else if (ultimaInfo) mostrarUpd(ultimaInfo); else txt.textContent = "";
+}
 let actualizando = false;
 async function actualizarAhora() {
-  if (actualizando) return; actualizando = true;
+  if (actualizando) return;
+  if (ocupado) return escribir("⚠ " + MOTIVO_BLOQUEO);
+  actualizando = true;
   const aviso = $("#aviso-upd");
   $("#b-upd-ir").disabled = true; $("#txt-upd").textContent = "Descargando la actualización…";
   aviso.textContent = "Descargando la actualización… la app se reiniciará sola."; aviso.classList.remove("oculto");
@@ -538,7 +557,7 @@ async function actualizarAhora() {
   } else { aviso.textContent = "Actualización lista (" + r.corto + "). Reiniciando…"; $("#txt-upd").textContent = "Reiniciando…"; }
 }
 $("#aviso-upd").addEventListener("click", actualizarAhora);   // un clic en el aviso descarga e instala
-$("#b-upd").addEventListener("click", async () => { $("#txt-upd").textContent = "Buscando…"; mostrarUpd(await window.ctv.checkUpdate()); });
+$("#b-upd").addEventListener("click", async () => { if (ocupado) return escribir("⚠ " + MOTIVO_BLOQUEO); $("#txt-upd").textContent = "Buscando…"; mostrarUpd(await window.ctv.checkUpdate()); });
 $("#b-upd-ir").addEventListener("click", actualizarAhora);
 
 // ---------------------------------------------------------------- inicio
