@@ -33,8 +33,8 @@
       <h1>¿Qué quieres crear hoy?</h1>
       <div id="banner-falta" class="banner oculto"><div><b>Faltan componentes para generar videos.</b><span id="txt-faltan"></span></div><button class="fuerte" id="b-instalar-todo">Instalar todo lo que falta</button></div>
       <div class="tarjetas">
-        <button class="tarjeta" data-ir="dianchi"><h3>Dianchi</h3><p>Videos de rubros de belleza con imágenes y B-roll, objeción y 3 pasos.</p></button>
-        <button class="tarjeta" data-ir="diegao"><h3>Diegao</h3><p>Videos de mentor para dueñas de salón con cortes del evento.</p></button>
+        <button class="tarjeta" data-ir="dianchi"><h3>Dianchi <span class="para"><span data-ico="clienta"></span>Para Clientas</span></h3><p>Videos de rubros de belleza con imágenes y B-roll, objeción y 3 pasos.</p></button>
+        <button class="tarjeta" data-ir="diegao"><h3>Diegao <span class="para"><span data-ico="duena"></span>Para Dueñas</span></h3><p>Videos de mentor para dueñas de salón con cortes del evento.</p></button>
         <button class="tarjeta" data-ir="cortar"><h3>Cortar y silencios</h3><p>Corta un video largo, quita silencios y aplica el patrón de interrupción.</p></button>
         <button class="tarjeta" data-ir="claude"><h3>Claude Code</h3><p>Pide un lote nuevo o un cambio de reglas en lenguaje normal.</p></button>
       </div>
@@ -44,10 +44,10 @@
     </section>
 
     <section id="v-dianchi" class="vista">
-      <h1>Dianchi</h1>
+      <h1>Dianchi <span class="para"><span data-ico="clienta"></span>Para Clientas</span></h1>
       <ol class="pasos" id="pasos-dianchi">
         <li data-p="1" class="act">1 · Guion</li><li data-p="2">2 · Eventos</li><li data-p="3">3 · Imágenes</li>
-        <li data-p="4">4 · Videos</li><li data-p="5">5 · Resultados</li><li data-p="6">6 · Generar</li>
+        <li data-p="4">4 · Videos</li><li data-p="5">5 · Resultados</li><li data-p="6">6 · Diseño</li><li data-p="7">7 · Generar</li>
       </ol>
 
       <div class="paso" data-p="1">
@@ -55,7 +55,7 @@
         <p class="sub">Las mismas opciones que el formulario de Dianchi. Elige <b>uno o varios</b> rubros y temáticas: la app calcula cuántos videos salen.</p>
         <div class="tabs-fmt"><span class="tab on">Reels</span><span class="tab off" title="La app de escritorio genera videos; los carruseles se hacen en la web de Dianchi">Carruseles (solo en la web)</span></div>
         <div id="brief-dianchi" class="brief"></div>
-        <div class="barra"><button class="p fuerte" id="b-crear-guiones">Crear los guiones con Claude</button><button data-nuevo-prompt="dianchi">Crear un prompt nuevo con Claude</button><span class="chico">Claude escribe un guion por cada combinación; quedan listos para generarse en el paso 6.</span></div>
+        <div class="barra"><button class="p fuerte" id="b-crear-guiones">Crear los guiones con Claude</button><button data-nuevo-prompt="dianchi">Crear un prompt nuevo con Claude</button><span class="chico">Claude escribe un guion por cada combinación; quedan listos para generarse en el paso 7.</span></div>
 
       </div>
 
@@ -101,6 +101,19 @@
       </div>
 
       <div class="paso oculto" data-p="6">
+        <h2>Personalizar diseño</h2>
+        <p class="sub">Antes de generar: escríbele a la IA cómo quieres que se vea el video y qué correcciones de diseño debe tener en cuenta (colores, tipografía, globo de la objeción, píldoras, collage, tarjeta final, subtítulos…). Es opcional.</p>
+        <div class="diseno">
+          <textarea id="txt-diseno" rows="7" placeholder="Ej.: colores rosa y dorado, letras más grandes y redondeadas, globo de la objeción con borde blanco, tarjeta final más sobria, que el collage no tape la cara…"></textarea>
+          <div class="barra">
+            <button class="p" id="b-diseno-aplicar">Aplicar este diseño con Claude</button>
+            <button id="b-diseno-modificar">Corregir un resultado ya generado</button>
+          </div>
+          <span class="chico">El diseño queda guardado y se envía a Claude al crear los guiones (paso 1) para que lo considere al hacer cada video. «Aplicar» cambia el motor para todos los próximos videos; «Corregir» rehace solo los videos ya generados.</span>
+        </div>
+      </div>
+
+      <div class="paso oculto" data-p="7">
         <h2>Resumen y generar</h2>
 
         <div id="resumen-dianchi" class="resumen"></div>
@@ -119,27 +132,65 @@
     </section>
 
     <section id="v-diegao" class="vista">
-      <h1>Diegao</h1>
-      <p class="sub">Videos de mentor sin hook: narración + animación, cortes cada ~3 s, sonidos de “bueno” y “malo”. Pon los videos del evento en la carpeta fuente.</p>
-      <div class="cfg"><h3>Carpetas y opciones de Diegao</h3>
-        <div id="cfg-diegao" class="filas"></div>
-        <div class="grid2"><div><label class="et">Voz</label><select class="sel-voz"></select></div></div>
+      <h1>Diegao <span class="para"><span data-ico="duena"></span>Para Dueñas</span></h1>
+      <ol class="pasos" id="pasos-diegao">
+        <li data-p="1" class="act">1 · Guion</li><li data-p="2">2 · Voz</li><li data-p="3">3 · Videos del evento</li>
+        <li data-p="4">4 · Resultados</li><li data-p="5">5 · Diseño</li><li data-p="6">6 · Generar</li>
+      </ol>
+
+      <div class="paso" data-p="1">
+        <h2>Guion y opciones del video</h2>
+        <p class="sub">Videos de mentor para dueñas de salón: narración + animación sobre cortes de tus videos del evento. Elige <b>uno o varios</b> rubros y temáticas: la app calcula cuántos videos salen.</p>
+        <div id="brief-diegao" class="brief"></div>
+        <div class="barra"><button class="p fuerte" id="b-crear-guiones-d">Crear los guiones con Claude</button><button data-nuevo-prompt="diegao">Crear un prompt nuevo con Claude</button><span class="chico">Claude escribe un guion por cada combinación; quedan listos para generarse en el paso 6.</span></div>
       </div>
-      <div class="barra">
-        <button data-acc="seleccionar" data-l="diegao">Marcar todos</button>
-        <button data-acc="ninguno" data-l="diegao">Quitar marcas</button>
-        <button data-acc="recargar" data-l="diegao">Recargar lista</button>
+
+      <div class="paso oculto" data-p="2">
+        <h2>Voz del narrador</h2>
+        <p class="sub">Los sonidos de «bueno» y «malo» y los cortes cada ~3 segundos se aplican solos.</p>
+        <div class="grid2"><div><label class="et">Voz del narrador</label><select class="sel-voz"></select></div></div>
       </div>
-      <div id="lista-diegao" class="lista"></div>
-      <div class="barra">
-        <button class="p" data-run="diegao:preparar">1 · Preparar (voz, tiempos y cortes)</button>
-        <button class="p fuerte" data-run="diegao:render">2 · Generar videos</button>
+
+      <div class="paso oculto" data-p="3">
+        <h2>Videos del evento</h2>
+        <p class="sub">Carpeta con los videos del evento de los que se sacan los cortes aleatorios. Si no eliges una, se usa la carpeta predeterminada del programa.</p>
+        <div class="cfg"><div id="cfg-diegao-fuente" class="filas"></div></div>
+        <div class="barra"><button data-abrir="diegao/entrada/evento-receta">Abrir videos fuente</button></div>
       </div>
-      <div class="barra">
-        <button data-abrir="diegao/resultado">Abrir resultados</button>
-        <button data-abrir="diegao/entrada/evento-receta">Abrir videos fuente</button>
-        <button data-nuevo-prompt="diegao">Crear un prompt nuevo con Claude</button>
+
+      <div class="paso oculto" data-p="4">
+        <h2>Carpeta de resultados</h2>
+        <p class="sub">Dónde se guardan los videos terminados.</p>
+        <div class="cfg"><div id="cfg-diegao-resultados" class="filas"></div></div>
+        <div class="barra"><button data-abrir="diegao/resultado">Abrir resultados</button></div>
       </div>
+
+      <div class="paso oculto" data-p="5">
+        <h2>Personalizar diseño</h2>
+        <p class="sub">Antes de generar: escríbele a la IA cómo quieres que se vea el video y qué correcciones de diseño debe tener en cuenta (colores, tipografía, titulares, globo, píldoras, collage…). Es opcional.</p>
+        <div class="diseno">
+          <textarea id="txt-diseno-d" rows="7" placeholder="Ej.: fondo oscuro con detalles dorados, titulares más grandes, que el globo de la objeción no tape la cara, estilo más sobrio…"></textarea>
+          <div class="barra">
+            <button class="p" id="b-diseno-aplicar-d">Aplicar este diseño con Claude</button>
+            <button id="b-diseno-modificar-d">Corregir un resultado ya generado</button>
+          </div>
+          <span class="chico">El diseño queda guardado y se envía a Claude al crear los guiones (paso 1) para que lo considere al hacer cada video. «Aplicar» cambia el motor para todos los próximos videos; «Corregir» rehace solo los videos ya generados.</span>
+        </div>
+      </div>
+
+      <div class="paso oculto" data-p="6">
+        <h2>Resumen y generar</h2>
+        <div id="resumen-diegao" class="resumen"></div>
+        <div class="barra"><button class="p fuerte" id="b-generar-todo-d">Generar videos (preparar → generar)</button></div>
+        <p class="chico">O paso a paso:</p>
+        <div class="barra">
+          <button class="p" data-run="diegao:preparar">Preparar (voz, tiempos y cortes)</button>
+          <button class="p" data-run="diegao:render">Generar videos</button>
+          <button data-abrir="diegao/resultado">Abrir resultados</button>
+        </div>
+      </div>
+
+      <div class="barra nav-wiz"><button id="wd-atras" class="oculto">← Atrás</button><button class="p fuerte" id="wd-sig">Siguiente →</button></div>
     </section>
 
     <section id="v-cortar" class="vista">

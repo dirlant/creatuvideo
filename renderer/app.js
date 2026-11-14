@@ -3,13 +3,17 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 let ajustes = null;
 let ocupado = false;
+let BL = "dianchi";                                     // linea cuyo formulario/contador esta activo: "dianchi" | "diegao"
+const KB = (L = BL) => (L === "diegao" ? "briefDiegao" : "brief");      // donde se guarda el formulario de cada linea
+const KD = (L = BL) => (L === "diegao" ? "disenoDiegao" : "diseno");    // y su texto de diseño
+function conLinea(L, fn) { const a = BL; BL = L; try { return fn(); } finally { BL = a; } }
 
 // ---------------------------------------------------------------- navegacion
 function ir(v) {
   $$(".vista").forEach((e) => e.classList.toggle("activa", e.id === "v-" + v));
   $$(".nav-b").forEach((b) => b.classList.toggle("activo", b.dataset.v === v));
-  $("#barra-estado").classList.toggle("oculto", v !== "dianchi" && !(gen && !gen.fin));   // el conteo de videos queda fijo al pie, solo en Dianchi
-  if (v === "diegao") cargarLista(v, false);
+  if (v === "dianchi" || v === "diegao") { BL = v; actualizarContador(); }
+  $("#barra-estado").classList.toggle("oculto", v !== "dianchi" && v !== "diegao" && !(gen && !gen.fin));   // el conteo de videos queda fijo al pie, solo en Dianchi y Diegao
   if (v === "ajustes") comprobarEntorno();
   if (v === "claude") actualizarCuenta();
 }
@@ -21,7 +25,7 @@ const logEl = $("#log");
 function escribir(t) { logEl.textContent += t + "\n"; if (logEl.textContent.length > 120000) logEl.textContent = logEl.textContent.slice(-80000); logEl.scrollTop = logEl.scrollHeight; }
 // progreso de la generacion: el motor imprime "CTV_PROGRESO <modo> <i> <n> <slug>" al empezar cada video
 let gen = null;
-const FASES_TXT = { verificar: "Verificando tiempos", descargar: "Descargando imágenes y clips", hoja: "Preparando hoja de contacto", render: "Creando los videos" };
+const FASES_TXT = { preparar: "Preparando voz, tiempos y cortes", verificar: "Verificando tiempos", descargar: "Descargando imágenes y clips", hoja: "Preparando hoja de contacto", render: "Creando los videos" };
 function lineaProgreso(l) {
   const m = l.match(/^CTV_PROGRESO (\w+) (\d+) (\d+) (\S+)/); if (!m) return false;
   if (!gen) gen = { plan: 1, render: 0 };
@@ -31,15 +35,15 @@ function lineaProgreso(l) {
 }
 function pintarProgreso() {
   const el = $("#brief-contador"); if (!el || !gen || !gen.n) return;
-  const orden = gen.plan === 3 ? ["verificar", "descargar", "render"].indexOf(gen.modo) : 0, fi = Math.max(0, orden);
+  const orden = gen.plan > 1 ? (gen.fases || ["verificar", "descargar", "render"]).indexOf(gen.modo) : 0, fi = Math.max(0, orden);
   const hechasFase = gen.fin && !gen.detenido ? gen.n : gen.i - 1;
   const pct = Math.min(100, Math.round(((fi * gen.n + hechasFase) / (gen.plan * gen.n)) * 100));
-  const term = gen.modo === "render" ? (gen.fin && !gen.detenido ? gen.n : gen.render) : (gen.plan === 3 || gen.fin ? gen.render : 0);
+  const term = gen.modo === "render" ? (gen.fin && !gen.detenido ? gen.n : gen.render) : (gen.plan > 1 || gen.fin ? gen.render : 0);
   const faltan = Math.max(0, gen.n - term);
   el.className = "contador fijo progreso";
   el.innerHTML = "";
   const f1 = document.createElement("div"); f1.className = "prog-fila";
-  const a = document.createElement("span"); a.innerHTML = (gen.fin ? "✔ " : "") + "<b></b>"; a.querySelector("b").textContent = (gen.fin && gen.modo === "render" ? "Listo: videos generados" : (FASES_TXT[gen.modo] || "Procesando") + (gen.plan === 3 ? " (fase " + (fi + 1) + " de 3)" : ""));
+  const a = document.createElement("span"); a.innerHTML = (gen.fin ? "✔ " : "") + "<b></b>"; a.querySelector("b").textContent = (gen.fin && gen.modo === "render" ? "Listo: videos generados" : (FASES_TXT[gen.modo] || "Procesando") + (gen.plan > 1 ? " (fase " + (fi + 1) + " de " + gen.plan + ")" : ""));
   const b = document.createElement("span"); b.textContent = gen.fin ? "Terminado" : "Video " + Math.min(gen.i, gen.n) + " de " + gen.n + " · " + gen.slug;
   if (gen.detenido) { a.innerHTML = "<b>Proceso detenido</b>"; b.textContent = "Se canceló lo que faltaba"; }
   f1.appendChild(a); f1.appendChild(b);
@@ -73,13 +77,18 @@ const ICO = {
   imagen: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-9 9"/></svg>',
   video: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>',
   resultados: '<svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 19h14"/></svg>',
+  diseno: '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.6-.2-1-.6-1.4-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2H17a4 4 0 0 0 4-4c0-4-4-7.3-9-7.3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7" r="1"/></svg>',
   generar: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5 3.5-5 3.5z"/></svg>',
   aviso: '<svg viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg>',
+  clienta: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  duena: '<svg viewBox="0 0 24 24"><path d="M3 9 5 4h14l2 5"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg>',
 };
 function pintarIconos() {
   $$("[data-ico]").forEach((e) => { e.classList.add("ico"); e.innerHTML = ICO[e.dataset.ico] || ""; });
-  const orden = ["guion", "eventos", "imagen", "video", "resultados", "generar"];
+  const orden = ["guion", "eventos", "imagen", "video", "resultados", "diseno", "generar"];
   $$("#pasos-dianchi li").forEach((li, i) => { if (li.querySelector(".ico")) return; const s = document.createElement("span"); s.className = "ico"; s.innerHTML = ICO[orden[i]]; li.prepend(s); });
+  const ordenD = ["guion", "eventos", "video", "resultados", "diseno", "generar"];
+  $$("#pasos-diegao li").forEach((li, i) => { if (li.querySelector(".ico")) return; const s = document.createElement("span"); s.className = "ico"; s.innerHTML = ICO[ordenD[i]]; li.prepend(s); });
 }
 
 // ---------------------------------------------------------------- listas de videos del lote
@@ -108,8 +117,7 @@ $$("[data-acc]").forEach((b) => b.addEventListener("click", () => {
 $$("[data-run]").forEach((b) => b.addEventListener("click", async () => {
   const [linea, modo] = b.dataset.run.split(":");
   const slugs = $$("#lista-" + linea + " input:checked").map((c) => c.value);
-  if (!slugs.length && linea !== "dianchi") return escribir("Marca al menos un video de la lista.");
-  gen = linea === "dianchi" ? { plan: 1, render: 0 } : null;
+  gen = { plan: 1, render: 0 };
   const r = await window.ctv.run({ linea, modo, slugs });
   if (r && r.error) escribir("⚠ " + r.error);
 }));
@@ -167,8 +175,9 @@ const BRIEF0 = { idioma: "Español", problemasAuto: true, rubros: [], formatos: 
 const DIMS = [["rubros", "rubro", "rubros"], ["tematicas", "temática", "temáticas"], ["formatos", "formato", "formatos"], ["tonos", "emoción", "emociones"], ["ganchos", "gancho", "ganchos"], ["ctas", "acción", "acciones"]];
 function brief() {                               // siempre el MISMO objeto, completando solo lo que falte
   const p = ajustes.presets;
-  if (!p.brief) p.brief = { ...BRIEF0, rubros: [], tematicas: [], formatos: [...BRIEF0.formatos], tonos: [...BRIEF0.tonos], ganchos: [...BRIEF0.ganchos], ctas: [...BRIEF0.ctas] };
-  const b = p.brief;
+  const kb = KB();
+  if (!p[kb]) p[kb] = { ...BRIEF0, rubros: [], tematicas: [], formatos: [...BRIEF0.formatos], tonos: [...BRIEF0.tonos], ganchos: [...BRIEF0.ganchos], ctas: [...BRIEF0.ctas] };
+  const b = p[kb];
   for (const [nuevo, viejo] of [["formatos", "formato"], ["tonos", "tono"], ["ganchos", "gancho"], ["ctas", "cta"]])   // version anterior: un solo valor
     if (!Array.isArray(b[nuevo]) && typeof b[viejo] === "string" && b[viejo]) b[nuevo] = [b[viejo]];
   if (!Array.isArray(b.problemas)) b.problemas = [];
@@ -194,11 +203,12 @@ function actualizarContador() {
   if (gen && !gen.fin) return;
   const b = brief(), el = $("#brief-contador"), n = totalVideos();
   el.className = "contador" + (n ? "" : " vacio");
+  const pexels = BL === "dianchi";
   el.classList.toggle("clic", !n); el.title = n ? "" : "Ir al paso 1";
   if (!n) { el.innerHTML = '<span class="ico">' + ICO.aviso + "</span>"; el.appendChild(document.createTextNode("Falta completar el paso 1. " + FALTA().replace("Elige al menos un valor en: ", "Elige al menos uno en: ") + " Así se calcula cuántos videos se procesarán.")); return resumenDianchi(); }
   const min = n * 5;
   el.innerHTML = "Se procesarán <b>" + n + "</b> video" + (n === 1 ? "" : "s") + " — " + desgloseBrief()
-    + "<br><span class='chico'>Tiempo estimado: unos " + (min >= 60 ? Math.floor(min / 60) + " h " + (min % 60) + " min" : min + " min") + " (≈ 5 min por video)." + (ajustes.presets.rellenoLocal ? "" : " Descarga ≈ " + n * 80 + " solicitudes de Pexels (cupo: 20.000 al mes).") + "</span>"
+    + "<br><span class='chico'>Tiempo estimado: unos " + (min >= 60 ? Math.floor(min / 60) + " h " + (min % 60) + " min" : min + " min") + " (≈ 5 min por video)." + (!pexels || ajustes.presets.rellenoLocal ? "" : " Descarga ≈ " + n * 80 + " solicitudes de Pexels (cupo: 20.000 al mes).") + "</span>"
     + (n > 16 ? "<br><span class='aviso-n'>⚠ Son muchos videos: conviene hacerlos en lotes de 16 o menos.</span>" : "");
   resumenDianchi();
 }
@@ -232,7 +242,7 @@ function campoMulti(num, titulo, nombres, sel, cambio, plural) {
   return f;
 }
 function pintarBrief() {
-  const cont = $("#brief-dianchi"); if (!cont || !ajustes) return;
+  const cont = $("#brief-" + BL); if (!cont || !ajustes) return;
   const b = brief(); cont.innerHTML = ""; nCampo = 0;
   const cambio = () => { guardarBrief(); actualizarContador(); };
   cont.appendChild(campo(1, "Idioma", "", selector(OPC.idiomas, b.idioma, (v) => { b.idioma = v; cambio(); })));
@@ -272,10 +282,13 @@ function pintarBrief() {
   cont.appendChild(campo("", "Duración", "Dianchi limita los videos a 30 segundos.", rg));
   const vs = selector([["1"], ["2"], ["3"], ["4"], ["5"]], String(b.variaciones), (v) => { b.variaciones = Number(v); cambio(); });
   cont.appendChild(campo("", "Variaciones por combinación", "Cuántos guiones distintos (otro ángulo) por cada combinación de lo que elegiste arriba.", vs));
+  const td = $(BL === "diegao" ? "#txt-diseno-d" : "#txt-diseno"); if (td && document.activeElement !== td) td.value = ajustes.presets[KD()] || "";
   actualizarContador();
 }
+const disenoTexto = (L = BL) => ((ajustes && ajustes.presets[KD(L)]) || "").trim();
+const NOM_L = { dianchi: "Dianchi", diegao: "Diegao" };
 function textoBrief() {
-  const b = brief(), n = totalVideos();
+  const L = BL, b = brief(), n = totalVideos();
   const busca = (lista, nombre) => lista.find((x) => x[0] === nombre) || [nombre, ""];
   const voz = OPC.idiomas.find((x) => x[0] === b.idioma)[1];
   const defs = (lista, sel) => sel.map((s) => "  · " + s + " → " + busca(lista, s)[1]).join("\n");
@@ -289,65 +302,104 @@ function textoBrief() {
     const ct = busca(OPC.ctas, c[5]);
     lineas.push("- " + c[0] + " · " + c[1] + " · formato " + c[2] + " · emoción " + c[3] + " · gancho " + c[4] + " · acción " + c[5] + (!b.problemasAuto ? " · problema/temática a resolver: «" + c[6] + "»" : " · temática a resolver: elígela tú al azar, propia del rubro y distinta en cada guion") + " (cta_tipo=\"" + ct[2] + "\", la frase final empieza con «" + ct[3] + "»)" + (b.variaciones > 1 ? " · variación " + v : ""));
   }
-  return "Crea " + n + " guion" + (n === 1 ? "" : "es") + " nuevo" + (n === 1 ? "" : "s") + " para Dianchi y agrégalos a la lista RUBROS de scripts/dianchi_lote.py, con el mismo formato que los existentes (escenas con consultas de Pexels, collage, píldoras de pasos, globo de objeción, marcar). "
-    + "Antes lee prompt/AJUSTES.md y prompt/rubros_hechos.md y no repitas lo ya hecho.\n\nOPCIONES (las mismas del formulario de Dianchi; cada guion usa UNA combinación de ellas):\n"
+  const dg = L === "diegao";
+  const intro = dg
+    ? "Crea " + n + " guion" + (n === 1 ? "" : "es") + " nuevo" + (n === 1 ? "" : "s") + " para Diegao (videos de mentor PARA DUEÑAS de salón, hablándoles de tú a tú; no es para clientas) y agrégalos a la lista V de scripts/diegao_lote.py, con el mismo formato que los existentes (slug, buenas/malas, rubro, titulo, gancho, guion, burbuja, pasos, pasos_hasta). "
+      + "Antes lee diegao/prompt/diegao_mentor.md y diegao/prompt/AJUSTES.md y no repitas los guiones que ya existen.\n\nOPCIONES (las mismas del formulario; cada guion usa UNA combinación de ellas):\n"
+    : "Crea " + n + " guion" + (n === 1 ? "" : "es") + " nuevo" + (n === 1 ? "" : "s") + " para Dianchi (videos PARA CLIENTAS) y agrégalos a la lista RUBROS de scripts/dianchi_lote.py, con el mismo formato que los existentes (escenas con consultas de Pexels, collage, píldoras de pasos, globo de objeción, marcar). "
+      + "Antes lee prompt/AJUSTES.md y prompt/rubros_hechos.md y no repitas lo ya hecho.\n\nOPCIONES (las mismas del formulario de Dianchi; cada guion usa UNO de cada combinación de ellas):\n";
+  const cierre = dg
+    ? "Al terminar: escribe SOLO los slugs nuevos (uno por línea, reemplazando el contenido) en diegao/prompt/lote_actual.txt — la app genera los videos de ese archivo — y ejecuta «diegao_lote.py … preparar» con ellos para comprobar tiempos y choques."
+    : "Al terminar: agrega los slugs nuevos a prompt/rubros_hechos.md, escribe SOLO esos slugs nuevos (uno por línea, reemplazando el contenido) en prompt/lote_actual.txt — la app genera los videos de ese archivo — y ejecuta la verificación (dianchi_lote.py … verificar) para comprobar tiempos y choques.";
+  return intro
     + "- Idioma: " + b.idioma + (b.idioma === "Español" ? "" : " (usa el parámetro voz=\"" + voz + "\" en cada entrada)") + "\n"
-    + "- Rubros: " + b.rubros.join(", ") + "\n"
+    + "- Rubros" + (dg ? " (tipo de salón de la dueña)" : "") + ": " + b.rubros.join(", ") + "\n"
     + "- Temáticas:\n" + defs(OPC.tematicas, b.tematicas) + "\n"
     + "- Formatos:\n" + defs(OPC.formatos, b.formatos) + "\n"
     + "- Emociones:\n" + defs(OPC.tonos, b.tonos) + "\n"
-    + (b.problemasAuto ? "- Temática o problema a resolver: AUTOMÁTICO. Elige tú, al azar, un problema o tema concreto y real del rubro para cada guion, sin repetir entre guiones ni con prompt/rubros_hechos.md.\n" : "- Temáticas o problemas a resolver (cada guion trata UNO): " + b.problemas.map((p) => "«" + p + "»").join("; ") + "\n")
+    + (b.problemasAuto ? "- Temática o problema a resolver: AUTOMÁTICO. Elige tú, al azar, un problema o tema concreto y real " + (dg ? "de una dueña de salón (administración, finanzas, agenda, precios, equipo…)" : "del rubro") + " para cada guion, sin repetir entre guiones" + (dg ? " ni con los que ya existen.\n" : " ni con prompt/rubros_hechos.md.\n") : "- Temáticas o problemas a resolver (cada guion trata UNO): " + b.problemas.map((p) => "«" + p + "»").join("; ") + "\n")
     + "- Ganchos:\n" + defs(OPC.ganchos, b.ganchos) + "\n"
     + "- Acciones del usuario:\n" + defs(OPC.ctas, b.ctas) + "\n"
     + "- Duración objetivo: " + b.duracion + " segundos (máximo 30; unas 2,5 palabras por segundo).\n"
     + "- Variaciones por combinación: " + b.variaciones + (b.variaciones > 1 ? " (cada una con otro ángulo)" : "") + "\n\n"
     + "Genera una entrada por combinación (" + n + " en total), cada una con su propio gancho, formato, emoción y cta_tipo:\n" + (n <= 40 ? lineas.join("\n") : lineas.slice(0, 40).join("\n") + "\n… (y el resto de las combinaciones, hasta " + n + ")") + "\n\n"
-    + "Al terminar: agrega los slugs nuevos a prompt/rubros_hechos.md, escribe SOLO esos slugs nuevos (uno por línea, reemplazando el contenido) en prompt/lote_actual.txt — la app genera los videos de ese archivo — y ejecuta la verificación (dianchi_lote.py … verificar) para comprobar tiempos y choques.";
+    + (disenoTexto() ? "\n\nDISEÑO PERSONALIZADO (aplícalo a los videos de este lote): " + disenoTexto() + "\n\n" : "")
+    + cierre;
 }
-$("#b-crear-guiones").addEventListener("click", () => {
+// diseño: se guarda por linea y se manda a Claude (aplicar al motor / corregir lo ya generado)
+for (const [L, sfx] of [["dianchi", ""], ["diegao", "-d"]]) {
+  const nom = NOM_L[L], motor = "scripts/" + L + "_lote.py";
+  $("#txt-diseno" + sfx).addEventListener("input", (e) => { ajustes.presets[KD(L)] = e.target.value; guardarBrief(); });
+  $("#b-diseno-aplicar" + sfx).addEventListener("click", () => {
+    const d = disenoTexto(L); if (!d) return escribir("Escribe primero cómo quieres el diseño.");
+    enviarClaude(L, "Quiero PERSONALIZAR EL DISEÑO de los videos de " + nom + ". Esto es lo que pido:\n\n" + d + "\n\nAplícalo en el motor (" + motor + " y los archivos de estilo que use: colores, tipografías, titulares, globo de objeción, píldoras de pasos, collage, subtítulos) de forma que valga para los próximos videos. No borres ni sobrescribas los prompts existentes. Al terminar genera un video de prueba y dime qué cambiaste.");
+  });
+  $("#b-diseno-modificar" + sfx).addEventListener("click", () => {
+    const d = disenoTexto(L); if (!d) return escribir("Escribe primero qué quieres cambiar del resultado.");
+    enviarClaude(L, "Modifica el RESULTADO ya generado de " + nom + " (los videos de la carpeta de resultados) según esto:\n\n" + d + "\n\nAjusta el diseño en el motor y vuelve a renderizar solo los videos afectados, sin rehacer los guiones ni volver a descargar material. Conserva los originales (guarda los nuevos con otro nombre o versión) y dime qué cambió.");
+  });
+}
+$("#b-crear-guiones").addEventListener("click", () => conLinea("dianchi", () => {
   if (!totalVideos()) return escribir(FALTA() || "Elige al menos un valor en cada opción para crear guiones.");
   enviarClaude("dianchi", textoBrief());
-});
-// ---------------------------------------------------------------- asistente de Dianchi
-let pasoDianchi = 1;
-const TOTAL_PASOS = 6;
-function irPasoDianchi(n) {
-  pasoDianchi = Math.max(1, Math.min(TOTAL_PASOS, n));
-  $$("#v-dianchi .paso").forEach((p) => p.classList.toggle("oculto", Number(p.dataset.p) !== pasoDianchi));
-  $$("#pasos-dianchi li").forEach((li) => { const k = Number(li.dataset.p); li.classList.toggle("act", k === pasoDianchi); li.classList.toggle("hecho", k < pasoDianchi); });
-  $("#w-atras").classList.toggle("oculto", pasoDianchi === 1);
-  $("#w-sig").classList.toggle("oculto", pasoDianchi === TOTAL_PASOS);
-  if (pasoDianchi === TOTAL_PASOS) resumenDianchi();
+}));
+$("#b-crear-guiones-d").addEventListener("click", () => conLinea("diegao", () => {
+  if (!totalVideos()) return escribir(FALTA() || "Elige al menos un valor en cada opción para crear guiones.");
+  enviarClaude("diegao", textoBrief());
+}));
+// ---------------------------------------------------------------- asistentes (Dianchi y Diegao)
+const PASO = { dianchi: 1, diegao: 1 };
+const TOTAL_PASOS = { dianchi: 7, diegao: 6 };
+const SFX_NAV = { dianchi: "w", diegao: "wd" };
+function irPasoWiz(L, n) {
+  PASO[L] = Math.max(1, Math.min(TOTAL_PASOS[L], n));
+  $$("#v-" + L + " .paso").forEach((p) => p.classList.toggle("oculto", Number(p.dataset.p) !== PASO[L]));
+  $$("#pasos-" + L + " li").forEach((li) => { const k = Number(li.dataset.p); li.classList.toggle("act", k === PASO[L]); li.classList.toggle("hecho", k < PASO[L]); });
+  $("#" + SFX_NAV[L] + "-atras").classList.toggle("oculto", PASO[L] === 1);
+  $("#" + SFX_NAV[L] + "-sig").classList.toggle("oculto", PASO[L] === TOTAL_PASOS[L]);
+  if (PASO[L] === TOTAL_PASOS[L]) resumenWiz(L);
 }
-function resumenDianchi() {
-  const r = $("#resumen-dianchi"); if (!r || !ajustes) return;
+const irPasoDianchi = (n) => irPasoWiz("dianchi", n);
+function resumenWiz(L) {
+  const r = $("#resumen-" + L); if (!r || !ajustes) return;
   const p = ajustes.presets, d = ajustes.dirs, ev = p.eventos;
   const voz = (VOCES.find((v) => v[0] === p.voz) || [0, p.voz])[1];
   const si = (b) => (b ? "sí" : "no");
   const carpeta = (x) => x || "dentro de la carpeta de trabajo";
+  const dis = (p[KD(L)] || "").trim();
+  const total = conLinea(L, totalVideos), desg = conLinea(L, desgloseBrief);
+  const guiones = ["Guiones", (total ? total + " video" + (total === 1 ? "" : "s") + " según el formulario (" + desg + ")" : "los del último lote creado con Claude") + " · voz " + voz];
+  const diseno = ["Diseño", dis ? dis.slice(0, 140) + (dis.length > 140 ? "…" : "") : "el de siempre (sin cambios; puedes escribir correcciones en el paso " + (L === "diegao" ? 5 : 6) + ")"];
+  const filas = L === "diegao"
+    ? [guiones, ["Videos del evento", d.diegaoFuente ? "de la carpeta " + d.diegaoFuente : "carpeta predeterminada del programa"], diseno, ["Resultados", carpeta(d.diegaoResultado)]]
+    : [guiones,
+      ["Eventos", "efectos " + si(p.efectos) + " · objeción " + si(ev.burbuja) + " · pasos " + si(ev.pasos) + " · collage " + si(ev.collage) + " · sonidos " + si(ev.sfx) + " · tarjeta final " + si(ev.cierre)],
+      ["Imágenes", p.imagenesCollage ? "de la carpeta " + (d.imagenes || "(sin elegir: elige una en el paso 3)") : "automático (fotogramas de los videos descargados)"],
+      ["Videos", p.rellenoLocal ? "de la carpeta " + (d.relleno || "(sin elegir: elige una en el paso 4)") : "automático (se descargan de Pexels)"],
+      diseno, ["Resultados", carpeta(d.dianchiResultado)]];
   r.innerHTML = "";
-  for (const [k, v] of [
-    ["Guiones", (totalVideos() ? totalVideos() + " video" + (totalVideos() === 1 ? "" : "s") + " según el formulario (" + desgloseBrief() + ")" : "los del último lote creado con Claude") + " · voz " + voz],
-    ["Eventos", "efectos " + si(p.efectos) + " · objeción " + si(ev.burbuja) + " · pasos " + si(ev.pasos) + " · collage " + si(ev.collage) + " · sonidos " + si(ev.sfx) + " · tarjeta final " + si(ev.cierre)],
-    ["Imágenes", p.imagenesCollage ? "de la carpeta " + (d.imagenes || "(sin elegir: elige una en el paso 3)") : "automático (fotogramas de los videos descargados)"],
-    ["Videos", p.rellenoLocal ? "de la carpeta " + (d.relleno || "(sin elegir: elige una en el paso 4)") : "automático (se descargan de Pexels)"],
-    ["Resultados", carpeta(d.dianchiResultado)],
-  ]) { const f = document.createElement("div"); f.innerHTML = "<b></b>: <span></span>"; $("b", f).textContent = v === undefined ? "" : k; $("span", f).textContent = v; r.appendChild(f); }
+  for (const [k, v] of filas) { const f = document.createElement("div"); f.innerHTML = "<b></b>: <span></span>"; $("b", f).textContent = k; $("span", f).textContent = v; r.appendChild(f); }
 }
-$("#brief-contador").addEventListener("click", () => { if (!totalVideos()) irPasoDianchi(1); });
-$("#w-sig").addEventListener("click", () => irPasoDianchi(pasoDianchi + 1));
-$("#w-atras").addEventListener("click", () => irPasoDianchi(pasoDianchi - 1));
-$$("#pasos-dianchi li").forEach((li) => li.addEventListener("click", () => irPasoDianchi(Number(li.dataset.p))));
-$("#b-generar-todo").addEventListener("click", async () => {
-  const slugs = [];   // sin slugs: el motor usa el ultimo lote creado con Claude
-  gen = { plan: 3, render: 0 };
-  for (const modo of ["verificar", "descargar", "render"]) {
-    const r = await window.ctv.run({ linea: "dianchi", modo, slugs });
+const resumenDianchi = () => { resumenWiz("dianchi"); resumenWiz("diegao"); };
+$("#brief-contador").addEventListener("click", () => { if (!totalVideos()) irPasoWiz(BL, 1); });
+for (const L of ["dianchi", "diegao"]) {
+  $("#" + SFX_NAV[L] + "-sig").addEventListener("click", () => irPasoWiz(L, PASO[L] + 1));
+  $("#" + SFX_NAV[L] + "-atras").addEventListener("click", () => irPasoWiz(L, PASO[L] - 1));
+  $$("#pasos-" + L + " li").forEach((li) => li.addEventListener("click", () => irPasoWiz(L, Number(li.dataset.p))));
+}
+// "Generar todo": Dianchi = verificar -> descargar -> render; Diegao = preparar -> render
+async function generarTodo(L) {
+  const fases = L === "diegao" ? ["preparar", "render"] : ["verificar", "descargar", "render"];
+  gen = { plan: fases.length, fases, render: 0 };
+  for (const modo of fases) {
+    const r = await window.ctv.run({ linea: L, modo, slugs: [] });   // sin slugs: el motor usa el ultimo lote creado con Claude
     if (!r || !r.ok) { if (detenido && gen) { gen.fin = true; gen.detenido = true; pintarProgreso(); gen = null; return escribir("■ Proceso detenido."); } gen = null; actualizarContador(); return escribir("⚠ Se detuvo en «" + modo + "»" + (r && r.error ? ": " + r.error : ". Revisa el registro.")); }
   }
   if (gen) { gen.fin = true; gen.modo = "render"; pintarProgreso(); gen = null; }
-  escribir("✔ Videos de Dianchi generados. Revisa la carpeta de resultados.");
-});
+  escribir("✔ Videos de " + NOM_L[L] + " generados. Revisa la carpeta de resultados.");
+}
+$("#b-generar-todo").addEventListener("click", () => generarTodo("dianchi"));
+$("#b-generar-todo-d").addEventListener("click", () => generarTodo("diegao"));
 
 // ---------------------------------------------------------------- Claude Code
 $$(".chip").forEach((c) => c.addEventListener("click", () => { $("#txt-claude").value = c.dataset.p; $("#txt-claude").focus(); }));
@@ -372,7 +424,8 @@ const SECCIONES = {
   "dianchi-imagenes": ["imagenes"],
   "dianchi-videos": ["relleno"],
   "dianchi-resultados": ["dianchiResultado"],
-  diegao: ["diegaoResultado", "diegaoFuente"],
+  "diegao-fuente": ["diegaoFuente"],
+  "diegao-resultados": ["diegaoResultado"],
   cortar: ["cortarEntrada", "cortarResultado"],
 };
 const VOCES = [["es-MX-JorgeNeural", "Jorge (México, hombre)"], ["es-MX-DaliaNeural", "Dalia (México, mujer)"], ["es-CO-GonzaloNeural", "Gonzalo (Colombia, hombre)"], ["es-CO-SalomeNeural", "Salomé (Colombia, mujer)"], ["es-ES-AlvaroNeural", "Álvaro (España, hombre)"]];
@@ -414,7 +467,8 @@ $$(".sel-voz").forEach((s) => s.addEventListener("change", (e) => { ajustes.pres
 
 function pintarAjustes() {
   pintarSecciones();
-  pintarBrief();
+  for (const L of ["dianchi", "diegao"]) conLinea(L, pintarBrief);
+  actualizarContador();
   $("#in-ws").value = ajustes.workspace;
   $("#in-pexels").value = ajustes.pexelsKey || "";
   const inc = ajustes.incluidas || {};                       // claves que vienen incluidas: ni se muestran ni se piden

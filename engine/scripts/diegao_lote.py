@@ -150,18 +150,26 @@ def render(v):
     log = open(os.path.join(CFGD, v["slug"] + ".log"), "w", encoding="utf-8")
     return subprocess.Popen([sys.executable, os.path.join(AG, "scripts", "generar_dianchi.py"), FF, cp], stdout=log, stderr=subprocess.STDOUT, env=env), log
 
+def _lote_actual():                  # slugs del lote que la app pidio crear (diegao/prompt/lote_actual.txt, uno por linea)
+    f = os.path.join(AG, "diegao", "prompt", "lote_actual.txt")
+    try: return [l.strip() for l in open(f, encoding="utf-8") if l.strip() and not l.startswith("#")]
+    except OSError: return []
+
 if __name__ == "__main__":
-    vs = [v for v in V if not SOLO or v["slug"] in SOLO]
+    _LOTE = [] if SOLO or MODO == "listar" else _lote_actual()
+    vs = [v for v in V if (v["slug"] in SOLO if SOLO else (v["slug"] in _LOTE if _LOTE else True))]
     if MODO == "listar":
         print(json.dumps([{"slug": v["slug"], "rubro": v["rubro"], "titulo": " ".join(v["titulo"]).replace("*", "")} for v in V], ensure_ascii=False))
     elif MODO == "preparar":
         rnd = random.Random(2611); pl = pool(); usados = set(); print("clips verticales disponibles:", len(pl), flush=True)
-        for v in vs: preparar(v, rnd, pl, usados)
+        for _i, v in enumerate(vs, 1):
+            print("CTV_PROGRESO preparar %d %d %s" % (_i, len(vs), v["slug"]), flush=True)   # la app lo muestra como progreso
+            preparar(v, rnd, pl, usados)
     elif MODO == "render":
-        pend = list(vs); act = []
+        pend = list(vs); act = []; _k = 0
         import time
         while pend or act:
-            while pend and len(act) < 2: v = pend.pop(0); act.append((v,) + render(v)); print("render", v["slug"], flush=True)
+            while pend and len(act) < 2: v = pend.pop(0); _k += 1; print("CTV_PROGRESO render %d %d %s" % (_k, len(vs), v["slug"]), flush=True); act.append((v,) + render(v)); print("render", v["slug"], flush=True)
             time.sleep(10)
             for a in list(act):
                 if a[1].poll() is not None: a[2].close(); act.remove(a); print("listo", a[0]["slug"], a[1].returncode, flush=True)
