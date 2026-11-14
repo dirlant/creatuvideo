@@ -184,6 +184,8 @@ OPC.tematicasDuenas = [
   ["Espiritualidad", "propósito, fe, gratitud, energía y sentido de lo que hace la dueña con su negocio"],
   ["Mentalidad", "creencias, miedos, disciplina y hábitos mentales de la dueña como emprendedora"],
 ];
+OPC.rubrosDuenas = ["Salones de belleza", "Peluquería", "Estéticas", "Clínicas", "Independientes", "Servicio a domicilio"];   // tipo de negocio de la dueña (Diegao)
+const RUBROS_L = (L = BL) => (L === "diegao" ? OPC.rubrosDuenas : OPC.rubros);
 const TEMAS = (L = BL) => (L === "diegao" ? OPC.tematicasDuenas : OPC.tematicas);
 const BRIEF0 = { idioma: "Español", problemasAuto: true, rubros: [], formatos: [OPC.formatos[0][0]], tonos: ["Cercano"], tematicas: [], problemas: [], ganchos: [OPC.ganchos[0][0]], ctas: ["Que lo guarde"], duracion: 25, variaciones: 1 };
 // dimensiones que se combinan: [clave, singular, plural]
@@ -196,6 +198,7 @@ function brief() {                               // siempre el MISMO objeto, com
   for (const [nuevo, viejo] of [["formatos", "formato"], ["tonos", "tono"], ["ganchos", "gancho"], ["ctas", "cta"]])   // version anterior: un solo valor
     if (!Array.isArray(b[nuevo]) && typeof b[viejo] === "string" && b[viejo]) b[nuevo] = [b[viejo]];
   if (!Array.isArray(b.problemas)) b.problemas = [];
+  { const okR = RUBROS_L(); const vr = b.rubros.filter((x) => okR.includes(x)); if (vr.length !== b.rubros.length) b.rubros.splice(0, b.rubros.length, ...vr); }
   { const ok = TEMAS().map((x) => x[0]); const v = b.tematicas.filter((x) => ok.includes(x)); if (v.length !== b.tematicas.length) b.tematicas.splice(0, b.tematicas.length, ...v); }   // quita temáticas que ya no existen en la lista de esta línea
   if (typeof b.tema === "string" && b.tema.trim() && !b.problemas.includes(b.tema.trim())) { b.problemas.push(b.tema.trim()); b.tema = ""; }   // el antiguo "de qué hablar" pasa a ser un problema
   if (!("problemasAuto" in b)) b.problemasAuto = !b.problemas.length;
@@ -262,7 +265,7 @@ function pintarBrief() {
   const b = brief(); cont.innerHTML = ""; nCampo = 0;
   const cambio = () => { guardarBrief(); actualizarContador(); };
   cont.appendChild(campo(1, "Idioma", "", selector(OPC.idiomas, b.idioma, (v) => { b.idioma = v; cambio(); })));
-  const rb = chipsMulti(OPC.rubros, b.rubros, cambio);
+  const rb = chipsMulti(RUBROS_L(), b.rubros, cambio);
   const fr = campo(3, "Rubro (uno o varios)", "", rb.cont, true);
   for (const [txt, fn] of [["Todos", rb.todos], ["Ninguno", rb.ninguno]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", fr).appendChild(m); }
   cont.appendChild(fr);
