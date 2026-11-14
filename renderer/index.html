@@ -55,7 +55,6 @@
         <p class="sub">Las mismas opciones que el formulario de Dianchi. Elige <b>uno o varios</b> rubros y temáticas: la app calcula cuántos videos salen.</p>
         <div class="tabs-fmt"><span class="tab on">Reels</span><span class="tab off" title="La app de escritorio genera videos; los carruseles se hacen en la web de Dianchi">Carruseles (solo en la web)</span></div>
         <div id="brief-dianchi" class="brief"></div>
-        <div class="barra"><button class="p fuerte" id="b-crear-guiones">Crear los guiones con Claude</button><button data-nuevo-prompt="dianchi">Crear un prompt nuevo con Claude</button><span class="chico">Claude escribe un guion por cada combinación; quedan listos para generarse en el paso 7.</span></div>
 
       </div>
 
@@ -109,7 +108,7 @@
             <button class="p" id="b-diseno-aplicar">Aplicar este diseño con Claude</button>
             <button id="b-diseno-modificar">Corregir un resultado ya generado</button>
           </div>
-          <span class="chico">El diseño queda guardado y se envía a Claude al crear los guiones (paso 1) para que lo considere al hacer cada video. «Aplicar» cambia el motor para todos los próximos videos; «Corregir» rehace solo los videos ya generados.</span>
+          <span class="chico">El diseño queda guardado. «Aplicar» cambia el motor para todos los próximos videos; «Corregir» rehace solo los videos ya generados.</span>
         </div>
       </div>
 
@@ -134,15 +133,14 @@
     <section id="v-diegao" class="vista">
       <h1><span class="ico-t" data-ico="diegao" role="img" aria-label="Diegao" title="Diegao"></span> <span class="para"><span data-ico="duena"></span>Para Dueñas</span></h1>
       <ol class="pasos" id="pasos-diegao">
-        <li data-p="1" class="act">1 · Guion</li><li data-p="2">2 · Voz</li><li data-p="3">3 · Videos del evento</li>
-        <li data-p="4">4 · Resultados</li><li data-p="5">5 · Diseño</li><li data-p="6">6 · Generar</li>
+        <li data-p="1" class="act">1 · Guion</li><li data-p="2">2 · Voz</li><li data-p="3">3 · Imágenes</li><li data-p="4">4 · Videos</li>
+        <li data-p="5">5 · Resultados</li><li data-p="6">6 · Diseño</li><li data-p="7">7 · Generar</li>
       </ol>
 
       <div class="paso" data-p="1">
         <h2>Guion y opciones del video</h2>
         <p class="sub">Videos de mentor para dueñas de salón: narración + animación sobre cortes de tus videos del evento. Elige <b>uno o varios</b> rubros y temáticas: la app calcula cuántos videos salen.</p>
         <div id="brief-diegao" class="brief"></div>
-        <div class="barra"><button class="p fuerte" id="b-crear-guiones-d">Crear los guiones con Claude</button><button data-nuevo-prompt="diegao">Crear un prompt nuevo con Claude</button><span class="chico">Claude escribe un guion por cada combinación; quedan listos para generarse en el paso 6.</span></div>
       </div>
 
       <div class="paso oculto" data-p="2">
@@ -152,20 +150,33 @@
       </div>
 
       <div class="paso oculto" data-p="3">
-        <h2>Videos del evento</h2>
-        <p class="sub">Carpeta con los videos del evento de los que se sacan los cortes aleatorios. Si no eliges una, se usa la carpeta predeterminada del programa.</p>
-        <div class="cfg"><div id="cfg-diegao-fuente" class="filas"></div></div>
-        <div class="barra"><button data-abrir="diegao/entrada/evento-receta">Abrir videos fuente</button></div>
+        <h2>Imágenes</h2>
+        <p class="sub">¿De dónde salen las imágenes del collage?</p>
+        <div class="fuente">
+          <label class="opcion"><span class="ico-g" data-ico="auto"></span><div><b>Automático</b><span>La app toma las imágenes de los propios videos del fondo. No necesitas hacer nada.</span></div><input type="radio" name="fuente-imagenes-d" value="auto" /></label>
+          <label class="opcion"><span class="ico-g" data-ico="carpeta"></span><div><b>De una carpeta</b><span>Usa tus imágenes (fotos del salón, trabajos, productos).</span></div><input type="radio" name="fuente-imagenes-d" value="carpeta" /></label>
+        </div>
+        <div class="cfg" id="caja-imagenes-d"><div id="cfg-diegao-imagenes" class="filas"></div></div>
       </div>
 
       <div class="paso oculto" data-p="4">
+        <h2>Videos</h2>
+        <p class="sub">¿De dónde salen los videos de las escenas?</p>
+        <div class="fuente">
+          <label class="opcion"><span class="ico-g" data-ico="auto"></span><div><b>Automático</b><span>La app busca y descarga videos verticales en Pexels según el tema de cada guion.</span></div><input type="radio" name="fuente-videos-d" value="auto" /></label>
+          <label class="opcion"><span class="ico-g" data-ico="carpeta"></span><div><b>De una carpeta</b><span>Usa tus videos del evento: se hacen cortes aleatorios de ~3 segundos.</span></div><input type="radio" name="fuente-videos-d" value="carpeta" /></label>
+        </div>
+        <div class="cfg" id="caja-videos-d"><div id="cfg-diegao-fuente" class="filas"></div>
+          <div class="barra"><button data-abrir="diegao/entrada/evento-receta">Abrir videos del evento</button></div></div>
+      </div>
+      <div class="paso oculto" data-p="5">
         <h2>Carpeta de resultados</h2>
         <p class="sub">Dónde se guardan los videos terminados.</p>
         <div class="cfg"><div id="cfg-diegao-resultados" class="filas"></div></div>
         <div class="barra"><button data-abrir="diegao/resultado">Abrir resultados</button></div>
       </div>
 
-      <div class="paso oculto" data-p="5">
+      <div class="paso oculto" data-p="6">
         <h2>Personalizar diseño</h2>
         <p class="sub">Antes de generar: escríbele a la IA cómo quieres que se vea el video y qué correcciones de diseño debe tener en cuenta (colores, tipografía, titulares, globo, píldoras, collage…). Es opcional.</p>
         <div class="diseno">
@@ -174,11 +185,11 @@
             <button class="p" id="b-diseno-aplicar-d">Aplicar este diseño con Claude</button>
             <button id="b-diseno-modificar-d">Corregir un resultado ya generado</button>
           </div>
-          <span class="chico">El diseño queda guardado y se envía a Claude al crear los guiones (paso 1) para que lo considere al hacer cada video. «Aplicar» cambia el motor para todos los próximos videos; «Corregir» rehace solo los videos ya generados.</span>
+          <span class="chico">El diseño queda guardado. «Aplicar» cambia el motor para todos los próximos videos; «Corregir» rehace solo los videos ya generados.</span>
         </div>
       </div>
 
-      <div class="paso oculto" data-p="6">
+      <div class="paso oculto" data-p="7">
         <h2>Resumen y generar</h2>
         <div id="resumen-diegao" class="resumen"></div>
         <div class="barra"><button class="p fuerte" id="b-generar-todo-d">Generar videos (preparar → generar)</button></div>

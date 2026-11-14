@@ -17,6 +17,30 @@ os.makedirs(CFGD, exist_ok=True)
 norm = lambda s: re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFD", s.lower()).encode("ascii", "ignore").decode())
 env = dict(os.environ); env["PYTHONIOENCODING"] = "utf-8"
 
+# ---------------------------------------------------------------- ajustes de la app (propios de Diegao)
+def _ajustes():
+    try: return json.load(open(os.path.join(os.environ.get("APPDATA", ""), "CreaTuVideo", "settings.json"), encoding="utf-8"))
+    except Exception: return {}
+_AJ = _ajustes(); _PRE = _AJ.get("presets", {}); _DIRS = _AJ.get("dirs", {})
+VIDEOS_PEXELS = _PRE.get("rellenoLocalDiegao") is False      # False = automatico (Pexels); por defecto: videos del evento
+IMG_CARPETA = bool(_PRE.get("imagenesCollageDiegao"))
+IMG_DIR = _DIRS.get("diegaoImagenes") or os.path.join(AG, "diegao", "entrada", "imagenes")
+# busquedas (en ingles) de Pexels por tema; si el tema no esta, se usan las generales
+BUSQUEDAS = {
+    "administracion": ["woman writing in planner desk", "small business owner organizing paperwork"],
+    "finanzas": ["woman counting money calculator", "business owner reviewing finances"],
+    "agenda": ["woman checking calendar planner", "salon appointment booking"],
+    "precios": ["woman pricing service calculator", "business owner thinking prices"],
+    "estrategia": ["woman planning strategy whiteboard", "entrepreneur planning notebook"],
+    "fidelizacion": ["happy client salon smiling", "woman greeting customer"],
+    "atencion": ["salon receptionist welcoming client", "hairdresser talking with client"],
+    "protocolos": ["salon cleaning sanitizing tools", "organized beauty salon station"],
+    "estructura": ["team meeting small business women", "salon team working together"],
+    "espiritualidad": ["woman meditating sunrise", "woman journaling gratitude"],
+    "mentalidad": ["confident woman entrepreneur", "woman motivated looking at city"],
+}
+GENERALES = ["beauty salon owner woman", "woman entrepreneur working", "hairdresser salon interior"]
+
 # ---------------------------------------------------------------- datos
 # slug, rubro(chip), titulo, gancho, guion, cta, objecion (ancla, n, texto, hasta), pasos [(ancla, n, texto)], pasos_hasta
 V = [
@@ -81,6 +105,36 @@ def pool():
         out.append((src, d))
     return out
 
+def pool_pexels(v):
+    """Modo automatico: descarga de Pexels clips verticales del tema del guion (ver BUSQUEDAS) y los devuelve como (ruta, duracion)."""
+    if not (os.environ.get("PEXELS_API_KEY") or os.path.exists(os.path.join(AG, "_operacion", "pexels.key"))):
+        sys.exit("Falta la clave de Pexels (Ajustes) o elige 'De una carpeta' en el paso 4 de Diegao.")
+    base = norm(v["slug"] + " " + v.get("rubro", ""))
+    qs = next((q for k, q in BUSQUEDAS.items() if k in base), []) + GENERALES
+    out = os.path.join(REC, "pexels", v["slug"]); os.makedirs(out, exist_ok=True)
+    for i, q in enumerate(qs[:4]):
+        n = 4 if i < 2 else 3
+        r = sh([sys.executable, os.path.join(AG, "scripts", "descargar_videos.py"), out, q, str(n), v["slug"][:12] + "%d" % i])
+        print("pexels", v["slug"], "«" + q + "»", len(r.stdout.strip().splitlines()), "videos", flush=True)
+    res = []
+    for f in sorted(glob.glob(os.path.join(out, "*.mp4"))):
+        try: w, h, d = dims(f)
+        except Exception: continue
+        if h > w and d >= 3.4: res.append((f, d))
+    if not res: sys.exit("No se pudieron descargar videos de Pexels para " + v["slug"] + ". Revisa la clave y la conexion, o usa 'De una carpeta'.")
+    return res
+
+def poner_imagenes(fotos, rnd):
+    """Collage con las imagenes propias (carpeta elegida en el paso 3): reemplaza las 3 tarjetas hechas con fotogramas."""
+    from PIL import Image, ImageOps
+    imgs = []
+    for ext in ("jpg", "jpeg", "png", "webp"): imgs += glob.glob(os.path.join(IMG_DIR, "**", "*." + ext), recursive=True)
+    if not imgs: print("Aviso: no hay imagenes en", IMG_DIR, "; el collage usa fotogramas de los videos.", flush=True); return
+    rnd.shuffle(imgs)
+    for k in range(3):
+        im = ImageOps.exif_transpose(Image.open(imgs[k % len(imgs)])).convert("RGB")
+        ImageOps.fit(im, (700, 700), Image.LANCZOS).save(os.path.join(fotos, "col-%d.png" % (k + 1)))
+
 def trabajo(v): return os.path.join(OPG, "_trabajo", v["slug"])
 
 def config(v, escenas, extra=None):
@@ -136,6 +190,7 @@ def preparar(v, rnd, pl, usados):
     for j, k in enumerate((1, len(escenas) // 2, len(escenas) - 2)): shutil.copy(os.path.join(REC, "cortes3s", s, "c%02d.mp4" % k), os.path.join(col, "col%d.mp4" % (j + 1)))
     fotos = os.path.join(REC, "cortes3s", s, "fotos")
     sh([sys.executable, os.path.join(AG, "scripts", "fotogramas_a_tarjetas.py"), FF, col, fotos, "col"])
+    if IMG_CARPETA: poner_imagenes(fotos, rnd)
     hasta = v["burbuja"][3]
     for dur in (2.0, 1.6, 1.2, 0):
         extra = {}
@@ -161,10 +216,10 @@ if __name__ == "__main__":
     if MODO == "listar":
         print(json.dumps([{"slug": v["slug"], "rubro": v["rubro"], "titulo": " ".join(v["titulo"]).replace("*", "")} for v in V], ensure_ascii=False))
     elif MODO == "preparar":
-        rnd = random.Random(2611); pl = pool(); usados = set(); print("clips verticales disponibles:", len(pl), flush=True)
+        rnd = random.Random(2611); pl = [] if VIDEOS_PEXELS else pool(); usados = set(); print("videos:", "Pexels (automatico)" if VIDEOS_PEXELS else "carpeta, %d clips verticales" % len(pl), flush=True)
         for _i, v in enumerate(vs, 1):
             print("CTV_PROGRESO preparar %d %d %s" % (_i, len(vs), v["slug"]), flush=True)   # la app lo muestra como progreso
-            preparar(v, rnd, pl, usados)
+            preparar(v, rnd, pool_pexels(v) if VIDEOS_PEXELS else pl, usados)
     elif MODO == "render":
         pend = list(vs); act = []; _k = 0
         import time

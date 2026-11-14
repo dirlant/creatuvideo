@@ -89,7 +89,7 @@ function pintarIconos() {
   $$("[data-ico]").forEach((e) => { e.classList.add("ico"); e.innerHTML = ICO[e.dataset.ico] || ""; });
   const orden = ["guion", "eventos", "imagen", "video", "resultados", "diseno", "generar"];
   $$("#pasos-dianchi li").forEach((li, i) => { if (li.querySelector(".ico")) return; const s = document.createElement("span"); s.className = "ico"; s.innerHTML = ICO[orden[i]]; li.prepend(s); });
-  const ordenD = ["guion", "eventos", "video", "resultados", "diseno", "generar"];
+  const ordenD = ["guion", "eventos", "imagen", "video", "resultados", "diseno", "generar"];
   $$("#pasos-diegao li").forEach((li, i) => { if (li.querySelector(".ico")) return; const s = document.createElement("span"); s.className = "ico"; s.innerHTML = ICO[ordenD[i]]; li.prepend(s); });
 }
 
@@ -356,17 +356,9 @@ for (const [L, sfx] of [["dianchi", ""], ["diegao", "-d"]]) {
     enviarClaude(L, "Modifica el RESULTADO ya generado de " + nom + " (los videos de la carpeta de resultados) según esto:\n\n" + d + "\n\nAjusta el diseño en el motor y vuelve a renderizar solo los videos afectados, sin rehacer los guiones ni volver a descargar material. Conserva los originales (guarda los nuevos con otro nombre o versión) y dime qué cambió.");
   });
 }
-$("#b-crear-guiones").addEventListener("click", () => conLinea("dianchi", () => {
-  if (!totalVideos()) return escribir(FALTA() || "Elige al menos un valor en cada opción para crear guiones.");
-  enviarClaude("dianchi", textoBrief());
-}));
-$("#b-crear-guiones-d").addEventListener("click", () => conLinea("diegao", () => {
-  if (!totalVideos()) return escribir(FALTA() || "Elige al menos un valor en cada opción para crear guiones.");
-  enviarClaude("diegao", textoBrief());
-}));
 // ---------------------------------------------------------------- asistentes (Dianchi y Diegao)
 const PASO = { dianchi: 1, diegao: 1 };
-const TOTAL_PASOS = { dianchi: 7, diegao: 6 };
+const TOTAL_PASOS = { dianchi: 7, diegao: 7 };
 const SFX_NAV = { dianchi: "w", diegao: "wd" };
 function irPasoWiz(L, n) {
   PASO[L] = Math.max(1, Math.min(TOTAL_PASOS[L], n));
@@ -386,9 +378,10 @@ function resumenWiz(L) {
   const dis = (p[KD(L)] || "").trim();
   const total = conLinea(L, totalVideos), desg = conLinea(L, desgloseBrief);
   const guiones = ["Guiones", (total ? total + " video" + (total === 1 ? "" : "s") + " según el formulario (" + desg + ")" : "los del último lote creado con Claude") + " · voz " + voz];
-  const diseno = ["Diseño", dis ? dis.slice(0, 140) + (dis.length > 140 ? "…" : "") : "el de siempre (sin cambios; puedes escribir correcciones en el paso " + (L === "diegao" ? 5 : 6) + ")"];
+  const diseno = ["Diseño", dis ? dis.slice(0, 140) + (dis.length > 140 ? "…" : "") : "el de siempre (sin cambios; puedes escribir correcciones en el paso " + 6 + ")"];
   const filas = L === "diegao"
-    ? [guiones, ["Videos del evento", d.diegaoFuente ? "de la carpeta " + d.diegaoFuente : "carpeta predeterminada del programa"], diseno, ["Resultados", carpeta(d.diegaoResultado)]]
+    ? [guiones, ["Imágenes", p.imagenesCollageDiegao ? "de la carpeta " + (d.diegaoImagenes || "(sin elegir: elige una en el paso 3)") : "automático (fotogramas de los videos)"],
+      ["Videos", p.rellenoLocalDiegao === false ? "automático (se descargan de Pexels)" : "de la carpeta " + (d.diegaoFuente || "de videos del evento (la predeterminada)")], diseno, ["Resultados", carpeta(d.diegaoResultado)]]
     : [guiones,
       ["Eventos", "efectos " + si(p.efectos) + " · objeción " + si(ev.burbuja) + " · pasos " + si(ev.pasos) + " · collage " + si(ev.collage) + " · sonidos " + si(ev.sfx) + " · tarjeta final " + si(ev.cierre)],
       ["Imágenes", p.imagenesCollage ? "de la carpeta " + (d.imagenes || "(sin elegir: elige una en el paso 3)") : "automático (fotogramas de los videos descargados)"],
@@ -434,7 +427,7 @@ $("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#tx
 // Las carpetas y opciones se eligen en la misma pantalla de cada tipo de edicion y se guardan solas.
 const NOMBRES_DIRS = {
   dianchiResultado: "Resultados de Dianchi", imagenes: "Carpeta de imágenes", relleno: "Videos de relleno",
-  diegaoResultado: "Resultados de Diegao", diegaoFuente: "Videos fuente (evento)",
+  diegaoResultado: "Resultados de Diegao", diegaoFuente: "Videos fuente (evento)", diegaoImagenes: "Carpeta de imágenes (Diegao)",
   cortarEntrada: "Video a cortar (entrada)", cortarResultado: "Resultados de los cortes",
 };
 const SECCIONES = {
@@ -442,6 +435,7 @@ const SECCIONES = {
   "dianchi-videos": ["relleno"],
   "dianchi-resultados": ["dianchiResultado"],
   "diegao-fuente": ["diegaoFuente"],
+  "diegao-imagenes": ["diegaoImagenes"],
   "diegao-resultados": ["diegaoResultado"],
   cortar: ["cortarEntrada", "cortarResultado"],
 };
@@ -472,6 +466,10 @@ function pintarSecciones() {
     $$('input[name="' + nombre + '"]').forEach((r) => (r.checked = r.value === v));
     $(caja).classList.toggle("oculto", v !== "carpeta");
   }
+  for (const [nombre, valor, caja] of [["fuente-imagenes-d", ajustes.presets.imagenesCollageDiegao ? "carpeta" : "auto", "#caja-imagenes-d"], ["fuente-videos-d", ajustes.presets.rellenoLocalDiegao === false ? "auto" : "carpeta", "#caja-videos-d"]]) {
+    $$('input[name="' + nombre + '"]').forEach((r) => (r.checked = r.value === valor));
+    $(caja).classList.toggle("oculto", valor !== "carpeta");
+  }
   for (const k of ["burbuja", "pasos", "collage", "sfx", "cierre"]) $("#ev-" + k).checked = ajustes.presets.eventos[k] !== false;
   resumenDianchi();
   $$(".sel-voz").forEach((s) => (s.value = ajustes.presets.voz));
@@ -479,6 +477,8 @@ function pintarSecciones() {
 $$('input[name="fuente-imagenes"]').forEach((r) => r.addEventListener("change", (e) => { ajustes.presets.imagenesCollage = e.target.value === "carpeta"; guardarAuto(); }));
 for (const k of ["burbuja", "pasos", "collage", "sfx", "cierre"]) $("#ev-" + k).addEventListener("change", (e) => { ajustes.presets.eventos[k] = e.target.checked; guardarAuto(); });
 $("#pr-efectos").addEventListener("change", (e) => { ajustes.presets.efectos = e.target.checked; guardarAuto(); });
+$$('input[name="fuente-imagenes-d"]').forEach((r) => r.addEventListener("change", (e) => { ajustes.presets.imagenesCollageDiegao = e.target.value === "carpeta"; guardarAuto(); }));
+$$('input[name="fuente-videos-d"]').forEach((r) => r.addEventListener("change", (e) => { ajustes.presets.rellenoLocalDiegao = e.target.value === "carpeta"; guardarAuto(); }));
 $$('input[name="fuente-videos"]').forEach((r) => r.addEventListener("change", (e) => { ajustes.presets.rellenoLocal = e.target.value === "carpeta"; guardarAuto(); }));
 $$(".sel-voz").forEach((s) => s.addEventListener("change", (e) => { ajustes.presets.voz = e.target.value; guardarAuto(); }));
 
