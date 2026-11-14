@@ -147,3 +147,9 @@ textarea { resize: vertical; line-height: 1.45; }
 .para { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; padding: 3px 11px 3px 8px; border-radius: 999px; background: #3a1a40; color: var(--acento2); font-size: 13px; font-weight: 600; vertical-align: middle; letter-spacing: .2px; }
 .para .ico svg { width: 15px; height: 15px; }
 h1 .para { font-size: 14px; }
+.ico-t { display: inline-grid; place-items: center; width: 46px; height: 46px; border-radius: 13px; background: var(--acento); color: #fff; vertical-align: middle; }
+.ico-t svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+h3 .ico-t { width: 38px; height: 38px; border-radius: 11px; }
+h3 .ico-t svg { width: 22px; height: 22px; }
+.nav-b .ico-t { width: 24px; height: 24px; background: transparent; border-radius: 0; display: block; }
+.nav-b .ico-t svg { width: 24px; height: 24px; }

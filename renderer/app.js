@@ -80,6 +80,8 @@ const ICO = {
   diseno: '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.6-.2-1-.6-1.4-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2H17a4 4 0 0 0 4-4c0-4-4-7.3-9-7.3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7" r="1"/></svg>',
   generar: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5 3.5-5 3.5z"/></svg>',
   aviso: '<svg viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg>',
+  dianchi: '<svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><path d="M12 15v6M9 21h6M9.5 7a3 3 0 0 1 2-1.5"/></svg>',
+  diegao: '<svg viewBox="0 0 24 24"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11.2V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.8M22 9v6"/></svg>',
   clienta: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
   duena: '<svg viewBox="0 0 24 24"><path d="M3 9 5 4h14l2 5"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg>',
 };
@@ -170,9 +172,22 @@ const OPC = {
     ["Que escriba un mensaje", "invitar a enviar un mensaje privado con una palabra clave relacionada con el servicio para recibir información o agendar.", "mensaje", "Escríbeme"],
   ],
 };
+// temáticas de Diegao (para dueñas de salón); las de Dianchi (para clientas) están en OPC.tematicas
+OPC.tematicasDuenas = [
+  ["Finanzas", "dinero del salón: precios, costos, ganancia, ahorro, cobros y deudas"],
+  ["Administración", "orden del negocio: control, registros, tiempos, inventario, agenda y organización diaria"],
+  ["Estrategia", "rumbo del negocio: posicionamiento, oferta, crecimiento, decisiones y diferenciación"],
+  ["Fidelización", "lograr que las clientas vuelvan: seguimiento, recompra, membresías y relación a largo plazo"],
+  ["Atención al cliente", "cómo tratar y escuchar a la clienta, resolver quejas y dar una experiencia memorable"],
+  ["Protocolos", "procesos y estándares del salón: pasos fijos de atención, higiene, cierre y puesta en marcha"],
+  ["Estructura", "cómo se arma el negocio: roles, equipo, delegación, horarios y organización interna"],
+  ["Espiritualidad", "propósito, fe, gratitud, energía y sentido de lo que hace la dueña con su negocio"],
+  ["Mentalidad", "creencias, miedos, disciplina y hábitos mentales de la dueña como emprendedora"],
+];
+const TEMAS = (L = BL) => (L === "diegao" ? OPC.tematicasDuenas : OPC.tematicas);
 const BRIEF0 = { idioma: "Español", problemasAuto: true, rubros: [], formatos: [OPC.formatos[0][0]], tonos: ["Cercano"], tematicas: [], problemas: [], ganchos: [OPC.ganchos[0][0]], ctas: ["Que lo guarde"], duracion: 25, variaciones: 1 };
 // dimensiones que se combinan: [clave, singular, plural]
-const DIMS = [["rubros", "rubro", "rubros"], ["tematicas", "temática", "temáticas"], ["formatos", "formato", "formatos"], ["tonos", "emoción", "emociones"], ["ganchos", "gancho", "ganchos"], ["ctas", "acción", "acciones"]];
+const DIMS = [["rubros", "rubro", "rubros"], ["tematicas", "temática", "temáticas"], ["formatos", "formato", "formatos"], ["ganchos", "gancho", "ganchos"], ["ctas", "acción", "acciones"]];
 function brief() {                               // siempre el MISMO objeto, completando solo lo que falte
   const p = ajustes.presets;
   const kb = KB();
@@ -181,6 +196,7 @@ function brief() {                               // siempre el MISMO objeto, com
   for (const [nuevo, viejo] of [["formatos", "formato"], ["tonos", "tono"], ["ganchos", "gancho"], ["ctas", "cta"]])   // version anterior: un solo valor
     if (!Array.isArray(b[nuevo]) && typeof b[viejo] === "string" && b[viejo]) b[nuevo] = [b[viejo]];
   if (!Array.isArray(b.problemas)) b.problemas = [];
+  { const ok = TEMAS().map((x) => x[0]); const v = b.tematicas.filter((x) => ok.includes(x)); if (v.length !== b.tematicas.length) b.tematicas.splice(0, b.tematicas.length, ...v); }   // quita temáticas que ya no existen en la lista de esta línea
   if (typeof b.tema === "string" && b.tema.trim() && !b.problemas.includes(b.tema.trim())) { b.problemas.push(b.tema.trim()); b.tema = ""; }   // el antiguo "de qué hablar" pasa a ser un problema
   if (!("problemasAuto" in b)) b.problemasAuto = !b.problemas.length;
   if (!Array.isArray(b.problemas) && typeof b.tendencia === "string" && b.tendencia.trim()) b.problemas = [b.tendencia.trim()];
@@ -251,8 +267,7 @@ function pintarBrief() {
   for (const [txt, fn] of [["Todos", rb.todos], ["Ninguno", rb.ninguno]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", fr).appendChild(m); }
   cont.appendChild(fr);
   cont.appendChild(campoMulti(4, "Formato (uno o varios)", OPC.formatos.map((x) => x[0]), b.formatos, cambio));
-  cont.appendChild(campoMulti(5, "Emoción que quieres proyectar (una o varias)", OPC.tonos.map((x) => x[0]), b.tonos, cambio));
-  const tm = chipsMulti(OPC.tematicas.map((t) => t[0]), b.tematicas, cambio);
+  const tm = chipsMulti(TEMAS().map((t) => t[0]), b.tematicas, cambio);
   const ft = campo(6, "Temática (una o varias)", "", tm.cont, true);
   for (const [txt, fn] of [["Todas", tm.todos], ["Ninguna", tm.ninguno]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", ft).appendChild(m); }
   cont.appendChild(ft);
@@ -294,13 +309,13 @@ function textoBrief() {
   const defs = (lista, sel) => sel.map((s) => "  · " + s + " → " + busca(lista, s)[1]).join("\n");
   // una entrada por cada combinacion de las dimensiones elegidas
   let combos = [[]];
-  const listas = [b.rubros, b.tematicas, b.formatos, b.tonos, b.ganchos, b.ctas];
+  const listas = [b.rubros, b.tematicas, b.formatos, b.ganchos, b.ctas];
   if (!b.problemasAuto) listas.push(b.problemas);
   for (const l of listas) combos = combos.flatMap((c) => l.map((x) => [...c, x]));
   const lineas = [];
   for (const c of combos) for (let v = 1; v <= b.variaciones; v++) {
-    const ct = busca(OPC.ctas, c[5]);
-    lineas.push("- " + c[0] + " · " + c[1] + " · formato " + c[2] + " · emoción " + c[3] + " · gancho " + c[4] + " · acción " + c[5] + (!b.problemasAuto ? " · problema/temática a resolver: «" + c[6] + "»" : " · temática a resolver: elígela tú al azar, propia del rubro y distinta en cada guion") + " (cta_tipo=\"" + ct[2] + "\", la frase final empieza con «" + ct[3] + "»)" + (b.variaciones > 1 ? " · variación " + v : ""));
+    const ct = busca(OPC.ctas, c[4]);
+    lineas.push("- " + c[0] + " · " + c[1] + " · formato " + c[2] + " · gancho " + c[3] + " · acción " + c[4] + (!b.problemasAuto ? " · problema/temática a resolver: «" + c[5] + "»" : " · temática a resolver: elígela tú al azar, propia del rubro y distinta en cada guion") + " (cta_tipo=\"" + ct[2] + "\", la frase final empieza con «" + ct[3] + "»)" + (b.variaciones > 1 ? " · variación " + v : ""));
   }
   const dg = L === "diegao";
   const intro = dg
@@ -314,15 +329,14 @@ function textoBrief() {
   return intro
     + "- Idioma: " + b.idioma + (b.idioma === "Español" ? "" : " (usa el parámetro voz=\"" + voz + "\" en cada entrada)") + "\n"
     + "- Rubros" + (dg ? " (tipo de salón de la dueña)" : "") + ": " + b.rubros.join(", ") + "\n"
-    + "- Temáticas:\n" + defs(OPC.tematicas, b.tematicas) + "\n"
+    + "- Temáticas:\n" + defs(TEMAS(), b.tematicas) + "\n"
     + "- Formatos:\n" + defs(OPC.formatos, b.formatos) + "\n"
-    + "- Emociones:\n" + defs(OPC.tonos, b.tonos) + "\n"
     + (b.problemasAuto ? "- Temática o problema a resolver: AUTOMÁTICO. Elige tú, al azar, un problema o tema concreto y real " + (dg ? "de una dueña de salón (administración, finanzas, agenda, precios, equipo…)" : "del rubro") + " para cada guion, sin repetir entre guiones" + (dg ? " ni con los que ya existen.\n" : " ni con prompt/rubros_hechos.md.\n") : "- Temáticas o problemas a resolver (cada guion trata UNO): " + b.problemas.map((p) => "«" + p + "»").join("; ") + "\n")
     + "- Ganchos:\n" + defs(OPC.ganchos, b.ganchos) + "\n"
     + "- Acciones del usuario:\n" + defs(OPC.ctas, b.ctas) + "\n"
     + "- Duración objetivo: " + b.duracion + " segundos (máximo 30; unas 2,5 palabras por segundo).\n"
     + "- Variaciones por combinación: " + b.variaciones + (b.variaciones > 1 ? " (cada una con otro ángulo)" : "") + "\n\n"
-    + "Genera una entrada por combinación (" + n + " en total), cada una con su propio gancho, formato, emoción y cta_tipo:\n" + (n <= 40 ? lineas.join("\n") : lineas.slice(0, 40).join("\n") + "\n… (y el resto de las combinaciones, hasta " + n + ")") + "\n\n"
+    + "Genera una entrada por combinación (" + n + " en total), cada una con su propio gancho, formato y cta_tipo:\n" + (n <= 40 ? lineas.join("\n") : lineas.slice(0, 40).join("\n") + "\n… (y el resto de las combinaciones, hasta " + n + ")") + "\n\n"
     + (disenoTexto() ? "\n\nDISEÑO PERSONALIZADO (aplícalo a los videos de este lote): " + disenoTexto() + "\n\n" : "")
     + cierre;
 }
