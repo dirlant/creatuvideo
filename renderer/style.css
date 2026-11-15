@@ -1,9 +1,12 @@
+@font-face { font-family: "Lato"; font-weight: 400; font-style: normal; src: url("fonts/Lato-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Lato"; font-weight: 700; font-style: normal; src: url("fonts/Lato-Bold.ttf") format("truetype"); }
+@font-face { font-family: "Lato"; font-weight: 900; font-style: normal; src: url("fonts/Lato-Black.ttf") format("truetype"); }
 :root {
   --bg: #14111c; --panel: #1d1928; --panel2: #262033; --borde: #3a3150; --txt: #f3eefb; --suave: #a79bbd;
   --acento: #d61480; --acento2: #ff3fa4; --ok: #3ccf8e; --mal: #ff6b6b; --aviso: #ffc857;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; display: flex; flex-direction: column; background: var(--bg); color: var(--txt); font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px; }
+html, body { margin: 0; height: 100%; display: flex; flex-direction: column; background: var(--bg); color: var(--txt); font-family: "Lato", "Segoe UI", system-ui, sans-serif; font-size: 14px; }
 .app { display: flex; flex: 1; min-height: 0; }
 .nav { width: 210px; flex: none; background: var(--panel); border-right: 1px solid var(--borde); display: flex; flex-direction: column; padding: 14px 10px; gap: 4px; }
 .marca { background: #fff; border-radius: 12px; padding: 10px 12px; margin: 0 0 14px; }
@@ -68,7 +71,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .reg-cab .esp { flex: 1; }
 .reg-cab button { padding: 3px 10px; font-size: 12px; }
 #ind-busy { color: var(--aviso); font-size: 12px; }
-#log { flex: 1; margin: 0; padding: 8px 14px; overflow: auto; font: 12px/1.45 Consolas, monospace; color: #cfc6e0; white-space: pre-wrap; }
+#log { flex: 1; margin: 0; padding: 8px 14px; overflow: auto; font: 12px/1.45 "Lato", "Segoe UI", sans-serif; color: #cfc6e0; white-space: pre-wrap; }
 .cfg { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 12px 14px 8px; margin: 14px 0; }
 .cfg h3 { margin: 0 0 8px; font-size: 13px; color: var(--suave); font-weight: 600; }
 .cfg .grid2 { margin-top: 10px; }
@@ -161,3 +164,12 @@ h3 .ico-t svg { width: 22px; height: 22px; }
 .cta-op { grid-template-columns: 1fr 1fr; margin: 0; }
 .cta-op .opcion { padding: 10px 14px; }
 textarea.escribir { min-height: 220px; font-size: 14px; line-height: 1.5; }
+.opcion .ico-g { display: grid; margin-top: 0; place-items: center; }
+.tarjeta h3:has(.ico-t) { display: flex; align-items: center; gap: 10px; }
+h1:has(.ico-t) { display: flex; align-items: center; gap: 12px; }
+.tit { font-weight: inherit; }
+.tarjeta h3 .tit, .nav-b .nav-sub { line-height: 1.2; }
+html, body, button, input, select, textarea, pre, code { font-family: "Lato", "Segoe UI", system-ui, sans-serif; }
+.tarjeta { display: flex; flex-direction: column; justify-content: flex-start; }
+.tarjeta h3 { font-size: 16px; }
+.tarjeta h3:has(.ico-t) { gap: 8px; }

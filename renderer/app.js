@@ -81,7 +81,11 @@ const ICO = {
   generar: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5 3.5-5 3.5z"/></svg>',
   aviso: '<svg viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg>',
   dianchi: '<svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><path d="M12 15v6M9 21h6M9.5 7a3 3 0 0 1 2-1.5"/></svg>',
-  precio: '<svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
+  inicio: '<svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
+  cortar: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg>',
+  claude: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>',
+  ajustes: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>',
+  precio: '<svg viewBox="0 0 24 24"><path d="M3 10v4a1 1 0 0 0 1 1h3l11 5V4L7 9H4a1 1 0 0 0-1 1z"/><path d="M7 15l1.4 4.2a1 1 0 0 0 1 .8h1a1 1 0 0 0 1-1.2L10.5 16.5M21 9.5v5"/></svg>',
   diegao: '<svg viewBox="0 0 24 24"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11.2V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.8M22 9v6"/></svg>',
   clienta: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
   duena: '<svg viewBox="0 0 24 24"><path d="M3 9 5 4h14l2 5"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg>',
@@ -434,7 +438,7 @@ $("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#tx
 const NOMBRES_DIRS = {
   dianchiResultado: "Resultados de Dianchi", imagenes: "Carpeta de imágenes", relleno: "Videos de relleno",
   diegaoResultado: "Resultados de Diegao", diegaoFuente: "Videos fuente (evento)", diegaoImagenes: "Carpeta de imágenes (Diegao)",
-  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Estrategia de Precios",
+  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Anuncios Con Precio",
   claudeVideos: "Carpeta de videos", claudeImagenes: "Carpeta de imágenes", claudeSalida: "Carpeta de salida",
   cortarEntrada: "Video a cortar (entrada)", cortarResultado: "Resultados de los cortes",
 };
@@ -452,7 +456,7 @@ const SECCIONES = {
   cortar: ["cortarEntrada", "cortarResultado"],
 };
 const VOCES = [["es-MX-JorgeNeural", "Jorge (México, hombre)"], ["es-MX-DaliaNeural", "Dalia (México, mujer)"], ["es-CO-GonzaloNeural", "Gonzalo (Colombia, hombre)"], ["es-CO-SalomeNeural", "Salomé (Colombia, mujer)"], ["es-ES-AlvaroNeural", "Álvaro (España, hombre)"]];
-// ---------------------------------------------------------------- Estrategia de Precios (video de 15 s, formato Reels)
+// ---------------------------------------------------------------- Anuncios Con Precio (video de 15 s, formato Reels)
 const PR_IDIOMAS = [["es", "Español"], ["en", "English"], ["pt", "Português"], ["de", "Deutsch"]];
 const PR_VOCES = {
   es: VOCES,

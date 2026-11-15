@@ -11,13 +11,13 @@
 <div class="app">
   <aside class="nav">
     <div class="marca"><img src="logo-completo.png" alt="CreaTuVideo" /></div>
-    <button class="nav-b activo" data-v="inicio">Inicio</button>
-    <button class="nav-b" data-v="dianchi" title="Dianchi" aria-label="Dianchi"><span class="ico-t" data-ico="dianchi"></span><span class="nav-sub">Para Clientas</span></button>
-    <button class="nav-b" data-v="diegao" title="Diegao" aria-label="Diegao"><span class="ico-t" data-ico="diegao"></span><span class="nav-sub">Para Dueñas</span></button>
-    <button class="nav-b" data-v="precios">Estrategia de Precios</button>
-    <button class="nav-b" data-v="cortar">Cortar y silencios</button>
-    <button class="nav-b" data-v="claude">Claude Code</button>
-    <button class="nav-b" data-v="ajustes">Ajustes</button>
+    <button class="nav-b activo" data-v="inicio" title="Inicio" aria-label="Inicio"><span class="ico-t" data-ico="inicio"></span><span class="nav-sub">Inicio</span></button>
+    <button class="nav-b" data-v="dianchi" title="Para Clientas" aria-label="Para Clientas"><span class="ico-t" data-ico="dianchi"></span><span class="nav-sub">Para Clientas</span></button>
+    <button class="nav-b" data-v="diegao" title="Para Dueñas" aria-label="Para Dueñas"><span class="ico-t" data-ico="diegao"></span><span class="nav-sub">Para Dueñas</span></button>
+    <button class="nav-b" data-v="precios" title="Anuncios Con Precio" aria-label="Anuncios Con Precio"><span class="ico-t" data-ico="precio"></span><span class="nav-sub">Anuncios Con Precio</span></button>
+    <button class="nav-b" data-v="cortar" title="Cortar y silencios" aria-label="Cortar y silencios"><span class="ico-t" data-ico="cortar"></span><span class="nav-sub">Cortar y silencios</span></button>
+    <button class="nav-b" data-v="claude" title="Claude Code" aria-label="Claude Code"><span class="ico-t" data-ico="claude"></span><span class="nav-sub">Claude Code</span></button>
+    <button class="nav-b" data-v="ajustes" title="Ajustes" aria-label="Ajustes"><span class="ico-t" data-ico="ajustes"></span><span class="nav-sub">Ajustes</span></button>
     <div class="nav-pie">
       <div id="v-app" class="chico"></div>
       <div id="aviso-upd" class="aviso oculto"></div>
@@ -34,11 +34,11 @@
       <h1>¿Qué quieres crear hoy?</h1>
       <div id="banner-falta" class="banner oculto"><div><b>Faltan componentes para generar videos.</b><span id="txt-faltan"></span></div><button class="fuerte" id="b-instalar-todo">Instalar todo lo que falta</button></div>
       <div class="tarjetas">
-        <button class="tarjeta" data-ir="dianchi"><h3><span class="ico-t" data-ico="dianchi" role="img" aria-label="Dianchi" title="Dianchi"></span> <span class="para"><span data-ico="clienta"></span>Para Clientas</span></h3><p>Videos de rubros de belleza con imágenes y B-roll, objeción y 3 pasos.</p></button>
-        <button class="tarjeta" data-ir="diegao"><h3><span class="ico-t" data-ico="diegao" role="img" aria-label="Diegao" title="Diegao"></span> <span class="para"><span data-ico="duena"></span>Para Dueñas</span></h3><p>Videos de mentor para dueñas de salón con cortes del evento.</p></button>
-        <button class="tarjeta" data-ir="precios"><h3>Estrategia de Precios</h3><p>Reel de 15 segundos con voz: título, lo que incluye, precio promocional y CTA.</p></button>
-        <button class="tarjeta" data-ir="cortar"><h3>Cortar y silencios</h3><p>Corta un video largo, quita silencios y aplica el patrón de interrupción.</p></button>
-        <button class="tarjeta" data-ir="claude"><h3>Claude Code</h3><p>Pide un lote nuevo o un cambio de reglas en lenguaje normal.</p></button>
+        <button class="tarjeta" data-ir="dianchi"><h3><span class="ico-t" data-ico="dianchi" role="img" aria-label="Para Clientas" title="Para Clientas"></span> <span class="tit">Para Clientas</span></h3><p>Videos de rubros de belleza con imágenes y B-roll, objeción y 3 pasos.</p></button>
+        <button class="tarjeta" data-ir="diegao"><h3><span class="ico-t" data-ico="diegao" role="img" aria-label="Para Dueñas" title="Para Dueñas"></span> <span class="tit">Para Dueñas</span></h3><p>Videos de mentor para dueñas de salón con cortes del evento.</p></button>
+        <button class="tarjeta" data-ir="precios"><h3><span class="ico-t" data-ico="precio" role="img" aria-label="Anuncios Con Precio" title="Anuncios Con Precio"></span> <span class="tit">Anuncios Con Precio</span></h3><p>Reel de 15 segundos con voz: título, lo que incluye, precio promocional y CTA.</p></button>
+        <button class="tarjeta" data-ir="cortar"><h3><span class="ico-t" data-ico="cortar" role="img" aria-label="Cortar y silencios" title="Cortar y silencios"></span> <span class="tit">Cortar y silencios</span></h3><p>Corta un video largo, quita silencios y aplica el patrón de interrupción.</p></button>
+        <button class="tarjeta" data-ir="claude"><h3><span class="ico-t" data-ico="claude" role="img" aria-label="Claude Code" title="Claude Code"></span> <span class="tit">Claude Code</span></h3><p>Pide un lote nuevo o un cambio de reglas en lenguaje normal.</p></button>
       </div>
       <h2>Estado</h2>
       <div id="estado-entorno" class="lista-estado"></div>
@@ -46,7 +46,7 @@
     </section>
 
     <section id="v-dianchi" class="vista">
-      <h1><span class="ico-t" data-ico="dianchi" role="img" aria-label="Dianchi" title="Dianchi"></span> <span class="para"><span data-ico="clienta"></span>Para Clientas</span></h1>
+      <h1><span class="ico-t" data-ico="dianchi" role="img" aria-label="Para Clientas" title="Para Clientas"></span> <span class="tit">Para Clientas</span></h1>
       <ol class="pasos" id="pasos-dianchi">
         <li data-p="1" class="act">1 · Guion</li><li data-p="2">2 · Eventos</li><li data-p="3">3 · Imágenes</li>
         <li data-p="4">4 · Videos</li><li data-p="5">5 · Resultados</li><li data-p="6">6 · Diseño</li><li data-p="7">7 · Generar</li>
@@ -133,7 +133,7 @@
     </section>
 
     <section id="v-diegao" class="vista">
-      <h1><span class="ico-t" data-ico="diegao" role="img" aria-label="Diegao" title="Diegao"></span> <span class="para"><span data-ico="duena"></span>Para Dueñas</span></h1>
+      <h1><span class="ico-t" data-ico="diegao" role="img" aria-label="Para Dueñas" title="Para Dueñas"></span> <span class="tit">Para Dueñas</span></h1>
       <ol class="pasos" id="pasos-diegao">
         <li data-p="1" class="act">1 · Guion</li><li data-p="2">2 · Voz</li><li data-p="3">3 · Imágenes</li><li data-p="4">4 · Videos</li>
         <li data-p="5">5 · Resultados</li><li data-p="6">6 · Diseño</li><li data-p="7">7 · Generar</li>
@@ -207,7 +207,7 @@
     </section>
 
     <section id="v-precios" class="vista">
-      <h1><span class="ico-t" data-ico="precio" role="img" aria-label="Estrategia de Precios" title="Estrategia de Precios"></span> Estrategia de Precios</h1>
+      <h1><span class="ico-t" data-ico="precio" role="img" aria-label="Anuncios Con Precio" title="Anuncios Con Precio"></span> <span class="tit">Anuncios Con Precio</span></h1>
       <p class="sub">Video de <b>15 segundos en formato Reels</b> con narración de voz: un recuadro centrado con el título, lo que incluye el servicio, el precio promocional y el llamado a la acción (precio y CTA sobre fondo amarillo).</p>
 
       <div class="cfg"><h3>1 · Idioma y rubro</h3>
@@ -287,7 +287,7 @@
     </section>
 
     <section id="v-cortar" class="vista">
-      <h1>Cortar y silencios</h1>
+      <h1><span class="ico-t" data-ico="cortar" role="img" aria-label="Cortar y silencios" title="Cortar y silencios"></span> <span class="tit">Cortar y silencios</span></h1>
       <p class="sub">Pon el video en la carpeta de entrada. Claude Code lo transcribe, quita silencios, elige los clips y aplica el patrón de interrupción según <code>por-cortar/prompt/PROMPT_cortar.md</code>.</p>
       <div class="cfg"><h3>Carpetas de Cortar y silencios</h3>
         <div id="cfg-cortar" class="filas"></div>
@@ -303,7 +303,7 @@
     </section>
 
     <section id="v-claude" class="vista">
-      <h1>Claude Code</h1>
+      <h1><span class="ico-t" data-ico="claude" role="img" aria-label="Claude Code" title="Claude Code"></span> <span class="tit">Claude Code</span></h1>
       <p class="sub">Escribe lo que quieres (un lote nuevo, un cambio de estilo, una regla nueva). Se abre Claude Code en la carpeta de trabajo, ya con las reglas de la línea elegida.</p>
       <div class="cfg"><h3>Cuenta de Claude</h3>
         <div class="fila"><span id="txt-cuenta" class="cuenta">Comprobando…</span>
@@ -342,7 +342,7 @@
     </section>
 
     <section id="v-ajustes" class="vista">
-      <h1>Ajustes</h1>
+      <h1><span class="ico-t" data-ico="ajustes" role="img" aria-label="Ajustes" title="Ajustes"></span> <span class="tit">Ajustes</span></h1>
       <h2>Carpeta de trabajo</h2>
       <p class="chico">Donde la app guarda los scripts y los archivos temporales. Las carpetas de resultados, imágenes y videos se eligen en cada sección (Dianchi, Diegao, Cortar).</p>
       <div class="fila">
