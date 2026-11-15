@@ -178,3 +178,10 @@ html, body, button, input, select, textarea, pre, code { font-family: "Lato", "S
 .modal-caja { background: var(--panel); border: 1px solid var(--acento); border-radius: 16px; padding: 24px 28px; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
 .modal-caja h2 { margin: 0 0 10px; font-size: 20px; }
 .modal-caja p { margin: 0 0 6px; color: var(--suave); line-height: 1.5; }
+/* Para Clientas / Para Duenas: todos los pasos en una sola pantalla, como una linea de tiempo (historial) */
+#v-dianchi, #v-diegao { counter-reset: paso; }
+#pasos-dianchi, #pasos-diegao, #v-dianchi .nav-wiz, #v-diegao .nav-wiz { display: none; }
+#v-dianchi .paso, #v-diegao .paso, #v-dianchi .paso.oculto, #v-diegao .paso.oculto { display: block !important; counter-increment: paso; position: relative; margin: 8px 0 0 20px; padding: 0 0 34px 38px; border-left: 3px solid var(--borde); }
+#v-dianchi .paso:last-of-type, #v-diegao .paso:last-of-type { border-left-color: transparent; padding-bottom: 8px; }
+#v-dianchi .paso::before, #v-diegao .paso::before { content: counter(paso); position: absolute; left: -19px; top: -2px; width: 35px; height: 35px; border-radius: 50%; background: var(--acento); color: #fff; display: grid; place-items: center; font-weight: 900; font-size: 16px; box-shadow: 0 0 0 6px var(--bg); }
+#v-dianchi .paso > h2, #v-diegao .paso > h2 { margin: 0 0 8px; min-height: 32px; display: flex; align-items: center; }

@@ -368,7 +368,8 @@ const TOTAL_PASOS = { dianchi: 7, diegao: 7 };
 const SFX_NAV = { dianchi: "w", diegao: "wd" };
 function irPasoWiz(L, n) {
   PASO[L] = Math.max(1, Math.min(TOTAL_PASOS[L], n));
-  $$("#v-" + L + " .paso").forEach((p) => p.classList.toggle("oculto", Number(p.dataset.p) !== PASO[L]));
+  $$("#v-" + L + " .paso").forEach((p) => p.classList.remove("oculto"));         // todos los pasos se ven en una sola pantalla, como un historial
+  const pasoEl = $("#v-" + L + ' .paso[data-p="' + PASO[L] + '"]'); if (pasoEl) pasoEl.scrollIntoView({ behavior: "smooth", block: "start" });
   $$("#pasos-" + L + " li").forEach((li) => { const k = Number(li.dataset.p); li.classList.toggle("act", k === PASO[L]); li.classList.toggle("hecho", k < PASO[L]); });
   $("#" + SFX_NAV[L] + "-atras").classList.toggle("oculto", PASO[L] === 1);
   $("#" + SFX_NAV[L] + "-sig").classList.toggle("oculto", PASO[L] === TOTAL_PASOS[L]);
