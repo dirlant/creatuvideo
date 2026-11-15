@@ -15,7 +15,6 @@ FP = FF.replace("ffmpeg.exe", "ffprobe.exe")
 AG = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 VERDANA = r"C:\Windows\Fonts\verdanab.ttf"
 OPP = os.path.join(AG, "precios", "_operacion"); W = os.path.join(OPP, "_trabajo"); os.makedirs(W, exist_ok=True)
-SALIDA = os.path.join(AG, "precios", "resultado"); os.makedirs(SALIDA, exist_ok=True)
 DUR = 15.0                       # duracion fija del video
 INI = 0.35                       # la voz arranca a los 0.35 s
 env = dict(os.environ); env["PYTHONIOENCODING"] = "utf-8"
@@ -26,6 +25,7 @@ def _ajustes():
     except Exception: return {}
 AJ = _ajustes(); PRE = AJ.get("presets", {}); DIRS = AJ.get("dirs", {})
 P = PRE.get("precios", {}) or {}
+SALIDA = DIRS.get("preciosResultado") or os.path.join(AG, "precios", "resultado"); os.makedirs(SALIDA, exist_ok=True)
 ESTILO = {"tarjeta": "#1c1030", "opacidad": 0.80, "amarillo": "#FFD400", "letras": "#FFFFFF", "chip": "#D61480", "escala": 1.0, "posicion": "centro"}
 ESTILO.update({k: v for k, v in (PRE.get("preciosEstilo", {}) or {}).items() if v not in (None, "")})
 
