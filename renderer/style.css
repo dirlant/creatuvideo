@@ -173,3 +173,8 @@ html, body, button, input, select, textarea, pre, code { font-family: "Lato", "S
 .tarjeta { display: flex; flex-direction: column; justify-content: flex-start; }
 .tarjeta h3 { font-size: 16px; }
 .tarjeta h3:has(.ico-t) { gap: 8px; }
+.modal-upd { position: fixed; inset: 0; background: rgba(8,5,16,.82); display: grid; place-items: center; z-index: 50; }
+.modal-upd.oculto { display: none; }
+.modal-caja { background: var(--panel); border: 1px solid var(--acento); border-radius: 16px; padding: 24px 28px; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.modal-caja h2 { margin: 0 0 10px; font-size: 20px; }
+.modal-caja p { margin: 0 0 6px; color: var(--suave); line-height: 1.5; }

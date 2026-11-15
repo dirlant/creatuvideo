@@ -122,6 +122,7 @@ $$("[data-acc]").forEach((b) => b.addEventListener("click", () => {
   $$("#lista-" + l + " input").forEach((c) => (c.checked = b.dataset.acc === "seleccionar"));
 }));
 $$("[data-run]").forEach((b) => b.addEventListener("click", async () => {
+  if (!(await exigirUltimaVersion())) return;
   const [linea, modo] = b.dataset.run.split(":");
   const slugs = $$("#lista-" + linea + " input:checked").map((c) => c.value);
   gen = { plan: 1, render: 0 };
@@ -404,6 +405,7 @@ for (const L of ["dianchi", "diegao"]) {
 }
 // "Generar todo": Dianchi = verificar -> descargar -> render; Diegao = preparar -> render
 async function generarTodo(L) {
+  if (!(await exigirUltimaVersion())) return;
   const fases = L === "diegao" ? ["preparar", "render"] : ["verificar", "descargar", "render"];
   gen = { plan: fases.length, fases, render: 0 };
   for (const modo of fases) {
@@ -508,6 +510,9 @@ $("#es-posicion").addEventListener("change", (ev) => { esp().posicion = ev.targe
 $("#b-precios-restablecer").addEventListener("click", () => { ajustes.presets.preciosEstilo = { ...ES0 }; guardarAuto(); });
 async function correrPrecios(modo) {
   const p = prp(), st = $("#pr-estado");
+  st.textContent = "Comprobando que tengas la última versión…";
+  if (!(await exigirUltimaVersion())) { st.textContent = "⚠ Primero hay que actualizar a la última versión."; return; }
+  st.textContent = "";
   if (modo === "generar") {
     const falta = !p.rubro ? "el rubro" : !p.servicio.trim() ? "el servicio" : !p.titulo.trim() ? "el título" : !p.incluye.trim() ? "lo que incluye el servicio" : !p.precio.trim() ? "el precio promocional" : "";
     if (falta) { st.textContent = "⚠ Falta " + falta + "."; return; }
@@ -713,6 +718,25 @@ async function actualizarAhora() {
 $("#aviso-upd").addEventListener("click", actualizarAhora);   // un clic en el aviso descarga e instala
 $("#b-upd").addEventListener("click", async () => { if (ocupado) return escribir("⚠ " + MOTIVO_BLOQUEO); $("#txt-upd").textContent = "Buscando…"; mostrarUpd(await window.ctv.checkUpdate()); });
 $("#b-upd-ir").addEventListener("click", actualizarAhora);
+
+// Antes de generar videos hay que tener la ultima version: si hay una nueva, se descarga e instala (la app se reinicia) y la generacion no arranca.
+let forzandoUpd = false;
+function modalUpd(titulo, texto, cerrable) {
+  let m = $("#modal-upd");
+  if (!m) { m = document.createElement("div"); m.id = "modal-upd"; m.className = "modal-upd"; m.innerHTML = '<div class="modal-caja"><h2></h2><p></p><div class="barra"><button class="p fuerte" id="modal-upd-cerrar">Entendido</button></div></div>'; document.body.appendChild(m); $("#modal-upd-cerrar").addEventListener("click", () => m.classList.add("oculto")); }
+  $("h2", m).textContent = titulo; $("p", m).textContent = texto; $("#modal-upd-cerrar").classList.toggle("oculto", !cerrable); m.classList.remove("oculto");
+}
+async function exigirUltimaVersion() {
+  if (forzandoUpd) return false;
+  let i; try { i = await window.ctv.checkUpdate(); } catch { i = null; }
+  if (!i || !i.ok) { escribir("⚠ No se pudo comprobar si tienes la última versión (" + ((i && i.motivo) || "sin respuesta") + "). Se continúa con la versión actual."); return true; }
+  if (!i.hay) return true;
+  forzandoUpd = true;
+  modalUpd("Hay una versión nueva (" + i.corto + ")", "Para generar videos necesitas tener la última versión. Se está descargando e instalando; la app se reiniciará sola. Cuando vuelva a abrir, pulsa «Generar» otra vez.", false);
+  const r = await window.ctv.applyUpdate();
+  if (!r || !r.ok) { forzandoUpd = false; modalUpd("No se pudo actualizar", ((r && r.motivo) || "Error desconocido") + ". Revisa tu conexión e inténtalo de nuevo: no se puede generar sin la última versión.", true); }
+  return false;
+}
 
 // ---------------------------------------------------------------- inicio
 pintarIconos();
