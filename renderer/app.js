@@ -464,7 +464,7 @@ const PR_VOCES = {
   pt: [["pt-BR-AntonioNeural", "Antonio (Brasil, hombre)"], ["pt-BR-FranciscaNeural", "Francisca (Brasil, mujer)"]],
   de: [["de-DE-ConradNeural", "Conrad (Alemania, hombre)"], ["de-DE-KatjaNeural", "Katja (Alemania, mujer)"]],
 };
-const PR0 = { idioma: "es", voz: "es-MX-JorgeNeural", rubro: "", servicio: "", titulo: "", incluye: "", precio: "", cta: "me", videos: "auto", imagenes: "auto", generado: false };
+const PR0 = { idioma: "es", voz: "es-MX-JorgeNeural", rubro: "", servicio: "", ubicacion: "", titulo: "", incluye: "", precio: "", cta: "me", videos: "auto", imagenes: "auto", generado: false };
 const ES0 = { tarjeta: "#1c1030", opacidad: 0.8, amarillo: "#FFD400", letras: "#FFFFFF", chip: "#D61480", escala: 1, posicion: "centro" };
 function prp() { const p = ajustes.presets.precios || (ajustes.presets.precios = {}); for (const k of Object.keys(PR0)) if (p[k] === undefined) p[k] = PR0[k]; return p; }
 function esp() { const p = ajustes.presets.preciosEstilo || (ajustes.presets.preciosEstilo = {}); for (const k of Object.keys(ES0)) if (p[k] === undefined) p[k] = ES0[k]; return p; }
@@ -481,7 +481,7 @@ function pintarPrecios() {
   const voces = PR_VOCES[p.idioma] || VOCES;
   if (!voces.some((v) => v[0] === p.voz)) p.voz = voces[0][0];
   llenarSelect($("#pr-voz"), voces, p.voz);
-  for (const [id, k] of [["pr-servicio", "servicio"], ["pr-titulo", "titulo"], ["pr-incluye", "incluye"], ["pr-precio", "precio"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
+  for (const [id, k] of [["pr-servicio", "servicio"], ["pr-ubicacion", "ubicacion"], ["pr-titulo", "titulo"], ["pr-incluye", "incluye"], ["pr-precio", "precio"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
   for (const [nombre, valor] of [["pr-videos", p.videos], ["pr-imagenes", p.imagenes], ["pr-cta", p.cta]]) $$('input[name="' + nombre + '"]').forEach((r) => (r.checked = r.value === valor));
   $("#caja-pr-videos").classList.toggle("oculto", p.videos !== "carpeta");
   $("#caja-pr-imagenes").classList.toggle("oculto", p.imagenes !== "carpeta");
@@ -495,7 +495,7 @@ function cambioPrecios(fn) { return (ev) => { fn(ev.target.value, ev.target); gu
 $("#pr-idioma").addEventListener("change", cambioPrecios((v) => { const p = prp(); p.idioma = v; p.voz = PR_VOCES[v][0][0]; }));
 $("#pr-rubro").addEventListener("change", cambioPrecios((v) => { prp().rubro = v; }));
 $("#pr-voz").addEventListener("change", cambioPrecios((v) => { prp().voz = v; }));
-for (const [id, k] of [["pr-servicio", "servicio"], ["pr-titulo", "titulo"], ["pr-incluye", "incluye"], ["pr-precio", "precio"]]) {
+for (const [id, k] of [["pr-servicio", "servicio"], ["pr-ubicacion", "ubicacion"], ["pr-titulo", "titulo"], ["pr-incluye", "incluye"], ["pr-precio", "precio"]]) {
   $("#" + id).addEventListener("input", (ev) => { prp()[k] = ev.target.value; });
   $("#" + id).addEventListener("change", () => guardarAuto());
 }

@@ -40,7 +40,7 @@ IDIOMA = P.get("idioma") if P.get("idioma") in TXT else "es"; T = TXT[IDIOMA]
 VOZ = P.get("voz") or {"es": "es-MX-JorgeNeural", "en": "en-US-GuyNeural", "pt": "pt-BR-AntonioNeural", "de": "de-DE-ConradNeural"}[IDIOMA]
 RUBRO = (P.get("rubro") or "").strip(); SERVICIO = (P.get("servicio") or "").strip(); TITULO = (P.get("titulo") or "").strip()
 ITEMS = [l.strip(" -•·*\t") for l in re.split(r"[\r\n]+", P.get("incluye") or "") if l.strip(" -•·*\t")][:5]
-PRECIO = (P.get("precio") or "").strip(); CTA = T["cta"].get(P.get("cta"), T["cta"]["me"])
+UBIC = (P.get("ubicacion") or "").strip()[:48]; PRECIO = (P.get("precio") or "").strip(); CTA = T["cta"].get(P.get("cta"), T["cta"]["me"])
 if not (TITULO and PRECIO) and MODO == "generar": sys.exit("Falta el título o el precio promocional.")
 
 def sh(cmd, **kw):
@@ -185,7 +185,9 @@ def maquetar(estado):
         if ln: out.append(ln)
         return out
     ops = []; y = PAD
-    # --- etapa 0: rubro, fotos, servicio, titulo
+    # --- etapa 0: ubicacion, rubro, fotos, servicio, titulo (todo centrado)
+    if UBIC:
+        f = F(36); ops.append((0, "ubic", y, UBIC, f, letras)); y += 36 * s * 1.3 + 22
     if RUBRO:
         f = F(32); w = tmp.textlength(RUBRO.upper(), font=f) / K + 64; h = 60 * s
         ops.append((0, "chip", y, w, h, f)); y += h + 26
@@ -200,11 +202,12 @@ def maquetar(estado):
     y += 26
     # --- etapas 1..n: lo que incluye
     if ITEMS:
-        f = F(30); ops.append((1, "izq", y, T["incluye"], f, amar)); y += 30 * s * 1.7
+        f = F(30); ops.append((1, "centro", y, T["incluye"], f, amar)); y += 30 * s * 1.7
     fi = F(42)
     for i, it in enumerate(ITEMS):
-        ls = envolver(it, fi, INNER - 64)[:2]
-        ops.append((1 + i, "item", y, ls, fi, letras)); y += len(ls) * 42 * s * 1.25 + 14
+        ls = envolver("+ " + it, fi, INNER)[:2]
+        for j, l in enumerate(ls): ops.append((1 + i, "centro", y + j * 42 * s * 1.25, l, fi, letras))
+        y += len(ls) * 42 * s * 1.25 + 14
     y += 18
     # --- precio (amarillo, letras blancas)
     sp = len(ITEMS) + 1
@@ -233,6 +236,12 @@ def maquetar(estado):
                     im.paste(ft, (px(xx), px(Y)), m)
             elif tipo == "centro":
                 d.text((px(540), px(Y)), a, font=b, fill=c, anchor="ma")
+            elif tipo == "ubic":       # pin + texto, centrados juntos
+                wt = d.textlength(a, font=b) / K; pw = 30 * s; x_ini = 540 - (pw + 14 + wt) / 2; cy = Y + 36 * s * .55; r = 11 * s
+                px_ = x_ini + pw / 2; d.ellipse((px(px_ - r), px(cy - r - 4 * s), px(px_ + r), px(cy + r - 4 * s)), fill=(255, 59, 92, 255))
+                d.polygon([(px(px_ - r * .8), px(cy + r * .35 - 4 * s)), (px(px_ + r * .8), px(cy + r * .35 - 4 * s)), (px(px_), px(cy + r * 1.9 - 4 * s))], fill=(255, 59, 92, 255))
+                d.ellipse((px(px_ - r * .4), px(cy - r * .4 - 4 * s), px(px_ + r * .4), px(cy + r * .4 - 4 * s)), fill=(255, 255, 255, 255))
+                d.text((px(x_ini + pw + 14), px(cy)), a, font=b, fill=c, anchor="lm")
             elif tipo == "izq":
                 d.text((px(x0 + PAD), px(Y)), a, font=b, fill=c, anchor="la")
             elif tipo == "item":
