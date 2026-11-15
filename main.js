@@ -10,7 +10,8 @@ const { spawn, spawnSync } = require("child_process");
 
 const REPO = "dirlant/creatuvideo";
 const BRANCH = "main";
-const LINEAS = ["dianchi", "diegao", "por-cortar", "ads"];
+const LINEAS = ["dianchi", "diegao", "precios", "por-cortar", "ads"];
+const SCRIPTS_LINEA = { dianchi: "dianchi_lote.py", diegao: "diegao_lote.py", precios: "precios_lote.py" };
 
 let win = null;
 let hijo = null; // proceso en ejecucion (uno a la vez)
@@ -19,7 +20,7 @@ let hijo = null; // proceso en ejecucion (uno a la vez)
 const SETTINGS_FILE = () => path.join(app.getPath("userData"), "settings.json");
 const DEFAULTS = () => ({
   workspace: path.join(app.getPath("documents"), "CreaTuVideo"),
-  dirs: { dianchiResultado: "", diegaoResultado: "", cortarResultado: "", imagenes: "", relleno: "", diegaoFuente: "", cortarEntrada: "" },
+  dirs: { dianchiResultado: "", diegaoResultado: "", preciosResultado: "", cortarResultado: "", imagenes: "", relleno: "", diegaoFuente: "", cortarEntrada: "" },
   pexelsKey: "",
   githubToken: "",
   autoUpdate: true,
@@ -164,6 +165,7 @@ function syncWorkspace(actualizando = false) {
   const d = s.dirs;
   asegurarEnlace(ws, "dianchi/resultado", d.dianchiResultado);
   asegurarEnlace(ws, "diegao/resultado", d.diegaoResultado);
+  asegurarEnlace(ws, "precios/resultado", d.preciosResultado);
   asegurarEnlace(ws, "por-cortar/resultado", d.cortarResultado);
   asegurarEnlace(ws, "dianchi/entrada/imagenes", d.imagenes);
   asegurarEnlace(ws, "dianchi/entrada/videos", d.relleno);
@@ -289,7 +291,7 @@ ipcMain.handle("env:installAll", async () => {
 
 ipcMain.handle("lote:listar", async (_e, linea) => {
   const uv = findUv(); if (!uv) return { error: "Falta uv (Ajustes > Comprobar entorno)." };
-  const ws = syncWorkspace(); const script = linea === "diegao" ? "diegao_lote.py" : "dianchi_lote.py";
+  const ws = syncWorkspace(); const script = SCRIPTS_LINEA[linea] || "dianchi_lote.py";
   const r = await capturar(uv, ["run", "--python", "3.12", "--with", "pillow", "python", path.join("scripts", script), findFfmpeg() || "ffmpeg.exe", "listar"], { cwd: ws });
   try { return { items: JSON.parse(r.out.trim().split(/\r?\n/).pop()) }; } catch { return { error: "No se pudo leer la lista: " + (r.err || r.out).slice(-300) }; }
 });
@@ -300,7 +302,7 @@ ipcMain.handle("lote:run", async (_e, { linea, modo, slugs }) => {
   const s = getSettings();
   if (modo === "descargar" && !clavePexels() && !s.presets.rellenoLocal) return { ok: false, error: "Falta la clave de Pexels (Ajustes) o activa \"usar mis videos de relleno\"." };
   const ws = syncWorkspace();
-  const script = linea === "diegao" ? "diegao_lote.py" : "dianchi_lote.py";
+  const script = SCRIPTS_LINEA[linea] || "dianchi_lote.py";
   const env = entorno({ CTV_RELLENO_LOCAL: s.presets.rellenoLocal ? "1" : "0" });
   const args = ["run", "--python", "3.12", "--with", "edge-tts", "--with", "pillow", "--with", "numpy", "python", path.join("scripts", script), ff, modo, ...(slugs || [])];
   log("=== " + linea + " / " + modo + (slugs && slugs.length ? " / " + slugs.join(", ") : "") + " ===");

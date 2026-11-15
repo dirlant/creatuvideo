@@ -14,6 +14,7 @@
     <button class="nav-b activo" data-v="inicio">Inicio</button>
     <button class="nav-b" data-v="dianchi" title="Dianchi" aria-label="Dianchi"><span class="ico-t" data-ico="dianchi"></span><span class="nav-sub">Para Clientas</span></button>
     <button class="nav-b" data-v="diegao" title="Diegao" aria-label="Diegao"><span class="ico-t" data-ico="diegao"></span><span class="nav-sub">Para Dueñas</span></button>
+    <button class="nav-b" data-v="precios">Estrategia de Precios</button>
     <button class="nav-b" data-v="cortar">Cortar y silencios</button>
     <button class="nav-b" data-v="claude">Claude Code</button>
     <button class="nav-b" data-v="ajustes">Ajustes</button>
@@ -35,6 +36,7 @@
       <div class="tarjetas">
         <button class="tarjeta" data-ir="dianchi"><h3><span class="ico-t" data-ico="dianchi" role="img" aria-label="Dianchi" title="Dianchi"></span> <span class="para"><span data-ico="clienta"></span>Para Clientas</span></h3><p>Videos de rubros de belleza con imágenes y B-roll, objeción y 3 pasos.</p></button>
         <button class="tarjeta" data-ir="diegao"><h3><span class="ico-t" data-ico="diegao" role="img" aria-label="Diegao" title="Diegao"></span> <span class="para"><span data-ico="duena"></span>Para Dueñas</span></h3><p>Videos de mentor para dueñas de salón con cortes del evento.</p></button>
+        <button class="tarjeta" data-ir="precios"><h3>Estrategia de Precios</h3><p>Reel de 15 segundos con voz: título, lo que incluye, precio promocional y CTA.</p></button>
         <button class="tarjeta" data-ir="cortar"><h3>Cortar y silencios</h3><p>Corta un video largo, quita silencios y aplica el patrón de interrupción.</p></button>
         <button class="tarjeta" data-ir="claude"><h3>Claude Code</h3><p>Pide un lote nuevo o un cambio de reglas en lenguaje normal.</p></button>
       </div>
@@ -204,6 +206,86 @@
       <div class="barra nav-wiz"><button id="wd-atras" class="oculto">← Atrás</button><button class="p fuerte" id="wd-sig">Siguiente →</button></div>
     </section>
 
+    <section id="v-precios" class="vista">
+      <h1><span class="ico-t" data-ico="precio" role="img" aria-label="Estrategia de Precios" title="Estrategia de Precios"></span> Estrategia de Precios</h1>
+      <p class="sub">Video de <b>15 segundos en formato Reels</b> con narración de voz: un recuadro centrado con el título, lo que incluye el servicio, el precio promocional y el llamado a la acción (precio y CTA sobre fondo amarillo).</p>
+
+      <div class="cfg"><h3>1 · Idioma y rubro</h3>
+        <div class="grid2">
+          <div><label class="et">Idioma de la narración</label><select id="pr-idioma"></select></div>
+          <div><label class="et">Rubro</label><select id="pr-rubro"></select></div>
+        </div>
+      </div>
+
+      <div class="cfg"><h3>2 · Servicio y voz</h3>
+        <div class="grid2">
+          <div><label class="et">Servicio</label><input id="pr-servicio" maxlength="60" placeholder="Ej.: Manicure semipermanente" /></div>
+          <div><label class="et">Voz del narrador</label><select id="pr-voz"></select></div>
+        </div>
+      </div>
+
+      <div class="cfg"><h3>3 · Videos de fondo</h3>
+        <p class="sub">¿De dónde salen los videos del fondo? Cambian cada 3 segundos.</p>
+        <div class="fuente">
+          <label class="opcion"><span class="ico-g" data-ico="auto"></span><div><b>Automático</b><span>La app busca y descarga videos verticales en Pexels según el rubro.</span></div><input type="radio" name="pr-videos" value="auto" /></label>
+          <label class="opcion"><span class="ico-g" data-ico="carpeta"></span><div><b>De una carpeta</b><span>Usa tus propios videos.</span></div><input type="radio" name="pr-videos" value="carpeta" /></label>
+        </div>
+        <div class="cfg" id="caja-pr-videos"><div id="cfg-precios-videos" class="filas"></div></div>
+      </div>
+
+      <div class="cfg"><h3>4 · Imágenes</h3>
+        <p class="sub">Las 3 imágenes que van dentro del recuadro.</p>
+        <div class="fuente">
+          <label class="opcion"><span class="ico-g" data-ico="auto"></span><div><b>Automático</b><span>La app toma las imágenes de los propios videos del fondo.</span></div><input type="radio" name="pr-imagenes" value="auto" /></label>
+          <label class="opcion"><span class="ico-g" data-ico="carpeta"></span><div><b>De una carpeta</b><span>Usa tus fotos (trabajos, local, productos).</span></div><input type="radio" name="pr-imagenes" value="carpeta" /></label>
+        </div>
+        <div class="cfg" id="caja-pr-imagenes"><div id="cfg-precios-imagenes" class="filas"></div></div>
+      </div>
+
+      <div class="cfg"><h3>5 · Lo que va en el recuadro</h3>
+        <label class="et">Título</label><input id="pr-titulo" maxlength="70" placeholder="Ej.: Uñas perfectas por menos" />
+        <label class="et">Lo que incluye el servicio <span class="chico">(una cosa por línea, máximo 5)</span></label>
+        <textarea id="pr-incluye" rows="5" placeholder="Limpieza de cutícula&#10;Esmaltado semipermanente&#10;Diseño sencillo incluido"></textarea>
+        <div class="grid2">
+          <div><label class="et">Precio promocional</label><input id="pr-precio" maxlength="24" placeholder="Ej.: $25" /></div>
+          <div><label class="et">Llamado a la acción (CTA)</label>
+            <div class="fuente cta-op">
+              <label class="opcion"><div><b>Escríbeme</b></div><input type="radio" name="pr-cta" value="me" /></label>
+              <label class="opcion"><div><b>Escríbenos</b></div><input type="radio" name="pr-cta" value="nos" /></label>
+            </div>
+          </div>
+        </div>
+        <span class="chico">Mantén los textos cortos: la narración tiene que caber en 15 segundos (si es muy larga la app la acelera hasta 1.5×).</span>
+      </div>
+
+      <div class="cfg"><h3>6 · Carpeta de resultados</h3>
+        <div id="cfg-precios-resultados" class="filas"></div>
+      </div>
+
+      <div class="barra">
+        <button class="p fuerte run-pr" id="b-precios-generar">Generar video de 15 s</button>
+        <button data-abrir="precios/resultado">Abrir resultados</button>
+        <span id="pr-estado" class="chico"></span>
+      </div>
+
+      <div id="pr-aspecto" class="cfg oculto"><h3>Modificar el aspecto gráfico</h3>
+        <p class="sub">Cambia colores y tamaño del recuadro y vuelve a montar el video: reutiliza la voz, los videos y las imágenes ya preparados, así que es rápido. Reemplaza el último video generado.</p>
+        <div class="estilo-grid">
+          <div><label class="et">Color del recuadro</label><input type="color" id="es-tarjeta" /></div>
+          <div><label class="et">Amarillo (precio y CTA)</label><input type="color" id="es-amarillo" /></div>
+          <div><label class="et">Color de las letras</label><input type="color" id="es-letras" /></div>
+          <div><label class="et">Color de la etiqueta del rubro</label><input type="color" id="es-chip" /></div>
+          <div><label class="et">Transparencia del recuadro: <b id="es-opacidad-v"></b></label><input type="range" id="es-opacidad" min="30" max="100" step="5" /></div>
+          <div><label class="et">Tamaño de las letras: <b id="es-escala-v"></b></label><input type="range" id="es-escala" min="80" max="115" step="5" /></div>
+          <div><label class="et">Posición del recuadro</label><select id="es-posicion"><option value="centro">Centro</option><option value="arriba">Arriba</option><option value="abajo">Abajo</option></select></div>
+        </div>
+        <div class="barra">
+          <button class="p fuerte run-pr" id="b-precios-aspecto">Aplicar aspecto y regenerar el video</button>
+          <button id="b-precios-restablecer">Restablecer colores</button>
+        </div>
+      </div>
+    </section>
+
     <section id="v-cortar" class="vista">
       <h1>Cortar y silencios</h1>
       <p class="sub">Pon el video en la carpeta de entrada. Claude Code lo transcribe, quita silencios, elige los clips y aplica el patrón de interrupción según <code>por-cortar/prompt/PROMPT_cortar.md</code>.</p>
@@ -249,7 +331,12 @@
         <button class="chip" data-p="Crea 6 videos nuevos de Diegao sobre dolores de dueñas de salón que no existan en scripts/diegao_lote.py, con objeción, 3 pasos y CTA Sígueme.">Nuevos videos Diegao</button>
         <button class="chip" data-p="Actualiza las animaciones con efectos de tendencia en scripts/generar_dianchi.py y scripts/hf_collage.py, sin romper los videos existentes.">Nuevos efectos</button>
       </div>
-      <textarea id="txt-claude" rows="9" placeholder="Escribe aquí tu instrucción…"></textarea>
+      <div class="cfg"><h3>Carpetas para este trabajo</h3>
+        <p class="sub">Elige dónde están tus videos e imágenes y dónde quieres el resultado. Claude Code las recibe con tu instrucción.</p>
+        <div id="cfg-claude" class="filas"></div>
+      </div>
+      <label class="et" for="txt-claude">Cuéntale a Claude Code qué quieres crear</label>
+      <textarea id="txt-claude" class="escribir" rows="12" placeholder="Empieza a escribir aquí: describe el video o el cambio que necesitas, para quién es, el estilo, los textos… Claude Code te hará las preguntas que falten."></textarea>
       <div class="barra"><button class="p fuerte" id="b-claude">Enviar a Claude Code</button></div>
       <p class="chico">Claude Code debe estar instalado y con sesión iniciada (Ajustes → Comprobar entorno). Se abre en una ventana aparte, donde apruebas lo que hace.</p>
     </section>

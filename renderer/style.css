@@ -155,3 +155,9 @@ h3 .ico-t svg { width: 22px; height: 22px; }
 .nav-b .ico-t svg { width: 24px; height: 24px; }
 .nav-b:has(.ico-t) { display: flex; align-items: center; gap: 10px; }
 .nav-b .nav-sub { font-size: inherit; }
+.estilo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 18px; margin-bottom: 6px; }
+.estilo-grid input[type=color] { width: 100%; height: 38px; padding: 2px; border-radius: 8px; border: 1px solid var(--borde); background: var(--panel); cursor: pointer; }
+.estilo-grid input[type=range] { width: 100%; accent-color: var(--acento); }
+.cta-op { grid-template-columns: 1fr 1fr; margin: 0; }
+.cta-op .opcion { padding: 10px 14px; }
+textarea.escribir { min-height: 220px; font-size: 14px; line-height: 1.5; }

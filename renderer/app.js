@@ -15,7 +15,7 @@ function ir(v) {
   if (v === "dianchi" || v === "diegao") { BL = v; actualizarContador(); }
   $("#barra-estado").classList.toggle("oculto", v !== "dianchi" && v !== "diegao" && !(gen && !gen.fin));   // el conteo de videos queda fijo al pie, solo en Dianchi y Diegao
   if (v === "ajustes") comprobarEntorno();
-  if (v === "claude") actualizarCuenta();
+  if (v === "claude") { actualizarCuenta(); setTimeout(() => $("#txt-claude").focus(), 50); }
 }
 $$(".nav-b").forEach((b) => b.addEventListener("click", () => ir(b.dataset.v)));
 $$("[data-ir]").forEach((b) => b.addEventListener("click", () => ir(b.dataset.ir)));
@@ -63,7 +63,7 @@ window.ctv.onBusy((b) => {
   if (!b) detenido = false;
   $("#ind-busy").classList.toggle("oculto", !b);
   $("#b-cancel").disabled = !b;
-  $$("[data-run], #b-upd-ir").forEach((x) => { if (b) x.disabled = true; else if (x.id !== "b-upd-ir") x.disabled = false; });
+  $$("[data-run], .run-pr, #b-upd-ir").forEach((x) => { if (b) x.disabled = true; else if (x.id !== "b-upd-ir") x.disabled = false; });
 });
 $("#b-limpiar").addEventListener("click", () => (logEl.textContent = ""));
 $("#b-cancel").addEventListener("click", () => window.ctv.cancel());
@@ -81,6 +81,7 @@ const ICO = {
   generar: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5 3.5-5 3.5z"/></svg>',
   aviso: '<svg viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg>',
   dianchi: '<svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><path d="M12 15v6M9 21h6M9.5 7a3 3 0 0 1 2-1.5"/></svg>',
+  precio: '<svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
   diegao: '<svg viewBox="0 0 24 24"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11.2V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.8M22 9v6"/></svg>',
   clienta: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
   duena: '<svg viewBox="0 0 24 24"><path d="M3 9 5 4h14l2 5"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg>',
@@ -420,7 +421,12 @@ async function enviarClaude(linea, texto) {
   const r = await window.ctv.openClaude({ linea, instruccion: texto });
   escribir(r.ok ? "Claude Code abierto en una ventana nueva." : "⚠ " + r.error);
 }
-$("#b-claude").addEventListener("click", () => enviarClaude($("#sel-linea").value, $("#txt-claude").value));
+$("#b-claude").addEventListener("click", () => {
+  const texto = $("#txt-claude").value; if (!texto.trim()) return escribir("Escribe una instrucción primero.");
+  const d = ajustes.dirs, carpetas = [["Carpeta de videos", d.claudeVideos], ["Carpeta de imágenes", d.claudeImagenes], ["Carpeta de salida (deja aquí los videos terminados)", d.claudeSalida]].filter((c) => c[1]);
+  const pre = carpetas.length ? "Carpetas que debes usar en este trabajo:\n" + carpetas.map((c) => "- " + c[0] + ": " + c[1]).join("\n") + "\n\n" : "";
+  enviarClaude($("#sel-linea").value, pre + texto);
+});
 $("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#txt-cortar").value));
 
 // ---------------------------------------------------------------- ajustes
@@ -428,6 +434,8 @@ $("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#tx
 const NOMBRES_DIRS = {
   dianchiResultado: "Resultados de Dianchi", imagenes: "Carpeta de imágenes", relleno: "Videos de relleno",
   diegaoResultado: "Resultados de Diegao", diegaoFuente: "Videos fuente (evento)", diegaoImagenes: "Carpeta de imágenes (Diegao)",
+  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Estrategia de Precios",
+  claudeVideos: "Carpeta de videos", claudeImagenes: "Carpeta de imágenes", claudeSalida: "Carpeta de salida",
   cortarEntrada: "Video a cortar (entrada)", cortarResultado: "Resultados de los cortes",
 };
 const SECCIONES = {
@@ -437,9 +445,78 @@ const SECCIONES = {
   "diegao-fuente": ["diegaoFuente"],
   "diegao-imagenes": ["diegaoImagenes"],
   "diegao-resultados": ["diegaoResultado"],
+  "precios-videos": ["preciosVideos"],
+  "precios-imagenes": ["preciosImagenes"],
+  "precios-resultados": ["preciosResultado"],
+  claude: ["claudeVideos", "claudeImagenes", "claudeSalida"],
   cortar: ["cortarEntrada", "cortarResultado"],
 };
 const VOCES = [["es-MX-JorgeNeural", "Jorge (México, hombre)"], ["es-MX-DaliaNeural", "Dalia (México, mujer)"], ["es-CO-GonzaloNeural", "Gonzalo (Colombia, hombre)"], ["es-CO-SalomeNeural", "Salomé (Colombia, mujer)"], ["es-ES-AlvaroNeural", "Álvaro (España, hombre)"]];
+// ---------------------------------------------------------------- Estrategia de Precios (video de 15 s, formato Reels)
+const PR_IDIOMAS = [["es", "Español"], ["en", "English"], ["pt", "Português"], ["de", "Deutsch"]];
+const PR_VOCES = {
+  es: VOCES,
+  en: [["en-US-GuyNeural", "Guy (EE. UU., hombre)"], ["en-US-JennyNeural", "Jenny (EE. UU., mujer)"]],
+  pt: [["pt-BR-AntonioNeural", "Antonio (Brasil, hombre)"], ["pt-BR-FranciscaNeural", "Francisca (Brasil, mujer)"]],
+  de: [["de-DE-ConradNeural", "Conrad (Alemania, hombre)"], ["de-DE-KatjaNeural", "Katja (Alemania, mujer)"]],
+};
+const PR0 = { idioma: "es", voz: "es-MX-JorgeNeural", rubro: "", servicio: "", titulo: "", incluye: "", precio: "", cta: "me", videos: "auto", imagenes: "auto", generado: false };
+const ES0 = { tarjeta: "#1c1030", opacidad: 0.8, amarillo: "#FFD400", letras: "#FFFFFF", chip: "#D61480", escala: 1, posicion: "centro" };
+function prp() { const p = ajustes.presets.precios || (ajustes.presets.precios = {}); for (const k of Object.keys(PR0)) if (p[k] === undefined) p[k] = PR0[k]; return p; }
+function esp() { const p = ajustes.presets.preciosEstilo || (ajustes.presets.preciosEstilo = {}); for (const k of Object.keys(ES0)) if (p[k] === undefined) p[k] = ES0[k]; return p; }
+function llenarSelect(sel, pares, valor) {
+  sel.innerHTML = "";
+  for (const [v, n] of pares) { const o = document.createElement("option"); o.value = v; o.textContent = n; sel.appendChild(o); }
+  sel.value = valor;
+}
+function pintarPrecios() {
+  if (!ajustes || !$("#pr-idioma")) return;
+  const p = prp(), e = esp();
+  llenarSelect($("#pr-idioma"), PR_IDIOMAS, p.idioma);
+  llenarSelect($("#pr-rubro"), [["", "Elige un rubro…"], ...OPC.rubros.map((r) => [r, r])], p.rubro);
+  const voces = PR_VOCES[p.idioma] || VOCES;
+  if (!voces.some((v) => v[0] === p.voz)) p.voz = voces[0][0];
+  llenarSelect($("#pr-voz"), voces, p.voz);
+  for (const [id, k] of [["pr-servicio", "servicio"], ["pr-titulo", "titulo"], ["pr-incluye", "incluye"], ["pr-precio", "precio"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
+  for (const [nombre, valor] of [["pr-videos", p.videos], ["pr-imagenes", p.imagenes], ["pr-cta", p.cta]]) $$('input[name="' + nombre + '"]').forEach((r) => (r.checked = r.value === valor));
+  $("#caja-pr-videos").classList.toggle("oculto", p.videos !== "carpeta");
+  $("#caja-pr-imagenes").classList.toggle("oculto", p.imagenes !== "carpeta");
+  $("#pr-aspecto").classList.toggle("oculto", !p.generado);
+  for (const k of ["tarjeta", "amarillo", "letras", "chip"]) $("#es-" + k).value = e[k];
+  $("#es-opacidad").value = Math.round(e.opacidad * 100); $("#es-opacidad-v").textContent = Math.round(e.opacidad * 100) + " %";
+  $("#es-escala").value = Math.round(e.escala * 100); $("#es-escala-v").textContent = Math.round(e.escala * 100) + " %";
+  $("#es-posicion").value = e.posicion;
+}
+function cambioPrecios(fn) { return (ev) => { fn(ev.target.value, ev.target); guardarAuto(); }; }
+$("#pr-idioma").addEventListener("change", cambioPrecios((v) => { const p = prp(); p.idioma = v; p.voz = PR_VOCES[v][0][0]; }));
+$("#pr-rubro").addEventListener("change", cambioPrecios((v) => { prp().rubro = v; }));
+$("#pr-voz").addEventListener("change", cambioPrecios((v) => { prp().voz = v; }));
+for (const [id, k] of [["pr-servicio", "servicio"], ["pr-titulo", "titulo"], ["pr-incluye", "incluye"], ["pr-precio", "precio"]]) {
+  $("#" + id).addEventListener("input", (ev) => { prp()[k] = ev.target.value; });
+  $("#" + id).addEventListener("change", () => guardarAuto());
+}
+for (const [nombre, k] of [["pr-videos", "videos"], ["pr-imagenes", "imagenes"], ["pr-cta", "cta"]]) $$('input[name="' + nombre + '"]').forEach((r) => r.addEventListener("change", (ev) => { prp()[k] = ev.target.value; guardarAuto(); }));
+for (const k of ["tarjeta", "amarillo", "letras", "chip"]) $("#es-" + k).addEventListener("change", (ev) => { esp()[k] = ev.target.value; guardarAuto(); });
+$("#es-opacidad").addEventListener("input", (ev) => { esp().opacidad = Number(ev.target.value) / 100; $("#es-opacidad-v").textContent = ev.target.value + " %"; });
+$("#es-escala").addEventListener("input", (ev) => { esp().escala = Number(ev.target.value) / 100; $("#es-escala-v").textContent = ev.target.value + " %"; });
+for (const id of ["es-opacidad", "es-escala"]) $("#" + id).addEventListener("change", () => guardarAuto());
+$("#es-posicion").addEventListener("change", (ev) => { esp().posicion = ev.target.value; guardarAuto(); });
+$("#b-precios-restablecer").addEventListener("click", () => { ajustes.presets.preciosEstilo = { ...ES0 }; guardarAuto(); });
+async function correrPrecios(modo) {
+  const p = prp(), st = $("#pr-estado");
+  if (modo === "generar") {
+    const falta = !p.rubro ? "el rubro" : !p.servicio.trim() ? "el servicio" : !p.titulo.trim() ? "el título" : !p.incluye.trim() ? "lo que incluye el servicio" : !p.precio.trim() ? "el precio promocional" : "";
+    if (falta) { st.textContent = "⚠ Falta " + falta + "."; return; }
+  }
+  st.textContent = modo === "generar" ? "Generando el video… (voz, videos y montaje; puede tardar 1–3 minutos)" : "Montando con el nuevo aspecto…";
+  await guardarAuto();
+  const r = await window.ctv.run({ linea: "precios", modo, slugs: [] });
+  if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
+  if (r && r.ok) { p.generado = true; st.textContent = "✔ Listo. Está en la carpeta de resultados."; await guardarAuto(); }
+  else st.textContent = "⚠ No se pudo terminar; revisa el registro de abajo.";
+}
+$("#b-precios-generar").addEventListener("click", () => correrPrecios("generar"));
+$("#b-precios-aspecto").addEventListener("click", () => correrPrecios("aspecto"));
 $$(".sel-voz").forEach((s) => { for (const [v, n] of VOCES) { const o = document.createElement("option"); o.value = v; o.textContent = n; s.appendChild(o); } });
 async function guardarAuto() {
   ajustes = await window.ctv.saveSettings(ajustes);
@@ -472,6 +549,7 @@ function pintarSecciones() {
   }
   for (const k of ["burbuja", "pasos", "collage", "sfx", "cierre"]) $("#ev-" + k).checked = ajustes.presets.eventos[k] !== false;
   resumenDianchi();
+  pintarPrecios();
   $$(".sel-voz").forEach((s) => (s.value = ajustes.presets.voz));
 }
 $$('input[name="fuente-imagenes"]').forEach((r) => r.addEventListener("change", (e) => { ajustes.presets.imagenesCollage = e.target.value === "carpeta"; guardarAuto(); }));
