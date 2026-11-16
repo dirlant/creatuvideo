@@ -131,7 +131,9 @@ $$("[data-run]").forEach((b) => b.addEventListener("click", async () => {
   const r = await window.ctv.run({ linea, modo, slugs });
   if (r && r.error) escribir("⚠ " + r.error);
 }));
-$$("[data-abrir]").forEach((b) => b.addEventListener("click", () => window.ctv.openPath(b.dataset.abrir || (ajustes && ajustes.workspace) || "")));
+const DIR_RESULTADOS = { "dianchi/resultado": "dianchiResultado", "diegao/resultado": "diegaoResultado", "precios/resultado": "preciosResultado", "infografias/resultado": "infografiasResultado", "por-cortar/resultado": "cortarResultado" };
+// "Abrir resultados" abre la carpeta que el usuario eligio (si no eligio ninguna, la predeterminada dentro de la carpeta de trabajo)
+$$("[data-abrir]").forEach((b) => b.addEventListener("click", () => window.ctv.openPath((ajustes && ajustes.dirs && ajustes.dirs[DIR_RESULTADOS[b.dataset.abrir]]) || b.dataset.abrir || (ajustes && ajustes.workspace) || "")));
 
 // ---------------------------------------------------------------- formulario de Dianchi (replica de dianchi.creatulink.com)
 const OPC = {
