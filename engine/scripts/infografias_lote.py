@@ -434,23 +434,36 @@ def guiones(D):
     return G
 
 def sintetizar(G, voz, carpeta):
-    import asyncio, wave, edge_tts
-    os.makedirs(carpeta, exist_ok=True); auds = []
+    import asyncio, re as _re, wave, edge_tts
+    os.makedirs(carpeta, exist_ok=True); auds = []; fallos = 0; total = 0
+    def limpiar(tx):                                         # el servicio de voz rechaza simbolos, emojis y comillas raras
+        tx = _re.sub(r"[\"“”«»‘’`*_#<>|\[\]{}~^=\\/]", " ", tx); tx = _re.sub(r"[^\w\s.,;:¿?¡!%$€&'()+\-]", " ", tx); return _re.sub(r"\s+", " ", tx).strip()
     for i, segs in enumerate(G):
         fila = []
         for j, tx in enumerate(segs):
-            mp3 = os.path.join(carpeta, "s%d_%d.mp3" % (i, j)); wav = mp3[:-4] + ".wav"
-            try: asyncio.run(edge_tts.Communicate(tx, voz).save(mp3))
-            except Exception as ex: sys.exit("No se pudo generar la voz (hace falta internet): %s" % ex)
-            subprocess.run([FF, "-nostdin", "-y", "-v", "error", "-i", mp3, "-ar", "24000", "-ac", "1", wav], check=True)
-            with wave.open(wav) as w: fila.append((wav, w.getnframes() / 24000.0))
+            mp3 = os.path.join(carpeta, "s%d_%d.mp3" % (i, j)); wav = mp3[:-4] + ".wav"; limpio = limpiar(tx); total += 1; ok = False
+            if _re.search(r"\w", limpio):
+                for intento in range(3):
+                    try:
+                        if os.path.exists(mp3): os.remove(mp3)
+                        asyncio.run(edge_tts.Communicate(limpio, voz).save(mp3))
+                        if os.path.exists(mp3) and os.path.getsize(mp3) > 500: ok = True; break
+                    except Exception as ex: err = str(ex)
+                    time.sleep(1.5)
+            if ok:
+                subprocess.run([FF, "-nostdin", "-y", "-v", "error", "-i", mp3, "-ar", "24000", "-ac", "1", wav], check=True)
+                with wave.open(wav) as w: fila.append((wav, w.getnframes() / 24000.0))
+            else:                                            # una frase sin voz no cancela el video: queda en silencio con duracion estimada
+                fallos += 1; print("Aviso: no se pudo narrar «%s»; esa frase queda sin voz." % tx[:60], flush=True); fila.append((None, max(1.5, .35 * len(limpio.split()))))
         auds.append(fila)
+    if fallos == total: sys.exit("No se pudo generar la voz con %s (hace falta internet). Prueba otra voz o elige «Sin voz»." % voz)
     return auds
 
 def mezclar(segs, total, ruta):
     import wave
     SR = 24000; arr = np.zeros(int((total + 1) * SR), dtype=np.float32)
     for ini, wav in segs:
+        if wav is None: continue
         with wave.open(wav) as w: x = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32)
         a = int(ini * SR); arr[a:a + len(x)] += x[:max(0, len(arr) - a)]
     arr = np.clip(arr, -32768, 32767).astype(np.int16)
