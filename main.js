@@ -2,7 +2,7 @@
 // - Muestra el panel (renderer/), guarda la configuracion y prepara la "carpeta de trabajo" con el motor (engine/).
 // - Ejecuta los scripts del motor con uv/ffmpeg y reenvia el registro a la interfaz.
 // - Se actualiza desde el repositorio de GitHub (engine/ y renderer/ se descargan a una carpeta "overlay").
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, nativeImage } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -10,8 +10,8 @@ const { spawn, spawnSync } = require("child_process");
 
 const REPO = "dirlant/creatuvideo";
 const BRANCH = "main";
-const LINEAS = ["dianchi", "diegao", "precios", "por-cortar", "ads"];
-const SCRIPTS_LINEA = { dianchi: "dianchi_lote.py", diegao: "diegao_lote.py", precios: "precios_lote.py" };
+const LINEAS = ["dianchi", "diegao", "precios", "infografias", "por-cortar", "ads"];
+const SCRIPTS_LINEA = { dianchi: "dianchi_lote.py", diegao: "diegao_lote.py", precios: "precios_lote.py", infografias: "infografias_lote.py" };
 
 let win = null;
 let hijo = null; // proceso en ejecucion (uno a la vez)
@@ -20,7 +20,7 @@ let hijo = null; // proceso en ejecucion (uno a la vez)
 const SETTINGS_FILE = () => path.join(app.getPath("userData"), "settings.json");
 const DEFAULTS = () => ({
   workspace: path.join(app.getPath("documents"), "CreaTuVideo"),
-  dirs: { dianchiResultado: "", diegaoResultado: "", preciosResultado: "", cortarResultado: "", imagenes: "", relleno: "", diegaoFuente: "", cortarEntrada: "" },
+  dirs: { dianchiResultado: "", diegaoResultado: "", preciosResultado: "", infografiasResultado: "", cortarResultado: "", imagenes: "", relleno: "", diegaoFuente: "", cortarEntrada: "" },
   pexelsKey: "",
   githubToken: "",
   autoUpdate: true,
@@ -166,6 +166,7 @@ function syncWorkspace(actualizando = false) {
   asegurarEnlace(ws, "dianchi/resultado", d.dianchiResultado);
   asegurarEnlace(ws, "diegao/resultado", d.diegaoResultado);
   asegurarEnlace(ws, "precios/resultado", d.preciosResultado);
+  asegurarEnlace(ws, "infografias/resultado", d.infografiasResultado);
   asegurarEnlace(ws, "por-cortar/resultado", d.cortarResultado);
   asegurarEnlace(ws, "dianchi/entrada/imagenes", d.imagenes);
   asegurarEnlace(ws, "dianchi/entrada/videos", d.relleno);
@@ -240,6 +241,17 @@ ipcMain.handle("pick-folder", async (_e, titulo) => {
 ipcMain.handle("pick-file", async (_e, titulo) => {
   const r = await dialog.showOpenDialog(win, { title: titulo || "Elegir archivo", properties: ["openFile"], filters: [{ name: "Video", extensions: ["mp4", "mov", "mkv", "webm"] }] });
   return r.canceled ? null : r.filePaths[0];
+});
+function miniaturaDe(ruta) {
+  let miniatura = "", ancho = 0, alto = 0;
+  try { const ni = nativeImage.createFromPath(ruta); const sz = ni.getSize(); ancho = sz.width; alto = sz.height; const k = Math.min(1, 700 / Math.max(sz.width, sz.height, 1)); miniatura = (k < 1 ? ni.resize({ width: Math.round(sz.width * k), height: Math.round(sz.height * k), quality: "good" }) : ni).toDataURL(); } catch {}
+  return { ruta, miniatura, ancho, alto };
+}
+ipcMain.handle("image-thumb", (_e, ruta) => (ruta && fs.existsSync(ruta) ? miniaturaDe(ruta) : null));
+ipcMain.handle("pick-image", async (_e, titulo) => {                 // imagen para Infografias animadas: devuelve la ruta y una miniatura para mostrarla
+  const r = await dialog.showOpenDialog(win, { title: titulo || "Elegir imagen", properties: ["openFile"], filters: [{ name: "Imagen", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif"] }] });
+  if (r.canceled) return null;
+  return miniaturaDe(r.filePaths[0]);
 });
 ipcMain.handle("open-path", async (_e, p) => { const s = getSettings(); const ruta = path.isAbsolute(p) ? p : path.join(s.workspace, p); fs.mkdirSync(ruta, { recursive: true }); return shell.openPath(ruta); });
 ipcMain.handle("open-url", (_e, u) => { if (/^https:\/\//.test(u)) shell.openExternal(u); });

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'" />
 <title>CreaTuVideo</title>
 <link rel="stylesheet" href="style.css" />
 </head>
@@ -15,6 +15,7 @@
     <button class="nav-b" data-v="dianchi" title="Para Clientas" aria-label="Para Clientas"><span class="ico-t" data-ico="dianchi"></span><span class="nav-sub">Para Clientas</span></button>
     <button class="nav-b" data-v="diegao" title="Para Dueñas" aria-label="Para Dueñas"><span class="ico-t" data-ico="diegao"></span><span class="nav-sub">Para Dueñas</span></button>
     <button class="nav-b" data-v="precios" title="Anuncios Con Precio" aria-label="Anuncios Con Precio"><span class="ico-t" data-ico="precio"></span><span class="nav-sub">Anuncios Con Precio</span></button>
+    <button class="nav-b" data-v="infografias" title="Infografías Animadas" aria-label="Infografías Animadas"><span class="ico-t" data-ico="infografia"></span><span class="nav-sub">Infografías Animadas</span></button>
     <button class="nav-b" data-v="cortar" title="Cortar y silencios" aria-label="Cortar y silencios"><span class="ico-t" data-ico="cortar"></span><span class="nav-sub">Cortar y silencios</span></button>
     <button class="nav-b" data-v="claude" title="Claude Code" aria-label="Claude Code"><span class="ico-t" data-ico="claude"></span><span class="nav-sub">Claude Code</span></button>
     <button class="nav-b" data-v="ajustes" title="Ajustes" aria-label="Ajustes"><span class="ico-t" data-ico="ajustes"></span><span class="nav-sub">Ajustes</span></button>
@@ -37,6 +38,7 @@
         <button class="tarjeta" data-ir="dianchi"><h3><span class="ico-t" data-ico="dianchi" role="img" aria-label="Para Clientas" title="Para Clientas"></span> <span class="tit">Para Clientas</span></h3><p>Videos de rubros de belleza con imágenes y B-roll, objeción y 3 pasos.</p></button>
         <button class="tarjeta" data-ir="diegao"><h3><span class="ico-t" data-ico="diegao" role="img" aria-label="Para Dueñas" title="Para Dueñas"></span> <span class="tit">Para Dueñas</span></h3><p>Videos de mentor para dueñas de salón con cortes del evento.</p></button>
         <button class="tarjeta" data-ir="precios"><h3><span class="ico-t" data-ico="precio" role="img" aria-label="Anuncios Con Precio" title="Anuncios Con Precio"></span> <span class="tit">Anuncios Con Precio</span></h3><p>Reel de 15 segundos con voz: título, lo que incluye, precio promocional y CTA.</p></button>
+        <button class="tarjeta" data-ir="infografias"><h3><span class="ico-t" data-ico="infografia" role="img" aria-label="Infografías Animadas" title="Infografías Animadas"></span> <span class="tit">Infografías Animadas</span></h3><p>Sube una imagen y conviértela en videos animados con 22 estilos de diseño.</p></button>
         <button class="tarjeta" data-ir="cortar"><h3><span class="ico-t" data-ico="cortar" role="img" aria-label="Cortar y silencios" title="Cortar y silencios"></span> <span class="tit">Cortar y silencios</span></h3><p>Corta un video largo, quita silencios y aplica el patrón de interrupción.</p></button>
         <button class="tarjeta" data-ir="claude"><h3><span class="ico-t" data-ico="claude" role="img" aria-label="Claude Code" title="Claude Code"></span> <span class="tit">Claude Code</span></h3><p>Pide un lote nuevo o un cambio de reglas en lenguaje normal.</p></button>
       </div>
@@ -301,6 +303,49 @@
       <label class="et">Instrucción para Claude Code</label>
       <textarea id="txt-cortar" rows="6">Corta el video que está en ./por-cortar/entrada: transcríbelo, quita los silencios, elige los mejores clips de 20 a 40 segundos y aplica el patrón de interrupción. Deja los clips terminados en ./por-cortar/resultado y cuéntame cuántos hiciste.</textarea>
       <div class="barra"><button class="p fuerte" id="b-cortar">Cortar con Claude Code</button></div>
+    </section>
+
+    <section id="v-infografias" class="vista">
+      <h1><span class="ico-t" data-ico="infografia" role="img" aria-label="Infografías Animadas" title="Infografías Animadas"></span> <span class="tit">Infografías Animadas</span></h1>
+      <p class="sub">Sube una imagen (una infografía, un afiche, una foto con datos) y la app la <b>transforma en videos animados</b> con el estilo de diseño que elijas. Puedes marcar varios estilos: se genera un video por cada uno.</p>
+
+      <div class="cfg"><h3>1 · Imagen</h3>
+        <div class="img-drop">
+          <div id="if-miniatura" class="if-mini"></div>
+          <div class="if-datos"><button class="p fuerte" id="b-if-imagen">Subir imagen…</button><span id="if-nombre" class="chico">Aún no has elegido una imagen. Abajo, las vistas previas usan una imagen de ejemplo.</span></div>
+        </div>
+      </div>
+
+      <div class="cfg"><h3>2 · Textos <span class="chico">(opcionales)</span></h3>
+        <label class="et">Título</label><input id="if-titulo" maxlength="70" placeholder="Ej.: 5 pasos para organizar tu agenda" />
+        <label class="et">Texto de apoyo</label><input id="if-subtitulo" maxlength="90" placeholder="Ej.: Guía rápida para salones de belleza" />
+      </div>
+
+      <div class="cfg"><h3>3 · Formato y duración</h3>
+        <div class="grid2">
+          <div><label class="et">Formato del video</label><select id="if-formato"><option value="reels">Reels / Stories / TikTok (9:16)</option><option value="vertical">Publicación vertical (4:5)</option><option value="cuadrado">Cuadrado (1:1)</option></select></div>
+          <div><label class="et">Duración</label><select id="if-duracion"><option value="6">6 segundos</option><option value="8">8 segundos</option><option value="10">10 segundos</option><option value="12">12 segundos</option><option value="15">15 segundos</option></select></div>
+        </div>
+      </div>
+
+      <div class="cfg"><h3>4 · Estilo de diseño</h3>
+        <p class="sub">Cada recuadro muestra cómo se verá tu imagen con ese estilo. Marca uno o varios.</p>
+        <div class="barra"><button id="b-if-todos">Elegir todos</button><button id="b-if-ninguno">Quitar todos</button><span id="if-cuenta" class="chico"></span></div>
+        <h4 class="if-grupo">Estilos visuales (estéticos)</h4>
+        <div class="est-grid" id="if-est-v"></div>
+        <h4 class="if-grupo">Corrientes funcionales (sistemas y enfoques)</h4>
+        <div class="est-grid" id="if-est-f"></div>
+      </div>
+
+      <div class="cfg"><h3>5 · Carpeta de resultados</h3>
+        <div id="cfg-infografias-resultados" class="filas"></div>
+      </div>
+
+      <div class="barra">
+        <button class="p fuerte run-pr" id="b-if-generar">Generar videos</button>
+        <button data-abrir="infografias/resultado">Abrir resultados</button>
+        <span id="if-estado" class="chico"></span>
+      </div>
     </section>
 
     <section id="v-claude" class="vista">

@@ -85,6 +85,7 @@ const ICO = {
   cortar: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg>',
   claude: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>',
   ajustes: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>',
+  infografia: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 17v-4M12 17V8M17 17v-6"/><path d="m15 5.5.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></svg>',
   precio: '<svg viewBox="0 0 24 24"><path d="M3 10v4a1 1 0 0 0 1 1h3l11 5V4L7 9H4a1 1 0 0 0-1 1z"/><path d="M7 15l1.4 4.2a1 1 0 0 0 1 .8h1a1 1 0 0 0 1-1.2L10.5 16.5M21 9.5v5"/></svg>',
   diegao: '<svg viewBox="0 0 24 24"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11.2V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.8M22 9v6"/></svg>',
   clienta: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
@@ -441,7 +442,7 @@ $("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#tx
 const NOMBRES_DIRS = {
   dianchiResultado: "Resultados de Dianchi", imagenes: "Carpeta de imágenes", relleno: "Videos de relleno",
   diegaoResultado: "Resultados de Diegao", diegaoFuente: "Videos fuente (evento)", diegaoImagenes: "Carpeta de imágenes (Diegao)",
-  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Anuncios Con Precio",
+  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Anuncios Con Precio", infografiasResultado: "Resultados de Infografías Animadas",
   claudeVideos: "Carpeta de videos", claudeImagenes: "Carpeta de imágenes", claudeSalida: "Carpeta de salida",
   cortarEntrada: "Video a cortar (entrada)", cortarResultado: "Resultados de los cortes",
 };
@@ -455,6 +456,7 @@ const SECCIONES = {
   "precios-videos": ["preciosVideos"],
   "precios-imagenes": ["preciosImagenes"],
   "precios-resultados": ["preciosResultado"],
+  "infografias-resultados": ["infografiasResultado"],
   claude: ["claudeVideos", "claudeImagenes", "claudeSalida"],
   cortar: ["cortarEntrada", "cortarResultado"],
 };
@@ -527,6 +529,88 @@ async function correrPrecios(modo) {
 }
 $("#b-precios-generar").addEventListener("click", () => correrPrecios("generar"));
 $("#b-precios-aspecto").addEventListener("click", () => correrPrecios("aspecto"));
+const ESTILOS = [
+  ["minimalista", "Minimalista", "Poco contenido, mucho espacio en blanco y un solo acento.", "v"],
+  ["flat", "Flat design", "Colores planos, sin sombras ni texturas.", "v"],
+  ["skeuo", "Skeuomorfismo", "Imita objetos reales, con brillos, relieve y materiales.", "v"],
+  ["neumorfismo", "Neumorfismo", "Elementos suaves que parecen salir del fondo.", "v"],
+  ["glass", "Glassmorphism", "Transparencia y desenfoque tipo vidrio esmerilado.", "v"],
+  ["clay", "Claymorphism", "Formas infladas y redondeadas, tipo plastilina.", "v"],
+  ["neobrutalismo", "Neobrutalismo", "Bordes negros gruesos, colores vivos y sombras duras.", "v"],
+  ["bento", "Bento grid", "Contenido en cajas de distintos tamaños, como un bento.", "v"],
+  ["neon", "Oscuro y neón (cyberpunk)", "Fondo oscuro con acentos luminosos.", "v"],
+  ["aurora", "Gradientes y aurora", "Degradados fluidos y fondos de color en malla.", "v"],
+  ["retro", "Retro, Y2K y vaporwave", "Nostalgia de los 80, 90 y 2000.", "v"],
+  ["isometrico", "Isométrico y 3D", "Objetos en perspectiva o con volumen.", "v"],
+  ["ilustrado", "Ilustrado y hecho a mano", "Trazos orgánicos, garabatos y texturas.", "v"],
+  ["editorial", "Tipográfico y editorial", "El texto es el protagonista, estilo revista.", "v"],
+  ["memphis", "Maximalismo y Memphis", "Muchos colores, patrones y formas geométricas.", "v"],
+  ["material", "Material design (Google)", "Capas, elevación y componentes estandarizados.", "f"],
+  ["apple", "Human Interface (Apple)", "El estilo de iOS y macOS, con su vidrio líquido.", "f"],
+  ["fluent", "Fluent (Microsoft)", "Profundidad, luz y materiales en Windows.", "f"],
+  ["responsivo", "Responsivo y mobile-first", "Se adapta a cualquier pantalla, empezando por el celular.", "f"],
+  ["accesible", "Accesible e inclusivo", "Contraste, tamaños y lectura pensados para todas las personas.", "f"],
+  ["atomico", "Atomic design y design systems", "Componentes reutilizables que mantienen la coherencia de una marca.", "f"],
+  ["oscuro", "Modo oscuro", "Nació por legibilidad y ahorro de batería.", "f"],
+];
+const IF_DEMO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 110"><rect width="90" height="110" fill="#fff"/><rect width="90" height="19" fill="#d61480"/><rect x="6" y="7" width="58" height="5" rx="2" fill="#fff"/>' + [[(255), 190, 60], [60, 190, 150], [90, 120, 240], [240, 100, 120], [150, 90, 220]].map((c, i) => '<circle cx="14" cy="' + (33 + i * 16) + '" r="6" fill="rgb(' + c.join(",") + ')"/><rect x="26" y="' + (30 + i * 16) + '" width="' + (46 - i * 4) + '" height="5" rx="2" fill="#bbb"/>').join("") + "</svg>");
+const IF0 = { imagen: "", estilos: [], titulo: "", subtitulo: "", duracion: 8, formato: "reels" };
+let ifMini = "", ifMiniRuta = "", ifConstruido = false;
+function ifp() { const p = ajustes.presets.infografias || (ajustes.presets.infografias = {}); for (const k of Object.keys(IF0)) if (p[k] === undefined) p[k] = Array.isArray(IF0[k]) ? [] : IF0[k]; return p; }
+function pintarInfografias() {
+  if (!ajustes || !$("#if-est-v")) return;
+  const p = ifp(), v = $("#v-infografias");
+  if (p.imagen && ifMiniRuta !== p.imagen) {                                    // tras reiniciar la app hay que volver a leer la miniatura de la ruta guardada
+    ifMiniRuta = p.imagen; ifMini = "";
+    if (window.ctv.imageThumb) window.ctv.imageThumb(p.imagen).then((r) => { ifMini = (r && r.miniatura) || ""; pintarInfografias(); }).catch(() => {});
+  }
+  if (!p.imagen) { ifMini = ""; ifMiniRuta = ""; }
+  v.style.setProperty("--img", 'url("' + (ifMini || IF_DEMO) + '")');
+  $("#if-miniatura").style.backgroundImage = 'url("' + (ifMini || IF_DEMO) + '")'; $("#if-miniatura").classList.toggle("demo", !ifMini);
+  $("#if-nombre").textContent = p.imagen ? p.imagen.split(/[\\/]/).pop() + (ifMini ? "" : " (no se pudo mostrar la miniatura)") : "Aún no has elegido una imagen. Abajo, las vistas previas usan una imagen de ejemplo.";
+  if (!ifConstruido) {
+    ifConstruido = true;
+    for (const [clave, nombre, desc, g] of ESTILOS) {
+      const l = document.createElement("label"); l.className = "est"; l.dataset.e = clave;
+      l.innerHTML = '<div class="pv pv-' + clave + '"><i class="pv-t"></i><div class="pv-c"></div><i class="pv-s"></i></div><b></b><span class="d"></span><span class="ok">✓</span><input type="checkbox" />';
+      $("b", l).textContent = nombre; $(".d", l).textContent = desc;
+      $("input", l).addEventListener("change", (ev) => { const q = ifp(), s = new Set(q.estilos); if (ev.target.checked) s.add(clave); else s.delete(clave); q.estilos = ESTILOS.map((e) => e[0]).filter((k) => s.has(k)); guardarAuto(); });
+      $(g === "v" ? "#if-est-v" : "#if-est-f").appendChild(l);
+    }
+  }
+  $$(".est", v).forEach((l) => { const on = p.estilos.includes(l.dataset.e); l.classList.toggle("sel", on); $("input", l).checked = on; });
+  $("#if-cuenta").textContent = p.estilos.length ? p.estilos.length + (p.estilos.length === 1 ? " estilo elegido" : " estilos elegidos") : "Ninguno elegido todavía";
+  for (const [id, k] of [["if-titulo", "titulo"], ["if-subtitulo", "subtitulo"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
+  $("#if-formato").value = p.formato; $("#if-duracion").value = String(p.duracion);
+}
+$("#b-if-imagen").addEventListener("click", async () => {
+  const st = $("#if-estado");
+  if (!window.ctv.pickImage) { st.textContent = "⚠ Esta función necesita el instalador nuevo de CreaTuVideo (descárgalo e instálalo una vez)."; return; }
+  const r = await window.ctv.pickImage("Elegir la imagen a animar"); if (!r) return;
+  ifp().imagen = r.ruta; ifMini = r.miniatura || ""; ifMiniRuta = r.ruta; st.textContent = ""; await guardarAuto();
+});
+for (const [id, k] of [["if-titulo", "titulo"], ["if-subtitulo", "subtitulo"]]) {
+  $("#" + id).addEventListener("input", (ev) => { ifp()[k] = ev.target.value; });
+  $("#" + id).addEventListener("change", () => guardarAuto());
+}
+$("#if-formato").addEventListener("change", (ev) => { ifp().formato = ev.target.value; guardarAuto(); });
+$("#if-duracion").addEventListener("change", (ev) => { ifp().duracion = Number(ev.target.value); guardarAuto(); });
+$("#b-if-todos").addEventListener("click", () => { ifp().estilos = ESTILOS.map((e) => e[0]); guardarAuto(); });
+$("#b-if-ninguno").addEventListener("click", () => { ifp().estilos = []; guardarAuto(); });
+$("#b-if-generar").addEventListener("click", async () => {
+  const p = ifp(), st = $("#if-estado");
+  if (!window.ctv.pickImage) { st.textContent = "⚠ Esta función necesita el instalador nuevo de CreaTuVideo (descárgalo e instálalo una vez)."; return; }
+  if (!p.imagen) { st.textContent = "⚠ Primero sube la imagen."; return; }
+  if (!p.estilos.length) { st.textContent = "⚠ Elige al menos un estilo de diseño."; return; }
+  st.textContent = "Comprobando que tengas la última versión…";
+  if (!(await exigirUltimaVersion())) { st.textContent = "⚠ Primero hay que actualizar a la última versión."; return; }
+  st.textContent = "Generando " + p.estilos.length + (p.estilos.length === 1 ? " video" : " videos") + "… (cada uno tarda alrededor de 1 minuto)";
+  await guardarAuto();
+  const r = await window.ctv.run({ linea: "infografias", modo: "generar", slugs: [] });
+  if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
+  st.textContent = r && r.ok ? "✔ Listo. Los videos están en la carpeta de resultados." : "⚠ No se pudo terminar; revisa el registro de abajo.";
+});
+
 $$(".sel-voz").forEach((s) => { for (const [v, n] of VOCES) { const o = document.createElement("option"); o.value = v; o.textContent = n; s.appendChild(o); } });
 async function guardarAuto() {
   ajustes = await window.ctv.saveSettings(ajustes);
@@ -560,6 +644,7 @@ function pintarSecciones() {
   for (const k of ["burbuja", "pasos", "collage", "sfx", "cierre"]) $("#ev-" + k).checked = ajustes.presets.eventos[k] !== false;
   resumenDianchi();
   pintarPrecios();
+  pintarInfografias();
   $$(".sel-voz").forEach((s) => (s.value = ajustes.presets.voz));
 }
 $$('input[name="fuente-imagenes"]').forEach((r) => r.addEventListener("change", (e) => { ajustes.presets.imagenesCollage = e.target.value === "carpeta"; guardarAuto(); }));

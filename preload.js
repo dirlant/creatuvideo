@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("ctv", {
   saveSettings: inv("settings:save"),
   pickFolder: inv("pick-folder"),
   pickFile: inv("pick-file"),
+  pickImage: inv("pick-image"),
+  imageThumb: inv("image-thumb"),
   checkEnv: inv("env:check"),
   installDep: inv("env:install"),
   installAll: inv("env:installAll"),
