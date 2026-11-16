@@ -524,7 +524,7 @@ async function correrPrecios(modo) {
     if (falta) { st.textContent = "⚠ Falta " + falta + "."; return; }
   }
   st.textContent = modo === "generar" ? "Generando el video… (voz, videos y montaje; puede tardar 1–3 minutos)" : "Montando con el nuevo aspecto…";
-  await guardarAuto();
+  ajustes.presets.lineaActiva = "precios"; await guardarAuto();
   const r = await window.ctv.run({ linea: "precios", modo, slugs: [] });
   if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
   if (r && r.ok) { p.generado = true; st.textContent = "✔ Listo. Está en la carpeta de resultados."; await guardarAuto(); }
@@ -625,8 +625,9 @@ $("#b-if-generar").addEventListener("click", async () => {
   st.textContent = "Comprobando que tengas la última versión…";
   if (!(await exigirUltimaVersion())) { st.textContent = "⚠ Primero hay que actualizar a la última versión."; return; }
   st.textContent = "Generando " + p.estilos.length + (p.estilos.length === 1 ? " video" : " videos") + "… primero se lee el texto de la imagen (unos segundos) y luego se anima cada estilo (alrededor de 1 minuto cada uno)";
-  await guardarAuto();
+  ajustes.presets.lineaActiva = "infografias"; await guardarAuto();
   const r = await window.ctv.run({ linea: "infografias", modo: "generar", slugs: [] });
+  if (r && r.ok && !ifListos.length && !$("#if-lista").children.length) { st.textContent = "⚠ Terminó pero no se creó ningún video. Revisa el registro de abajo."; return; }
   if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
   st.textContent = r && r.ok ? "✔ Listo. Tus videos aparecen abajo para verlos y descargarlos." : "⚠ No se pudo terminar; revisa el registro de abajo.";
 });

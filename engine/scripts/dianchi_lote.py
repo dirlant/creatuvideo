@@ -11,7 +11,10 @@ from PIL import Image, ImageDraw, ImageFont
 
 FF = os.path.abspath(sys.argv[1]); MODO = sys.argv[2]; SOLO = sys.argv[3:]
 if MODO in ("generar", "aspecto"):      # Anuncios Con Precio: los instaladores anteriores lanzan este script para esa seccion; se redirige al motor de precios
-    import runpy; runpy.run_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "precios_lote.py"), run_name="__main__"); sys.exit(0)
+    import json, runpy
+    try: _lin = (json.load(open(os.environ.get("CTV_AJUSTES") or os.path.join(os.environ.get("APPDATA", ""), "CreaTuVideo", "settings.json"), encoding="utf-8")).get("presets", {}) or {}).get("lineaActiva")
+    except Exception: _lin = None
+    runpy.run_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "infografias_lote.py" if _lin == "infografias" else "precios_lote.py"), run_name="__main__"); sys.exit(0)   # la app marca la seccion en presets.lineaActiva
 AG = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 FPR = FF.replace("ffmpeg.exe", "ffprobe.exe")
 OPD = os.path.join(AG, "dianchi", "_operacion"); LOTE = os.path.join(OPD, "lote"); os.makedirs(LOTE, exist_ok=True)
