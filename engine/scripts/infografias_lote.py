@@ -111,7 +111,9 @@ def dash_rect(dr, box, col, w=4, d=18, g=12, r=0):
 class _Ctx: pass
 
 # ---------------------------------------------------------------- 1) INTERPRETAR LA IMAGEN (Claude Code lee la imagen, traduce y ordena el texto)
-IDIOMAS = {"": "el mismo idioma que aparece en la imagen", "es": "español", "en": "inglés", "pt": "portugués", "de": "alemán"}
+ETQ_DEF = {"es": ("No digas", "Mejor di"), "en": ("Don't say", "Say instead"), "pt": ("Não diga", "Diga"), "de": ("Sag nicht", "Sag lieber"), "fr": ("Ne dis pas", "Dis plutôt"), "it": ("Non dire", "Meglio dire")}
+VOCES_AUTO = {"es": "es-MX-JorgeNeural", "en": "en-US-GuyNeural", "pt": "pt-BR-AntonioNeural", "de": "de-DE-ConradNeural", "fr": "fr-FR-HenriNeural", "it": "it-IT-DiegoNeural"}
+IDIOMAS = {"":"el mismo idioma que aparece en la imagen", "es": "español", "en": "inglés", "pt": "portugués", "de": "alemán"}
 def buscar_claude():
     import glob, shutil
     w = shutil.which("claude")
@@ -126,7 +128,7 @@ def buscar_claude():
 def interpretar(img, idioma):
     import hashlib, re as _re
     op = os.path.join(AG, "infografias", "_operacion", "lectura"); os.makedirs(op, exist_ok=True)
-    h = hashlib.sha1(img.tobytes()[:2000000] + idioma.encode()).hexdigest()[:16]; cache = os.path.join(op, "lectura_%s.json" % h)
+    h = hashlib.sha1(img.tobytes()[:2000000] + idioma.encode() + b"v4").hexdigest()[:16]; cache = os.path.join(op, "lectura_%s.json" % h)
     if os.path.exists(cache):
         try: print("Texto de la imagen: ya estaba leído, se reutiliza.", flush=True); return json.load(open(cache, encoding="utf-8"))
         except Exception: pass
@@ -135,8 +137,17 @@ def interpretar(img, idioma):
     big = img if max(img.size) <= 1800 else contain(img, 1800, 1800); big.save(os.path.join(op, "imagen_entrada.png"))
     prompt = ('Usa la herramienta Read para ver la imagen ./imagen_entrada.png. Es una infografía o un diseño con texto. Lee TODO el texto y reorganízalo para una animación de texto de varias escenas. '
               'Escribe el texto en %s (traduce si hace falta; conserva cifras, nombres propios y marcas). Responde SOLO con un JSON válido, sin explicaciones ni bloques de código, con esta forma exacta: '
-              '{"titulo":"título principal, corto","subtitulo":"bajada o texto de apoyo, o vacío","puntos":[{"encabezado":"idea corta de 1 a 6 palabras, sin numeración","texto":"explicación breve, o vacío"}],"cierre":"frase final o llamado a la acción si existe, o vacío"}. '
-              'Reglas: máximo 7 puntos, uno por cada bloque, paso o dato de la imagen en el orden en que se leen; no inventes nada que no esté en la imagen; no pongas números de paso en los encabezados; '
+              '{"idioma":"código de 2 letras del idioma del texto que escribes (es, en, pt, de, fr, it…)","titulo":"título principal, corto","subtitulo":"bajada o texto de apoyo, o vacío",'
+              '"puntos":[{"tipo":"paso|contraste|dato|lista","transicion":"zoom|deslizar|subir|giro|fade","encabezado":"idea corta de 1 a 6 palabras, sin numeración","texto":"explicación breve, o vacío","a":"","b":"","etq_a":"","etq_b":"","tachar":true,"dato":"","items":[]}],'
+              '"cierre":"frase final o llamado a la acción si existe, o vacío"}. '
+              'Tú decides cómo se anima cada bloque según su SIGNIFICADO; elige para cada punto un "tipo": '
+              '"paso" = una idea, paso o consejo con encabezado corto y texto opcional. '
+              '"contraste" = el bloque compara dos cosas (No digas / Mejor di, Mito / Realidad, Antes / Después, Error / Correcto, Evita / Usa, Pregunta / Respuesta…): pon en "a" lo primero (lo que se descarta o la pregunta) y en "b" lo segundo, solo las frases; '
+              '"etq_a" y "etq_b" son las etiquetas cortas de cada lado en el idioma de salida (p. ej. No digas / Mejor di); "tachar" = true si "a" es algo malo o incorrecto que se descarta (se animará tachándolo), false si es neutro (pregunta, antes). '
+              '"dato" = una cifra o estadística destacada: "dato" es solo la cifra (p. ej. 87%% o 3x o $25) y "texto" explica qué significa. '
+              '"lista" = un bloque con varios elementos cortos (requisitos, ingredientes, viñetas): "items" con 2 a 6 elementos cortos y "encabezado" con el título de la lista. '
+              'Para cada punto elige también una "transicion" según el sentido: "zoom" para algo importante o de impacto, "deslizar" para pasos o secuencias, "subir" para consejos o crecimiento, "giro" para cambios o contrastes, "fade" para algo calmado; varíalas. '
+              'Reglas: máximo 7 puntos, uno por cada bloque, paso o dato de la imagen en el orden en que se leen; no inventes nada que no esté en la imagen; no pongas números de paso en los encabezados; deja vacíos los campos que no correspondan al tipo; '
               'si la imagen es solo una foto sin texto, describe en 3 a 5 puntos cortos lo que muestra.') % IDIOMAS.get(idioma, IDIOMAS[""])
     e = dict(os.environ); e.pop("ELECTRON_RUN_AS_NODE", None); e["PYTHONIOENCODING"] = "utf-8"
     print("Leyendo el texto de la imagen con Claude Code… (puede tardar unos segundos)", flush=True)
@@ -147,8 +158,18 @@ def interpretar(img, idioma):
     except Exception: D = None
     if not D or not (D.get("titulo") or D.get("puntos")):
         sys.exit("No se pudo leer la imagen. Comprueba que Claude Code tenga la sesión iniciada (Ajustes → Claude Code). Respuesta: " + (sal or r.stderr or "vacía")[:300])
-    D = {"titulo": str(D.get("titulo") or "").strip(), "subtitulo": str(D.get("subtitulo") or "").strip(), "cierre": str(D.get("cierre") or "").strip(),
-         "puntos": [{"encabezado": str(p.get("encabezado") or "").strip(), "texto": str(p.get("texto") or "").strip()} for p in (D.get("puntos") or []) if isinstance(p, dict) and (p.get("encabezado") or p.get("texto"))][:7]}
+    S_ = lambda v: str(v or "").strip()
+    cod = S_(D.get("idioma")).lower()[:2] or "es"; ed_ = ETQ_DEF.get(cod, ETQ_DEF["es"]); cic = ["zoom", "deslizar", "subir", "giro", "fade"]
+    def punto(i, p):
+        tp = S_(p.get("tipo")).lower(); a, b = S_(p.get("a")), S_(p.get("b")); items = [S_(x) for x in (p.get("items") or []) if S_(x)][:6]; dato = S_(p.get("dato"))
+        if tp == "contraste" and not (a and b): tp = "paso"
+        if tp == "lista" and len(items) < 2: tp = "paso"
+        if tp == "dato" and not dato: tp = "paso"
+        if tp not in ("paso", "contraste", "dato", "lista"): tp = "paso"
+        tr = S_(p.get("transicion")).lower(); tr = tr if tr in cic else cic[i % len(cic)]; tach = p.get("tachar"); tach = True if tach is None else bool(tach)
+        return {"tipo": tp, "transicion": tr, "encabezado": S_(p.get("encabezado")), "texto": S_(p.get("texto")), "a": a, "b": b, "etq_a": S_(p.get("etq_a")) or ed_[0], "etq_b": S_(p.get("etq_b")) or ed_[1], "tachar": tach, "dato": dato, "items": items}
+    ps = [p for p in (D.get("puntos") or []) if isinstance(p, dict) and (p.get("encabezado") or p.get("texto") or (p.get("a") and p.get("b")) or p.get("dato") or p.get("items"))][:7]
+    D = {"idioma": cod, "titulo": S_(D.get("titulo")), "subtitulo": S_(D.get("subtitulo")), "cierre": S_(D.get("cierre")), "puntos": [punto(i, p) for i, p in enumerate(ps)]}
     json.dump(D, open(cache, "w", encoding="utf-8"), ensure_ascii=False); return D
 
 # ---------------------------------------------------------------- 2) TEXTO ANIMADO PALABRA POR PALABRA
@@ -159,11 +180,11 @@ def maq(txt, fk, size, color, maxw, mayus=False, lh=1.2, align="center"):
         ww = d.textlength(w, font=f)
         if lineas[-1] and ancho + esp + ww > maxw: lineas.append([]); ancho = 0
         ancho += ww + (esp if lineas[-1] else 0); lineas[-1].append((w, ww))
-    lineas = lineas[:7]; pal = []
+    lineas = lineas[:7]; pal = []; lin = []
     for i, ln in enumerate(lineas):
-        lw = sum(w for _, w in ln) + esp * max(0, len(ln) - 1); x = (maxw - lw) / 2 if align == "center" else 0
+        lw = sum(w for _, w in ln) + esp * max(0, len(ln) - 1); x = (maxw - lw) / 2 if align == "center" else 0; lin.append((x, x + lw, i * size * lh))
         for w, ww in ln: pal.append((w, x, i * size * lh)); x += ww + esp
-    return dict(p=pal, f=f, col=color, w=maxw, h=len(lineas) * size * lh + size * .3, n=max(1, len(pal)), size=size)
+    return dict(p=pal, f=f, col=color, w=maxw, h=len(lineas) * size * lh + size * .3, n=max(1, len(pal)), size=size, lin=lin)
 def dib_pal(C, M, tr, ini, paso, ox, oy, sombra=None):
     d = ImageDraw.Draw(C, "RGBA")
     for i, (w, x, y) in enumerate(M["p"]):
@@ -399,76 +420,180 @@ TEMAS = {"minimalista": T_minimalista, "flat": T_flat, "skeuo": T_skeuo, "neumor
          "accesible": T_accesible, "atomico": T_atomico, "oscuro": None}
 ESTILOS = list(TEMAS.keys())
 
-# ---------------------------------------------------------------- 4) ESCENAS: intro -> un panel por punto -> cierre
+# ---------------------------------------------------------------- 4) VOZ (texto a voz con edge-tts, una pista por escena)
+def guiones(D):
+    G = []                                                   # una lista de frases por escena: intro, puntos, cierre
+    pt = lambda x: x.strip().rstrip(".:;,") + "."
+    if D["titulo"]: G.append([(pt(D["titulo"]) + " " + (pt(D["subtitulo"]) if D["subtitulo"] else "")).strip()])
+    for p in D["puntos"]:
+        if p["tipo"] == "contraste": G.append(["%s: %s" % (p["etq_a"], pt(p["a"])), "%s: %s" % (p["etq_b"], pt(p["b"]))])
+        elif p["tipo"] == "dato": G.append([" ".join(pt(x) for x in (p["encabezado"], p["dato"], p["texto"]) if x)])
+        elif p["tipo"] == "lista": G.append([" ".join(pt(x) for x in [p["encabezado"]] + p["items"] if x)])
+        else: G.append([" ".join(pt(x) for x in (p["encabezado"], p["texto"]) if x)])
+    if D["cierre"]: G.append([D["cierre"]])
+    return G
+
+def sintetizar(G, voz, carpeta):
+    import asyncio, wave, edge_tts
+    os.makedirs(carpeta, exist_ok=True); auds = []
+    for i, segs in enumerate(G):
+        fila = []
+        for j, tx in enumerate(segs):
+            mp3 = os.path.join(carpeta, "s%d_%d.mp3" % (i, j)); wav = mp3[:-4] + ".wav"
+            try: asyncio.run(edge_tts.Communicate(tx, voz).save(mp3))
+            except Exception as ex: sys.exit("No se pudo generar la voz (hace falta internet): %s" % ex)
+            subprocess.run([FF, "-nostdin", "-y", "-v", "error", "-i", mp3, "-ar", "24000", "-ac", "1", wav], check=True)
+            with wave.open(wav) as w: fila.append((wav, w.getnframes() / 24000.0))
+        auds.append(fila)
+    return auds
+
+def mezclar(segs, total, ruta):
+    import wave
+    SR = 24000; arr = np.zeros(int((total + 1) * SR), dtype=np.float32)
+    for ini, wav in segs:
+        with wave.open(wav) as w: x = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32)
+        a = int(ini * SR); arr[a:a + len(x)] += x[:max(0, len(arr) - a)]
+    arr = np.clip(arr, -32768, 32767).astype(np.int16)
+    with wave.open(ruta, "wb") as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes(arr.tobytes())
+
+# ---------------------------------------------------------------- 5) ESCENAS: intro -> un panel por punto (segun su tipo) -> cierre
+def dato_contador(s, k):                                     # "87%" -> cuenta de 0 a 87 mientras aparece
+    import re as _re
+    m = _re.match(r"^(\D*?)(\d[\d.,]*)(.*)$", s)
+    if not m: return s
+    pre, num, suf = m.groups(); dec = len(num.split(".")[-1]) if "." in num and len(num.split(".")[-1]) <= 2 else (len(num.split(",")[-1]) if "," in num and len(num.split(",")[-1]) <= 2 else 0)
+    try: val = float(num.replace(",", ".")) if dec else float(num.replace(",", "").replace(".", ""))
+    except Exception: return s
+    cur = val * k; return pre + ("%.*f" % (dec, cur) if dec else "{:,}".format(int(round(cur))).replace(",", num[1:2] if len(num) > 4 and num[1:2] in ",." else "")) + suf
+
+def trans(kind, tr, ret, W, H, ultima):
+    pi = prog(tr, 0, .55); po = 0 if ultima else 1 - cl(ret / .3); al = min(cl(tr / .35), 1 if ultima else cl(ret / .3)); sc, dx, dy, rot = 1.0, 0.0, 0.0, 0.0
+    if kind == "fade": sc = lerp(.92, 1, e_out(pi))
+    elif kind == "deslizar": dx = (1 - e_out(pi)) * W * .8 - po * W * .8
+    elif kind == "subir": dy = (1 - e_out(pi)) * H * .35 - po * H * .15; sc = lerp(.9, 1, e_out(pi))
+    elif kind == "giro": rot = (1 - e_out(pi)) * -14 + po * 10; sc = lerp(.7, 1, e_out(pi))
+    else: sc = lerp(.45, 1, e_back(pi)) * lerp(1, 1.18, po)                                  # zoom
+    return sc, dx, dy, rot, al
+
 class Video:
-    def __init__(s, th, D, W, H, k):
-        s.th, s.W, s.H, s.sc = th, W, H, []; e = th["esc"]; t = 0.0; may = th["mayus"]; sb = th["sombra_t"]
+    def __init__(s, th, D, W, H, k, auds=None):
+        s.th, s.W, s.H, s.sc = th, W, H, []; e = th["esc"]; t = 0.0; may = th["mayus"]; ix = 0
+        def dur_seg(n, j=0, minimo=1.2):                      # duracion de lo que se dice: la real de la voz, o una estimada
+            return auds[ix][j][1] if auds else max(minimo, .3 * n) * k
         if D["titulo"]:
             tm = maq(D["titulo"], th["ft"], W * .088 * e, th["tit"], W * .84, may); sm = maq(D["subtitulo"], th["fb"], W * .04 * e, th["sub"], W * .8) if D["subtitulo"] else None
-            dur = k * min(5, 1.8 + .12 * (tm["n"] + (sm["n"] if sm else 0))); s.sc.append(dict(k="intro", a=t, b=t + dur, tm=tm, sm=sm)); t += dur
+            a = dur_seg(tm["n"] + (sm["n"] if sm else 0), 0, 1.6); dur = max(2.2 * k, .35 + a + .7); s.sc.append(dict(k="intro", a=t, b=t + dur, tm=tm, sm=sm, offs=[.35], durs=[a])); t += dur; ix += 1
         for i, p in enumerate(D["puntos"]):
-            pw = int(th["pw"](i)); mx = int(pw * th["mx"]); iw = pw - 2 * mx
-            hm = maq(p["encabezado"] or p["texto"], th["fh"], W * .068 * e, th["ph"], iw, may) if (p["encabezado"] or p["texto"]) else None
-            bm = maq(p["texto"], th["fb"], W * .046 * e, th["pb"], iw) if (p["texto"] and p["encabezado"]) else None
-            bd = W * .105 * e if th["bshape"] != "none" else 0; gap = W * .028; ch = bd + gap + (hm["h"] if hm else 0) + (W * .02 + bm["h"] if bm else 0); my = int(max(W * .04, ch * th["my"] * 1.4))
-            ph = int(ch + 2 * my + th["ctop"]); ph = max(int(H * .3), min(ph, int(H * .86))); my = int((ph - th["ctop"] - ch) / 2); pan = th["panel"](pw, ph, i) if th["panel"] else None
-            dur = k * max(2.6, min(6.5, 1.8 + .26 * ((hm["n"] if hm else 0) + (bm["n"] if bm else 0)))); s.sc.append(dict(k="punto", i=i, a=t, b=t + dur, hm=hm, bm=bm, pw=pw, ph=ph, mx=mx, my=my, bd=bd, gap=gap, ch=ch, iw=iw, pan=pan)); t += dur
+            pw = int(th["pw"](i)); mx = int(pw * th["mx"]); iw = pw - 2 * mx; bd = W * .105 * e if th["bshape"] != "none" else 0; gap = W * .028; tp = p["tipo"]; sc = dict(k="punto", i=i, tp=tp, trans=p["transicion"]); hm = None
+            if p["encabezado"] and tp in ("dato", "lista"): hm = maq(p["encabezado"], th["fh"], W * .05 * e, th["ph"], iw, may)
+            if tp == "contraste":
+                lb = W * .05 * e; la = maq(p["etq_a"], th["fh"], lb, (235, 70, 70) if p["tachar"] else th["ac"], iw, True); lbb = maq(p["etq_b"], th["fh"], lb, (40, 190, 110), iw, True)
+                am = maq(p["a"], th["fh"], W * .06 * e, th["pb"], iw, may); bm = maq(p["b"], th["fh"], W * .066 * e, th["ph"], iw, may)
+                ch = bd + gap + la["h"] + am["h"] + gap + lbb["h"] + bm["h"]; a1 = dur_seg(am["n"] + 2, 0); a2 = dur_seg(bm["n"] + 2, 1); o2 = .35 + a1 + .7; dur = o2 + a2 + .9
+                sc.update(la=la, lb=lbb, am=am, bm=bm, offs=[.35, o2], durs=[a1, a2], tstrike=.35 + a1 + .05)
+            elif tp == "dato":
+                bm = maq(p["texto"], th["fb"], W * .046 * e, th["pb"], iw) if p["texto"] else None; fz = W * .2 * e; d0 = ImageDraw.Draw(Image.new("L", (1, 1))); ff = F("negra", fz)
+                while d0.textlength(p["dato"], font=ff) > iw and fz > 30: fz *= .92; ff = F("negra", fz)
+                ch = (hm["h"] + gap if hm else 0) + fz * 1.25 + (gap + bm["h"] if bm else 0); a = dur_seg((hm["n"] if hm else 0) + 3 + (bm["n"] if bm else 0), 0, 2.0); dur = max(3.0 * k, .35 + a + .9)
+                sc.update(hm=hm, bm=bm, fz=fz, ff=ff, offs=[.35], durs=[a])
+            elif tp == "lista":
+                its = [maq(x, th["fb"], W * .05 * e, th["pb"], iw - W * .07 * e, False, 1.2, "left") for x in p["items"]]; hh = bd + gap + (hm["h"] + gap if hm else 0) + sum(m["h"] + W * .012 for m in its); ch = hh
+                a = dur_seg(sum(m["n"] for m in its) + (hm["n"] if hm else 0), 0, 2.4); dur = max(3.2 * k, .35 + a + .9); sc.update(hm=hm, its=its, offs=[.35], durs=[a])
+            else:
+                hm = maq(p["encabezado"] or p["texto"], th["fh"], W * .068 * e, th["ph"], iw, may) if (p["encabezado"] or p["texto"]) else None
+                bm = maq(p["texto"], th["fb"], W * .046 * e, th["pb"], iw) if (p["texto"] and p["encabezado"]) else None
+                ch = bd + gap + (hm["h"] if hm else 0) + (W * .02 + bm["h"] if bm else 0); a = dur_seg((hm["n"] if hm else 0) + (bm["n"] if bm else 0), 0, 1.8); dur = max(2.6 * k, .35 + a + .8); sc.update(hm=hm, bm=bm, offs=[.35], durs=[a])
+            if tp == "dato": bd = 0
+            my = int(max(W * .04, ch * th["my"] * 1.4)); ph = int(ch + 2 * my + th["ctop"]); ph = max(int(H * .3), min(ph, int(H * .86))); my = int((ph - th["ctop"] - ch) / 2)
+            pan = th["panel"](pw, ph, i) if th["panel"] else None; sc.update(a=t, b=t + dur, pw=pw, ph=ph, mx=mx, my=my, bd=bd, gap=gap, ch=ch, iw=iw, pan=pan); s.sc.append(sc); t += dur; ix += 1
         if D["cierre"]:
-            cm = maq(D["cierre"], th["ft"], W * .075 * e, th["tit"], W * .82, may); dur = k * min(5, 2.2 + .12 * cm["n"]); s.sc.append(dict(k="cierre", a=t, b=t + dur, tm=cm)); t += dur
+            cm = maq(D["cierre"], th["ft"], W * .075 * e, th["tit"], W * .82, may); a = dur_seg(cm["n"], 0, 1.6); dur = max(2.2 * k, .35 + a + .8); s.sc.append(dict(k="cierre", a=t, b=t + dur, tm=cm, offs=[.35], durs=[a])); t += dur; ix += 1
         if not s.sc: sys.exit("No hay texto que animar.")
         s.total = t
+    def segmentos(s, auds):                                  # (segundo absoluto, archivo wav) de cada frase narrada
+        return [(sc["a"] + o, auds[i][j][0]) for i, sc in enumerate(s.sc) for j, o in enumerate(sc["offs"])]
     def _bloque(s, b, M, cx, cy, tr, ini, paso, alpha, sombra=None):
         w, h = int(M["w"]) + 40, int(M["h"]) + 30; C = Image.new("RGBA", (w, h), (0, 0, 0, 0)); dib_pal(C, M, tr, ini, paso, 20, 8, sombra); pegar(b, C, cx, cy, 1, alpha)
+    def _insignia(s, C, act, tr):
+        th = s.th; kb = e_back(prog(tr, .15, .5)); bd = act["bd"]; cx = C.width / 2; cy = bd / 2; r = bd / 2 * max(0.01, kb); d = ImageDraw.Draw(C, "RGBA"); fn = F("negra" if th["bshape"] != "num" else "serif", bd * (.5 if th["bshape"] != "num" else 1.0))
+        if th["bshape"] == "circle": d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=th["ac"])
+        elif th["bshape"] == "square": d.rounded_rectangle((cx - r, cy - r, cx + r, cy + r), 8, fill=th["ac"], outline=(0, 0, 0), width=6)
+        col = th["bn"] if th["bshape"] != "num" else th["ac"]
+        if kb > .3: d.text((cx, cy), str(act["i"] + 1), font=fn, fill=tuple(col[:3]) + (int(255 * cl(kb)),), anchor="mm")
     def frame(s, t):
         th = s.th; W, H = s.W, s.H; b = th["bg"](t); act = None
         for sc in s.sc:
             if sc["a"] <= t < sc["b"]: act = sc; break
         if act is None: act = s.sc[-1]
-        tr = t - act["a"]; ret = act["b"] - t; al = min(cl(tr / .4), cl(ret / .3)) if act is not s.sc[-1] else cl(tr / .4); idx = -1
+        ultima = act is s.sc[-1]; tr = t - act["a"]; ret = act["b"] - t; al = min(cl(tr / .4), cl(ret / .3)) if not ultima else cl(tr / .4); idx = -1
+        pas = lambda M, a: min(.3, max(.06, a * .85 / M["n"]))
         if act["k"] in ("intro", "cierre"):
-            tm, sm = act["tm"], act.get("sm"); n = tm["n"] + (sm["n"] if sm else 0); paso = min(.16, (act["b"] - act["a"]) * .5 / n); tot = tm["h"] + (sm["h"] + W * .03 if sm else 0); y0 = H * .5 - tot / 2
-            s._bloque(b, tm, W / 2, y0 + tm["h"] / 2, tr, .1, paso, al, th["sombra_t"])
+            tm, sm = act["tm"], act.get("sm"); n = tm["n"] + (sm["n"] if sm else 0); paso = min(.3, max(.06, act["durs"][0] * .85 / n)); o = act["offs"][0]; tot = tm["h"] + (sm["h"] + W * .03 if sm else 0); y0 = H * .5 - tot / 2
+            s._bloque(b, tm, W / 2, y0 + tm["h"] / 2, tr, o, paso, al, th["sombra_t"])
             ImageDraw.Draw(b).rectangle((W / 2 - W * .1 * e_out(prog(tr, .5, .6)), y0 - W * .05, W / 2 + W * .1 * e_out(prog(tr, .5, .6)), y0 - W * .05 + 10), fill=th["ac"])
-            if sm: s._bloque(b, sm, W / 2, y0 + tm["h"] + W * .03 + sm["h"] / 2, tr, .1 + tm["n"] * paso + .2, paso, al)
+            if sm: s._bloque(b, sm, W / 2, y0 + tm["h"] + W * .03 + sm["h"] / 2, tr, o + tm["n"] * paso + .2, paso, al)
         else:
-            idx = act["i"]; hm, bm = act["hm"], act["bm"]; n = (hm["n"] if hm else 0) + (bm["n"] if bm else 0); paso = min(.13, (act["b"] - act["a"]) * .5 / max(1, n)); C = Image.new("RGBA", (act["iw"] + 40, int(act["ch"] + 40)), (0, 0, 0, 0)); y = 0.0
-            if act["bd"]:
-                kb = e_back(prog(tr, .15, .5)); bd = act["bd"]; cx = C.width / 2; cy = bd / 2; r = bd / 2 * max(0.01, kb); d = ImageDraw.Draw(C, "RGBA"); num = str(idx + 1); fn = F("negra" if th["bshape"] != "num" else "serif", bd * (.5 if th["bshape"] != "num" else 1.0))
-                if th["bshape"] == "circle": d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=th["ac"])
-                elif th["bshape"] == "square": d.rounded_rectangle((cx - r, cy - r, cx + r, cy + r), 8, fill=th["ac"], outline=(0, 0, 0), width=6)
-                col = th["bn"] if th["bshape"] != "num" else th["ac"]
-                if kb > .3: d.text((cx, cy), num, font=fn, fill=tuple(col[:3]) + (int(255 * cl(kb)),), anchor="mm")
-                y = bd + act["gap"]
-            ini = .35
-            if hm: dib_pal(C, hm, tr, ini, paso, 20, y, th["sombra_t"]); y += hm["h"] + W * .02; ini += hm["n"] * paso + .15
-            if bm: dib_pal(C, bm, tr, ini, paso, 20, y)
-            k = lerp(.72, 1.0, e_back(prog(tr, 0, .55))) * (1 + .012 * tr / max(.1, act["b"] - act["a"]))
+            idx = act["i"]; tp = act["tp"]; C = Image.new("RGBA", (act["iw"] + 40, int(act["ch"] + 40)), (0, 0, 0, 0)); y = 0.0; o = act["offs"][0]; a0 = act["durs"][0]
+            if act["bd"]: s._insignia(C, act, tr); y = act["bd"] + act["gap"]
+            if tp == "contraste":                            # "No digas X / Mejor di Y", "Mito / Realidad"...: se dice y se tacha lo primero, luego aparece lo segundo
+                o2 = act["offs"][1]; a2 = act["durs"][1]; la, lb, am, bm = act["la"], act["lb"], act["am"], act["bm"]
+                dib_pal(C, la, tr, o, .1, 20, y); y += la["h"]; dib_pal(C, am, tr, o + .2, pas(am, a0), 20, y)
+                p = e_io(prog(tr, act["tstrike"], .45)) if th and act.get("tachar", True) and s._tachar(idx) else 0; d = ImageDraw.Draw(C, "RGBA")
+                for (x0, x1, ly) in am["lin"]:
+                    if p > 0: d.line((20 + x0 - 8, y + ly + am["size"] * .6, 20 + x0 - 8 + (x1 - x0 + 16) * p, y + ly + am["size"] * .6), fill=(235, 70, 70, 255), width=max(6, int(am["size"] * .12)))
+                y += am["h"] + W * .028; dib_pal(C, lb, tr, o2, .1, 20, y); y += lb["h"]; dib_pal(C, bm, tr, o2 + .2, pas(bm, a2), 20, y, th["sombra_t"])
+            elif tp == "dato":
+                hm, bm = act["hm"], act["bm"]
+                if hm: dib_pal(C, hm, tr, o, pas(hm, a0), 20, y, th["sombra_t"]); y += hm["h"] + act["gap"]
+                kd = e_out(prog(tr, o + .2, 1.0)); ka = cl((tr - o - .2) / .3); d = ImageDraw.Draw(C, "RGBA"); txt = dato_contador(s._dato(idx), kd)
+                if ka > 0: d.text((C.width / 2, y + act["fz"] * .62 + (1 - kd) * 14), txt, font=act["ff"], fill=tuple(th["ac"][:3]) + (int(255 * ka),), anchor="mm")
+                y += act["fz"] * 1.25 + act["gap"]
+                if bm: dib_pal(C, bm, tr, o + 1.0, pas(bm, a0), 20, y)
+            elif tp == "lista":
+                hm, its = act["hm"], act["its"]
+                if hm: dib_pal(C, hm, tr, o, pas(hm, a0), 20, y, th["sombra_t"]); y += hm["h"] + act["gap"]
+                d = ImageDraw.Draw(C, "RGBA"); bw = W * .07 * th["esc"]; ini = o + (hm["n"] * .12 if hm else 0) + .2; n = len(its)
+                for j, m in enumerate(its):
+                    ij = ini + j * max(.35, (a0 * .8) / n); kk = e_back(prog(tr, ij, .4)); r = W * .016 * max(.01, kk)
+                    if kk > 0: d.ellipse((20 + bw * .4 - r, y + m["size"] * .6 - r, 20 + bw * .4 + r, y + m["size"] * .6 + r), fill=th["ac"])
+                    dib_pal(C, m, tr, ij + .1, .08, 20 + bw, y); y += m["h"] + W * .012
+            else:
+                hm, bm = act["hm"], act["bm"]; paso = min(.3, max(.06, a0 * .85 / max(1, (hm["n"] if hm else 0) + (bm["n"] if bm else 0)))); ini = o
+                if hm: dib_pal(C, hm, tr, ini, paso, 20, y, th["sombra_t"]); y += hm["h"] + W * .02; ini += hm["n"] * paso + .15
+                if bm: dib_pal(C, bm, tr, ini, paso, 20, y)
+            sc_, dx, dy, rot, al2 = trans(act["trans"], tr, ret, W, H, ultima); sc_ *= 1 + .012 * tr / max(.1, act["b"] - act["a"])
             if act["pan"]:
-                L, pad = act["pan"]; L = L.copy(); L.alpha_composite(C, (int(pad + act["mx"] - 20), int(pad + act["my"] + th["ctop"]))); pegar(b, L, W / 2, th["cy"], k, al, th["rot"](idx))
-            else: pegar(b, C, W / 2, th["cy"], k, al)
+                L, pad = act["pan"]; L = L.copy(); L.alpha_composite(C, (int(pad + act["mx"] - 20), int(pad + act["my"] + th["ctop"]))); pegar(b, L, W / 2 + dx, th["cy"] + dy, sc_, al2, th["rot"](idx) + rot)
+            else: pegar(b, C, W / 2 + dx, th["cy"] + dy, sc_, al2, rot)
         if th["over"]: th["over"](b, t, idx)
         return b
+    def _tachar(s, i): return s.D_tachar[i] if hasattr(s, "D_tachar") else True
+    def _dato(s, i): return s.D_dato[i]
 
-def construir(clave, D, W, H, dur_fija):
+def construir(clave, D, W, H, dur_fija, auds=None):
+    def nuevo(th, k):
+        v = Video(th, D, W, H, k, auds); v.D_tachar = [p["tachar"] for p in D["puntos"]]; v.D_dato = [p["dato"] for p in D["puntos"]]; return v
     th = T_oscuro(W, H, False) if clave == "oscuro" else TEMAS[clave](W, H)
-    v0 = Video(th, D, W, H, 1.0); k = (dur_fija / v0.total) if dur_fija else 1.0
-    if k > 1.6: k = 1.6
-    if k != 1.0: v0 = Video(th, D, W, H, k)
-    if clave != "oscuro": return v0.frame, v0.total
-    v1 = Video(T_oscuro(W, H, True), D, W, H, k); T0 = v0.total * .38; tx, ty = W - 150, 80
+    v0 = nuevo(th, 1.0); k = 1.0
+    if not auds and dur_fija: k = min(1.6, dur_fija / v0.total)
+    if k != 1.0: v0 = nuevo(th, k)
+    if clave != "oscuro": return v0.frame, v0.total, v0
+    v1 = nuevo(T_oscuro(W, H, True), k); T0 = v0.total * .38; tx, ty = W - 150, 80
     def f(t):
         a = v0.frame(t)
         if t < T0: return a
         kk = e_io(prog(t, T0, 1.0)); bb = v1.frame(t)
         if kk >= 1: return bb
         m = Image.new("L", (W, H), 0); r = kk * math.hypot(W, H) * 1.05; ImageDraw.Draw(m).ellipse((tx - r, ty - r, tx + r, ty + r), fill=255); return Image.composite(bb, a, m)
-    return f, v0.total
+    return f, v0.total, v0
 
 # ---------------------------------------------------------------- render
-def render(clave, D, W, H, dur_fija, ruta):
-    f, total = construir(clave, D, W, H, dur_fija); dur = total + .8; n = int(dur * FPS)
-    cmd = [FF, "-nostdin", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "%dx%d" % (W, H), "-r", str(FPS), "-i", "-", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-           "-t", "%.3f" % dur, "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-shortest", "-movflags", "+faststart", ruta]
+def render(clave, D, W, H, dur_fija, ruta, auds=None, carpeta=None):
+    f, total, v = construir(clave, D, W, H, dur_fija, auds); dur = total + .8; n = int(dur * FPS)
+    if auds: mez = os.path.join(carpeta, "mezcla_%s.wav" % clave); mezclar(v.segmentos(auds), total, mez); audio = ["-i", mez, "-af", "apad"]
+    else: audio = ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
+    cmd = [FF, "-nostdin", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "%dx%d" % (W, H), "-r", str(FPS), "-i", "-"] + audio + ["-map", "0:v", "-map", "1:a", "-t", "%.3f" % dur,
+           "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", ruta]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     try:
         for i in range(n):
@@ -495,12 +620,16 @@ def main():
     img = ImageOps.exif_transpose(img).convert("RGB"); D = interpretar(img, P.get("idioma") or "")
     if (P.get("titulo") or "").strip(): D["titulo"] = P["titulo"].strip()
     if (P.get("subtitulo") or "").strip(): D["subtitulo"] = P["subtitulo"].strip()
-    print("Título: %s | %d puntos%s" % (D["titulo"], len(D["puntos"]), " | cierre" if D["cierre"] else ""), flush=True)
+    print("Título: %s | %d puntos | cierre: %s" % (D["titulo"], len(D["puntos"]), "sí" if D["cierre"] else "no"), flush=True)
+    print("Interpretación de Claude Code: " + ", ".join("%d:%s/%s" % (i + 1, p["tipo"], p["transicion"]) for i, p in enumerate(D["puntos"])), flush=True)
+    auds = None; carpeta = os.path.join(AG, "infografias", "_operacion", "voz"); voz = (P.get("voz") or "").strip()
+    if voz != "none":
+        voz = voz or VOCES_AUTO.get(D["idioma"], VOCES_AUTO["es"]); print("Generando la narración con la voz %s…" % voz, flush=True); auds = sintetizar(guiones(D), voz, carpeta)
     sello = time.strftime("%Y%m%d-%H%M%S"); ok = 0
     for i, e in enumerate(estilos, 1):
         out = os.path.join(SALIDA, "infografia_%s_%s.mp4" % (e, sello)); print("[%d/%d] Estilo %s ..." % (i, len(estilos), e), flush=True)
         try:
-            if render(e, D, W, H, dur_fija, out): ok += 1; print("OK " + out, flush=True)
+            if render(e, D, W, H, dur_fija, out, auds, carpeta): ok += 1; print("OK " + out, flush=True)
             else: print("ERROR: ffmpeg no pudo crear " + out, flush=True)
         except Exception as ex:
             import traceback; traceback.print_exc(); print("ERROR en el estilo %s: %s" % (e, ex), flush=True)

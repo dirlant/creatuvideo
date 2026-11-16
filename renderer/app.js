@@ -557,7 +557,7 @@ const ESTILOS = [
   ["oscuro", "Modo oscuro", "Nació por legibilidad y ahorro de batería.", "f"],
 ];
 const IF_DEMO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 110"><rect width="90" height="110" fill="#fff"/><circle cx="45" cy="26" r="13" fill="#d61480"/><rect x="42" y="19" width="6" height="14" rx="2" fill="#fff"/><rect x="18" y="50" width="54" height="8" rx="3" fill="#2a2a3a"/><rect x="12" y="68" width="66" height="5" rx="2" fill="#aaa"/><rect x="12" y="79" width="66" height="5" rx="2" fill="#aaa"/><rect x="24" y="90" width="42" height="5" rx="2" fill="#aaa"/></svg>');
-const IF0 = { imagen: "", estilos: [], titulo: "", subtitulo: "", duracion: 0, idioma: "", formato: "reels" };
+const IF0 = { imagen: "", estilos: [], titulo: "", subtitulo: "", duracion: 0, idioma: "", voz: "", formato: "reels" };
 let ifMini = "", ifMiniRuta = "", ifConstruido = false;
 function ifp() { const p = ajustes.presets.infografias || (ajustes.presets.infografias = {}); for (const k of Object.keys(IF0)) if (p[k] === undefined) p[k] = Array.isArray(IF0[k]) ? [] : IF0[k]; return p; }
 function pintarInfografias() {
@@ -582,6 +582,8 @@ function pintarInfografias() {
   $("#if-cuenta").textContent = p.estilos.length ? p.estilos.length + (p.estilos.length === 1 ? " estilo elegido" : " estilos elegidos") : "Ninguno elegido todavía";
   for (const [id, k] of [["if-titulo", "titulo"], ["if-subtitulo", "subtitulo"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
   $("#if-formato").value = p.formato; $("#if-duracion").value = String([10, 15, 20, 30].includes(Number(p.duracion)) ? p.duracion : 0); $("#if-idioma").value = p.idioma || "";
+  if (!$("#if-voz").options.length) llenarSelect($("#if-voz"), [["", "Automática (según el idioma del texto)"], ["none", "Sin voz (solo animación)"], ...VOCES, ...PR_VOCES.en, ...PR_VOCES.pt, ...PR_VOCES.de], p.voz || "");
+  $("#if-voz").value = p.voz || "";
 }
 // La imagen se elige con el selector del sistema y se guarda dentro de los ajustes (reducida a 2200 px): no depende de la version del instalador.
 $("#b-if-imagen").addEventListener("click", () => $("#if-archivo").click());
@@ -613,6 +615,7 @@ for (const [id, k] of [["if-titulo", "titulo"], ["if-subtitulo", "subtitulo"]]) 
   $("#" + id).addEventListener("change", () => guardarAuto());
 }
 $("#if-formato").addEventListener("change", (ev) => { ifp().formato = ev.target.value; guardarAuto(); });
+$("#if-voz").addEventListener("change", (ev) => { ifp().voz = ev.target.value; guardarAuto(); });
 $("#if-idioma").addEventListener("change", (ev) => { ifp().idioma = ev.target.value; guardarAuto(); });
 $("#if-duracion").addEventListener("change", (ev) => { ifp().duracion = Number(ev.target.value); guardarAuto(); });
 $("#b-if-todos").addEventListener("click", () => { ifp().estilos = ESTILOS.map((e) => e[0]); guardarAuto(); });
@@ -624,7 +627,7 @@ $("#b-if-generar").addEventListener("click", async () => {
   if (!p.estilos.length) { st.textContent = "⚠ Elige al menos un estilo de diseño."; return; }
   st.textContent = "Comprobando que tengas la última versión…";
   if (!(await exigirUltimaVersion())) { st.textContent = "⚠ Primero hay que actualizar a la última versión."; return; }
-  st.textContent = "Generando " + p.estilos.length + (p.estilos.length === 1 ? " video" : " videos") + "… primero se lee el texto de la imagen (unos segundos) y luego se anima cada estilo (alrededor de 1 minuto cada uno)";
+  st.textContent = "Generando " + p.estilos.length + (p.estilos.length === 1 ? " video" : " videos") + "… primero Claude Code lee e interpreta la imagen (unos segundos), luego se genera la voz y se anima cada estilo (alrededor de 1 minuto cada uno)";
   ajustes.presets.lineaActiva = "infografias"; await guardarAuto();
   const r = await window.ctv.run({ linea: "infografias", modo: "generar", slugs: [] });
   if (r && r.ok && !ifListos.length && !$("#if-lista").children.length) { st.textContent = "⚠ Terminó pero no se creó ningún video. Revisa el registro de abajo."; return; }
