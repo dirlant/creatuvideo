@@ -307,29 +307,30 @@
 
     <section id="v-infografias" class="vista">
       <h1><span class="ico-t" data-ico="infografia" role="img" aria-label="Infografías Animadas" title="Infografías Animadas"></span> <span class="tit">Infografías Animadas</span></h1>
-      <p class="sub">Sube una imagen (una infografía, un afiche, una foto con datos) y la app la <b>transforma en videos animados</b> con el estilo de diseño que elijas. Puedes marcar varios estilos: se genera un video por cada uno.</p>
+      <p class="sub">Sube una imagen con texto (una infografía, un afiche, una lámina). La app <b>lee e interpreta lo que dice</b> —y puede traducirlo— y lo convierte en un <b>video de texto animado</b>: una escena para el título, una por cada punto y un cierre, con el diseño que elijas. Puedes marcar varios estilos: se genera un video por cada uno. <span class="chico">Para leer la imagen usa Claude Code: tiene que estar instalado y con la sesión iniciada (Ajustes → Claude Code).</span></p>
 
       <div class="cfg"><h3>1 · Imagen</h3>
         <div class="img-drop">
           <div id="if-miniatura" class="if-mini"></div>
-          <div class="if-datos"><button class="p fuerte" id="b-if-imagen">Subir imagen…</button><span id="if-nombre" class="chico">Aún no has elegido una imagen. Abajo, las vistas previas usan una imagen de ejemplo.</span></div>
+          <div class="if-datos"><button class="p fuerte" id="b-if-imagen">Subir imagen…</button><span id="if-nombre" class="chico">Aún no has elegido una imagen.</span></div>
         </div>
       </div>
 
-      <div class="cfg"><h3>2 · Textos <span class="chico">(opcionales)</span></h3>
+      <div class="cfg"><h3>2 · Textos <span class="chico">(opcionales: si los dejas vacíos se toman de la imagen)</span></h3>
         <label class="et">Título</label><input id="if-titulo" maxlength="70" placeholder="Ej.: 5 pasos para organizar tu agenda" />
         <label class="et">Texto de apoyo</label><input id="if-subtitulo" maxlength="90" placeholder="Ej.: Guía rápida para salones de belleza" />
       </div>
 
-      <div class="cfg"><h3>3 · Formato y duración</h3>
+      <div class="cfg"><h3>3 · Idioma, formato y duración</h3>
+        <label class="et">Idioma del texto del video</label><select id="if-idioma"><option value="">El mismo que tiene la imagen</option><option value="es">Español (traducir)</option><option value="en">English (traducir)</option><option value="pt">Português (traducir)</option><option value="de">Deutsch (traducir)</option></select>
         <div class="grid2">
           <div><label class="et">Formato del video</label><select id="if-formato"><option value="reels">Reels / Stories / TikTok (9:16)</option><option value="vertical">Publicación vertical (4:5)</option><option value="cuadrado">Cuadrado (1:1)</option></select></div>
-          <div><label class="et">Duración</label><select id="if-duracion"><option value="6">6 segundos</option><option value="8">8 segundos</option><option value="10">10 segundos</option><option value="12">12 segundos</option><option value="15">15 segundos</option></select></div>
+          <div><label class="et">Duración</label><select id="if-duracion"><option value="0">Automática (según el texto)</option><option value="10">10 segundos</option><option value="15">15 segundos</option><option value="20">20 segundos</option><option value="30">30 segundos</option></select></div>
         </div>
       </div>
 
       <div class="cfg"><h3>4 · Estilo de diseño</h3>
-        <p class="sub">Cada recuadro muestra cómo se verá tu imagen con ese estilo. Marca uno o varios.</p>
+        <p class="sub">Cada recuadro es una vista de ejemplo del diseño (no usa tu imagen): el texto que la app lea de tu imagen se animará con ese estilo. Marca uno o varios.</p>
         <div class="barra"><button id="b-if-todos">Elegir todos</button><button id="b-if-ninguno">Quitar todos</button><span id="if-cuenta" class="chico"></span></div>
         <h4 class="if-grupo">Estilos visuales (estéticos)</h4>
         <div class="est-grid" id="if-est-v"></div>

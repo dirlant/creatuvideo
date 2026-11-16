@@ -108,254 +108,216 @@ def dash_rect(dr, box, col, w=4, d=18, g=12, r=0):
             s0 = i * (d + g) / L; s1 = min(1, (i * (d + g) + d) / L)
             dr.line((ax + (bx - ax) * s0, ay + (by - ay) * s0, ax + (bx - ax) * s1, ay + (by - ay) * s1), fill=col, width=w)
 
-class Ctx:
-    def __init__(s, img, W, H, tit, sub, dur):
-        s.W, s.H, s.dur, s.tit, s.sub, s.img = W, H, dur, tit, sub, img
-        s.cx = W / 2; s.cy = H * (0.52 if tit else 0.5)
-        bh = H * (0.70 if not tit and not sub else 0.50 if tit and sub else 0.56)
-        s.im = contain(img, int(W * .86), int(bh)); s.iw, s.ih = s.im.size
-    def T(s, k, mul, col, **kw):
-        return lay_txt(s.tit, k, s.W * mul, col, s.W * .84, **kw) if s.tit else None
-    def S(s, k, mul, col, **kw):
-        return lay_txt(s.sub, k, s.W * mul, col, s.W * .80, **kw) if s.sub else None
-    def textos(s, b, t, tl, sl, esc=1.0, dx=0, a0=.5):
-        if tl is not None:
-            y = max(tl.height / 2 + .04 * s.H, s.cy - s.ih * esc / 2 - .03 * s.H - tl.height / 2); k = e_out(prog(t, a0, .7)); pegar(b, tl, s.cx + dx, y + (1 - k) * 40, 1, k)
-        if sl is not None:
-            y = min(s.H - sl.height / 2 - .04 * s.H, s.cy + s.ih * esc / 2 + .03 * s.H + sl.height / 2); k = e_out(prog(t, a0 + .5, .7)); pegar(b, sl, s.cx + dx, y + (1 - k) * 40, 1, k)
-    def kb(s, t): return 1 + .025 * t / s.dur
+class _Ctx: pass
 
-# ---------------------------------------------------------------- ESTILOS (cada uno devuelve frame(t) -> imagen RGB)
-def s_minimalista(c):
-    bg = plano((c.W, c.H), (250, 250, 248)); iw, ih = int(c.iw * .8), int(c.ih * .8); im = redond(c.im.resize((iw, ih), Image.LANCZOS), 18)
-    sh = sombra(iw, ih, 18, 28, 0, 18, (0, 0, 0), .13, 60); card = apilar(sh.size, (sh, (0, 0)), (im, (60, 60)))
-    tl = c.T("sansl", .06, (30, 30, 30)); sl = c.S("sansl", .03, (130, 130, 130))
-    def f(t):
-        b = bg.copy(); s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 5), s * c.kb(t), a)
-        if tl is not None:
-            w = int(c.W * .12 * e_out(prog(t, .9, .7))); y = c.cy - ih / 2 - .03 * c.H - tl.height - 22; d = ImageDraw.Draw(b); d.rectangle((c.cx - w / 2, y, c.cx + w / 2, y + 6), fill=(255, 87, 51))
-        c.textos(b, t, tl, sl, .8); return b
-    return f
+# ---------------------------------------------------------------- 1) INTERPRETAR LA IMAGEN (Claude Code lee la imagen, traduce y ordena el texto)
+IDIOMAS = {"": "el mismo idioma que aparece en la imagen", "es": "español", "en": "inglés", "pt": "portugués", "de": "alemán"}
+def buscar_claude():
+    import glob, shutil
+    w = shutil.which("claude")
+    if w: return w
+    h = os.path.expanduser("~"); c = os.path.join(h, ".local", "bin", "claude.exe")
+    if os.path.exists(c): return c
+    for d in sorted(glob.glob(os.path.join(h, ".vscode", "extensions", "anthropic.claude-code*")), reverse=True):
+        for r, _, fs in os.walk(d):
+            if "claude.exe" in fs: return os.path.join(r, "claude.exe")
+    return None
 
-def s_flat(c):
-    bg = plano((c.W, c.H), (255, 201, 60)); im = redond(c.im, 30); card = apilar((c.iw + 40, c.ih + 40), (Image.new("RGBA", (c.iw + 40, c.ih + 40), (255, 255, 255, 0)), (0, 0)), (redond(Image.new("RGB", (c.iw + 40, c.ih + 40), (255, 255, 255)), 40), (0, 0)), (im, (20, 20)))
-    tl = c.T("negra", .062, (25, 45, 110)); sl = c.S("sans", .032, (25, 45, 110))
-    formas = [((0.15, 0.12), 150, (255, 99, 71), 0), ((0.88, 0.2), 110, (46, 134, 222), 1), ((0.1, 0.85), 130, (46, 204, 113), 1), ((0.9, 0.82), 170, (155, 89, 182), 0)]
-    def f(t):
-        b = bg.copy(); d = ImageDraw.Draw(b)
-        for i, ((px, py), r, col, tri) in enumerate(formas):
-            x = c.W * px + 30 * math.sin(t * .8 + i); y = c.H * py + 30 * math.cos(t * .7 + i)
-            if tri: d.polygon([(x, y - r), (x - r, y + r * .8), (x + r, y + r * .8)], fill=col)
-            else: d.ellipse((x - r, y - r, x + r, y + r), fill=col)
-        s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 6), s * c.kb(t), a); c.textos(b, t, tl, sl); return b
-    return f
+def interpretar(img, idioma):
+    import hashlib, re as _re
+    op = os.path.join(AG, "infografias", "_operacion", "lectura"); os.makedirs(op, exist_ok=True)
+    h = hashlib.sha1(img.tobytes()[:2000000] + idioma.encode()).hexdigest()[:16]; cache = os.path.join(op, "lectura_%s.json" % h)
+    if os.path.exists(cache):
+        try: print("Texto de la imagen: ya estaba leído, se reutiliza.", flush=True); return json.load(open(cache, encoding="utf-8"))
+        except Exception: pass
+    cl_ = buscar_claude()
+    if not cl_: sys.exit("No se encontró Claude Code, que es el que lee el texto de la imagen. Instálalo e inicia sesión (Ajustes → Claude Code).")
+    big = img if max(img.size) <= 1800 else contain(img, 1800, 1800); big.save(os.path.join(op, "imagen_entrada.png"))
+    prompt = ('Usa la herramienta Read para ver la imagen ./imagen_entrada.png. Es una infografía o un diseño con texto. Lee TODO el texto y reorganízalo para una animación de texto de varias escenas. '
+              'Escribe el texto en %s (traduce si hace falta; conserva cifras, nombres propios y marcas). Responde SOLO con un JSON válido, sin explicaciones ni bloques de código, con esta forma exacta: '
+              '{"titulo":"título principal, corto","subtitulo":"bajada o texto de apoyo, o vacío","puntos":[{"encabezado":"idea corta de 1 a 6 palabras, sin numeración","texto":"explicación breve, o vacío"}],"cierre":"frase final o llamado a la acción si existe, o vacío"}. '
+              'Reglas: máximo 7 puntos, uno por cada bloque, paso o dato de la imagen en el orden en que se leen; no inventes nada que no esté en la imagen; no pongas números de paso en los encabezados; '
+              'si la imagen es solo una foto sin texto, describe en 3 a 5 puntos cortos lo que muestra.') % IDIOMAS.get(idioma, IDIOMAS[""])
+    e = dict(os.environ); e.pop("ELECTRON_RUN_AS_NODE", None); e["PYTHONIOENCODING"] = "utf-8"
+    print("Leyendo el texto de la imagen con Claude Code… (puede tardar unos segundos)", flush=True)
+    try: r = subprocess.run([cl_, "-p", prompt, "--allowedTools", "Read", "--output-format", "text"], cwd=op, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, env=e)
+    except Exception as ex: sys.exit("No se pudo ejecutar Claude Code: %s" % ex)
+    sal = (r.stdout or "").strip(); m = _re.search(r"\{.*\}", sal, _re.S)
+    try: D = json.loads(m.group(0)) if m else None
+    except Exception: D = None
+    if not D or not (D.get("titulo") or D.get("puntos")):
+        sys.exit("No se pudo leer la imagen. Comprueba que Claude Code tenga la sesión iniciada (Ajustes → Claude Code). Respuesta: " + (sal or r.stderr or "vacía")[:300])
+    D = {"titulo": str(D.get("titulo") or "").strip(), "subtitulo": str(D.get("subtitulo") or "").strip(), "cierre": str(D.get("cierre") or "").strip(),
+         "puntos": [{"encabezado": str(p.get("encabezado") or "").strip(), "texto": str(p.get("texto") or "").strip()} for p in (D.get("puntos") or []) if isinstance(p, dict) and (p.get("encabezado") or p.get("texto"))][:7]}
+    json.dump(D, open(cache, "w", encoding="utf-8"), ensure_ascii=False); return D
 
-def s_skeuo(c):
-    W, H = c.W, c.H; ruido = np.random.RandomState(3).randint(-10, 10, (H // 3, W // 3, 1)); base = np.array(vgrad(W // 3, H // 3, (120, 78, 46), (70, 42, 24)), dtype="int16") + ruido
-    bg = Image.fromarray(np.clip(base, 0, 255).astype("uint8")).resize((W, H), Image.BILINEAR)
-    m = 26; w, h = c.iw + 2 * m, c.ih + 2 * m; marco = vgrad(w, h, (235, 235, 238), (110, 112, 120)); marco = redond(marco, 34)
-    inner = redond(c.im, 14); luz = Image.new("RGBA", (c.iw, c.ih), (255, 255, 255, 0)); gl = ImageDraw.Draw(luz); gl.polygon([(0, 0), (c.iw, 0), (0, c.ih * .55)], fill=(255, 255, 255, 60))
-    sh = sombra(w, h, 34, 30, 0, 26, (0, 0, 0), .6, 70); card = apilar(sh.size, (sh, (0, 0)), (marco, (70, 70)), (inner, (70 + m, 70 + m)), (luz, (70 + m, 70 + m)))
-    tl = c.T("serif", .07, (245, 228, 190), sombra=(3, 3, (40, 22, 10))); sl = c.S("serifr", .034, (235, 215, 180), sombra=(2, 2, (40, 22, 10)))
-    def f(t):
-        b = bg.copy(); s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 7), s * c.kb(t), a, rot=math.sin(t) * .8); c.textos(b, t, tl, sl); return b
-    return f
+# ---------------------------------------------------------------- 2) TEXTO ANIMADO PALABRA POR PALABRA
+def maq(txt, fk, size, color, maxw, mayus=False, lh=1.2, align="center"):
+    if mayus: txt = txt.upper()
+    f = F(fk, size); d = ImageDraw.Draw(Image.new("L", (1, 1))); esp = d.textlength(" ", font=f); lineas = [[]]; ancho = 0
+    for w in txt.split():
+        ww = d.textlength(w, font=f)
+        if lineas[-1] and ancho + esp + ww > maxw: lineas.append([]); ancho = 0
+        ancho += ww + (esp if lineas[-1] else 0); lineas[-1].append((w, ww))
+    lineas = lineas[:7]; pal = []
+    for i, ln in enumerate(lineas):
+        lw = sum(w for _, w in ln) + esp * max(0, len(ln) - 1); x = (maxw - lw) / 2 if align == "center" else 0
+        for w, ww in ln: pal.append((w, x, i * size * lh)); x += ww + esp
+    return dict(p=pal, f=f, col=color, w=maxw, h=len(lineas) * size * lh + size * .3, n=max(1, len(pal)), size=size)
+def dib_pal(C, M, tr, ini, paso, ox, oy, sombra=None):
+    d = ImageDraw.Draw(C, "RGBA")
+    for i, (w, x, y) in enumerate(M["p"]):
+        k = e_out(prog(tr, ini + i * paso, .35))
+        if k <= 0: continue
+        yy = oy + y + (1 - k) * 18
+        if sombra: d.text((ox + x + sombra[0], yy + sombra[1]), w, font=M["f"], fill=tuple(sombra[2]) + (int(255 * k),))
+        d.text((ox + x, yy), w, font=M["f"], fill=tuple(M["col"][:3]) + (int(255 * k),))
 
-def s_neumorfismo(c):
-    col = (224, 229, 236); bg = plano((c.W, c.H), col); m = 40; w, h = c.iw + 2 * m, c.ih + 2 * m; pad = 80
-    d1 = sombra(w, h, 56, 24, 22, 22, (163, 177, 198), 1, pad); d2 = sombra(w, h, 56, 24, -22, -22, (255, 255, 255), 1, pad)
-    mat = redond(plano((w, h), col), 56); inner = redond(c.im, 34); card = apilar(d1.size, (d1, (0, 0)), (d2, (0, 0)), (mat, (pad, pad)), (inner, (pad + m, pad + m)))
-    tl = c.T("sans", .064, (105, 118, 140)); sl = c.S("sansr", .032, (140, 150, 170))
-    def f(t):
-        b = bg.copy(); s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 6), s * c.kb(t), a); c.textos(b, t, tl, sl); return b
-    return f
+# ---------------------------------------------------------------- 3) TEMAS (un diseno por estilo)
+def panel_s(w, h, r=28, fill=(255, 255, 255), sh=(30, 0, 22, (0, 0, 0), .2), borde=None, pad=80):
+    L = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0))
+    if sh: L.alpha_composite(sombra(w, h, r, sh[0], sh[1], sh[2], sh[3], sh[4], pad))
+    p = Image.new("RGBA", (w, h), (0, 0, 0, 0)); fl = tuple(fill) if len(fill) == 4 else tuple(fill) + (255,)
+    ImageDraw.Draw(p).rounded_rectangle((0, 0, w - 1, h - 1), r, fill=fl, outline=borde[1] if borde else None, width=borde[0] if borde else 0); L.alpha_composite(p, (pad, pad)); return L, pad
+def ventana(w, h, bar, colbar, colcuerpo, titulo, tcol, r=0, botones=True, pad=50, sh=(1, 18, 18, (60, 0, 90), .8), bisel=False):
+    L = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0))
+    if sh: L.alpha_composite(sombra(w, h, r, sh[0], sh[1], sh[2], sh[3], sh[4], pad))
+    p = Image.new("RGBA", (w, h), (0, 0, 0, 0)); d = ImageDraw.Draw(p)
+    d.rounded_rectangle((0, 0, w - 1, h - 1), r, fill=colcuerpo + (255,), outline=(255, 255, 255) if bisel else (0, 0, 0, 40), width=2 if not bisel else 3)
+    d.rectangle((4, 4, w - 5, bar - 6), fill=colbar) if bisel else d.rounded_rectangle((0, 0, w - 1, bar), r, fill=colbar + (255,))
+    d.text((18, bar / 2 - 18), titulo[:24], font=F("sans", 30), fill=tcol)
+    if botones:
+        for i, g in enumerate(("_", "□", "x")):
+            x = w - 52 - i * 46
+            if bisel: d.rectangle((x, 8, x + 36, bar - 12), fill=(192, 192, 192), outline=(0, 0, 0)); d.text((x + 11, 6), g, font=F("sans", 26), fill=(0, 0, 0))
+            else: d.text((x + 8, bar / 2 - 18), {"_": "—", "□": "▢", "x": "✕"}[g], font=F("sansr", 28), fill=tcol)
+    L.alpha_composite(p, (pad, pad)); return L, pad
 
-def s_glass(c):
-    W, H = c.W, c.H; cols = [(255, 94, 98), (255, 153, 102), (120, 80, 255), (30, 190, 220), (255, 90, 200)]; m = 34; w, h = c.iw + 2 * m, c.ih + 2 * m
-    panel = Image.new("RGBA", (w, h), (255, 255, 255, 62)); ImageDraw.Draw(panel).rounded_rectangle((0, 0, w - 1, h - 1), 50, outline=(255, 255, 255, 150), width=3); panel.putalpha(ImageChops.multiply(panel.getchannel("A"), mask_rr((w, h), 50)))
-    sh = sombra(w, h, 50, 30, 0, 24, (30, 10, 80), .35, 70); card = apilar(sh.size, (sh, (0, 0)), (panel, (70, 70)), (redond(c.im, 30), (70 + m, 70 + m)))
-    orbe = Image.new("RGBA", (260, 260), (0, 0, 0, 0)); od = ImageDraw.Draw(orbe); od.ellipse((0, 0, 259, 259), fill=(255, 255, 255, 90), outline=(255, 255, 255, 200), width=3)
-    tl = c.T("sans", .066, (255, 255, 255), sombra=(0, 3, (60, 20, 110))); sl = c.S("sansr", .032, (255, 255, 255, 230))
-    def f(t):
-        b = blobs(W, H, cols, t, .5, .55); pegar(b, orbe, c.W * .85 + 20 * math.sin(t), c.H * .2 + 25 * math.cos(t), 1, 1); s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 8), s * c.kb(t), a)
-        pegar(b, orbe, c.W * .12 + 25 * math.cos(t * .9), c.H * .86 + 20 * math.sin(t), .7, 1); c.textos(b, t, tl, sl); return b
-    return f
+def base_tema(W, H, **kw):
+    t = dict(ft="sans", fh="sans", fb="sansr", tit=(30, 30, 30), sub=(110, 110, 110), ph=(30, 30, 30), pb=(90, 90, 90), ac=(255, 87, 51), bn=(255, 255, 255), bshape="circle", esc=1.0, pw=lambda i: .86 * W, cy=.5 * H, ctop=0, mx=.06, my=.05,
+             over=None, rot=lambda i: 0.0, sombra_t=None, mayus=False)
+    t.update(kw); return t
 
-def s_clay(c):
-    W, H = c.W, c.H; bg = vgrad(W, H, (255, 232, 240), (232, 225, 255)); m = 44; w, h = c.iw + 2 * m, c.ih + 2 * m; pad = 70
-    mat = inflar(mask_rr((w, h), 110), (255, 170, 190), 18, 14); sh = sombra(w, h, 110, 30, 0, 30, (190, 90, 130), .45, pad)
-    inner = inflar(mask_rr((c.iw, c.ih), 70), (255, 255, 255), 8, 8); ci = c.im.convert("RGBA"); ci.putalpha(mask_rr(ci.size, 70))
-    card = apilar(sh.size, (sh, (0, 0)), (mat, (pad, pad)), (ci, (pad + m, pad + m)))
+def T_minimalista(W, H):
+    bg = plano((W, H), (250, 250, 248)); return base_tema(W, H, bg=lambda t: bg.copy(), panel=lambda w, h, i: panel_s(w, h, 24, (255, 255, 255), (30, 0, 20, (0, 0, 0), .12)), ft="sansl", fh="sans", fb="sansr", ac=(255, 87, 51))
+def T_flat(W, H):
+    forms = [((.15, .12), 150, (255, 99, 71), 0), ((.88, .2), 110, (46, 134, 222), 1), ((.1, .88), 130, (46, 204, 113), 1), ((.9, .86), 170, (155, 89, 182), 0)]
+    def bg(t):
+        b = plano((W, H), (255, 201, 60)); d = ImageDraw.Draw(b)
+        for i, ((px, py), r, col, tri) in enumerate(forms):
+            x = W * px + 30 * math.sin(t * .8 + i); y = H * py + 30 * math.cos(t * .7 + i)
+            d.polygon([(x, y - r), (x - r, y + r * .8), (x + r, y + r * .8)], fill=col) if tri else d.ellipse((x - r, y - r, x + r, y + r), fill=col)
+        return b
+    return base_tema(W, H, bg=bg, panel=lambda w, h, i: panel_s(w, h, 34, (255, 255, 255), None, pad=10), ft="negra", fh="negra", tit=(25, 45, 110), sub=(25, 45, 110), ph=(25, 45, 110), pb=(60, 70, 110), ac=(46, 134, 222))
+def T_skeuo(W, H):
+    rs = np.random.RandomState(3).randint(-10, 10, (H // 3, W // 3, 1)); base = np.array(vgrad(W // 3, H // 3, (120, 78, 46), (70, 42, 24)), dtype="int16") + rs
+    fondo = Image.fromarray(np.clip(base, 0, 255).astype("uint8")).resize((W, H), Image.BILINEAR)
+    def panel(w, h, i):
+        pad = 70; m = 24; L = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0)); L.alpha_composite(sombra(w, h, 34, 30, 0, 26, (0, 0, 0), .6, pad))
+        L.alpha_composite(redond(vgrad(w, h, (235, 235, 238), (110, 112, 120)), 34), (pad, pad)); L.alpha_composite(redond(plano((w - 2 * m, h - 2 * m), (250, 244, 228)), 16), (pad + m, pad + m))
+        g = Image.new("RGBA", (w - 2 * m, h - 2 * m), (0, 0, 0, 0)); ImageDraw.Draw(g).polygon([(0, 0), (w - 2 * m, 0), (0, (h - 2 * m) * .5)], fill=(255, 255, 255, 50)); L.alpha_composite(g, (pad + m, pad + m)); return L, pad
+    return base_tema(W, H, bg=lambda t: fondo.copy(), panel=panel, ft="serif", fh="serif", fb="serifr", tit=(245, 228, 190), sub=(235, 215, 180), ph=(80, 45, 20), pb=(95, 65, 40), ac=(170, 60, 40), mx=.09, my=.07, sombra_t=(3, 3, (40, 22, 10)))
+def T_neumorfismo(W, H):
+    col = (224, 229, 236); bg = plano((W, H), col)
+    def panel(w, h, i):
+        pad = 90; L = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0)); L.alpha_composite(sombra(w, h, 56, 24, 22, 22, (163, 177, 198), 1, pad)); L.alpha_composite(sombra(w, h, 56, 24, -22, -22, (255, 255, 255), 1, pad)); L.alpha_composite(redond(plano((w, h), col), 56), (pad, pad)); return L, pad
+    return base_tema(W, H, bg=lambda t: bg.copy(), panel=panel, tit=(105, 118, 140), sub=(140, 150, 170), ph=(95, 108, 135), pb=(130, 140, 165), ac=(110, 130, 225))
+def T_glass(W, H):
+    cols = [(255, 94, 98), (255, 153, 102), (120, 80, 255), (30, 190, 220), (255, 90, 200)]
+    orbe = Image.new("RGBA", (260, 260), (0, 0, 0, 0)); ImageDraw.Draw(orbe).ellipse((0, 0, 259, 259), fill=(255, 255, 255, 90), outline=(255, 255, 255, 200), width=3)
+    def bg(t):
+        b = blobs(W, H, cols, t, .5, .55); pegar(b, orbe, W * .85 + 20 * math.sin(t), H * .15 + 25 * math.cos(t)); pegar(b, orbe, W * .12 + 25 * math.cos(t * .9), H * .88 + 20 * math.sin(t), .7); return b
+    def panel(w, h, i):
+        L, p = panel_s(w, h, 50, (255, 255, 255, 62), (30, 0, 24, (30, 10, 80), .3), borde=(3, (255, 255, 255, 150))); return L, p
+    return base_tema(W, H, bg=bg, panel=panel, tit=(255, 255, 255), sub=(255, 255, 255), ph=(255, 255, 255), pb=(255, 255, 255), ac=(255, 255, 255), bn=(110, 60, 210), sombra_t=(0, 3, (60, 20, 110)))
+def T_clay(W, H):
     bolas = []
-    for d, col in ((150, (120, 200, 255)), (110, (255, 214, 90)), (90, (160, 230, 170))):
-        bolas.append(apilar((d + 40, d + 40), (inflar((lambda mm: (ImageDraw.Draw(mm).ellipse((0, 0, d - 1, d - 1), fill=255), mm)[1])(Image.new("L", (d, d), 0)), col, 12, 10), (20, 20))))
-    pos = [(.14, .1), (.88, .17), (.82, .88)]
-    tl = c.T("redonda", .066, (130, 60, 100)); sl = c.S("redonda", .032, (160, 100, 140))
-    def f(t):
-        b = bg.copy()
-        for i, (bo, (px, py)) in enumerate(zip(bolas, pos)): pegar(b, bo, c.W * px, c.H * py + 22 * math.sin(t * 1.4 + i * 2), 1, 1)
-        s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 8), s * c.kb(t), a); c.textos(b, t, tl, sl); return b
-    return f
-
-def s_neobrutalismo(c):
-    W, H = c.W, c.H; bg = plano((W, H), (255, 222, 89)); bd = 10; w, h = c.iw + 2 * bd, c.ih + 2 * bd; off = 26
-    card = apilar((w + off, h + off), (plano((w, h), (0, 0, 0)).convert("RGBA"), (off, off)), (plano((w, h), (255, 255, 255)).convert("RGBA"), (0, 0)), (c.im.convert("RGBA"), (bd, bd)))
-    ImageDraw.Draw(card).rectangle((0, 0, w - 1, h - 1), outline=(0, 0, 0), width=bd)
-    tl = c.T("negra", .06, (0, 0, 0), mayus=True)
-    if tl is not None:
-        caja = Image.new("RGBA", (tl.width + 50 + 16, tl.height + 30 + 16), (0, 0, 0, 0)); cd = ImageDraw.Draw(caja); cd.rectangle((16, 16, caja.width - 1, caja.height - 1), fill=(0, 0, 0)); cd.rectangle((0, 0, caja.width - 17, caja.height - 17), fill=(255, 110, 170), outline=(0, 0, 0), width=8); caja.alpha_composite(tl, (25, 15))
-    else: caja = None
-    sl = c.S("sans", .032, (0, 0, 0))
-    star = Image.new("RGBA", (260, 260), (0, 0, 0, 0)); sd = ImageDraw.Draw(star); pts = [(130 + (125 if i % 2 == 0 else 70) * math.cos(i * math.pi / 8), 130 + (125 if i % 2 == 0 else 70) * math.sin(i * math.pi / 8)) for i in range(16)]; sd.polygon(pts, fill=(80, 200, 255), outline=(0, 0, 0)); sd.line(pts + [pts[0]], fill=(0, 0, 0), width=8)
-    def f(t):
-        b = bg.copy(); x = prog(t, .15, .8); dx = (1 - e_back(x)) * -W * .9
-        pegar(b, star, c.W * .86, c.H * .13, 1, 1, rot=t * 40); pegar(b, card, c.cx + dx, c.cy + flot(t, 6), c.kb(t), cl(x * 4))
-        if caja is not None:
-            k = e_back(prog(t, .6, .6)); y = max(caja.height / 2 + .03 * c.H, c.cy - c.ih / 2 - .02 * c.H - caja.height / 2); pegar(b, caja, c.cx, y, k, cl(k * 3), rot=-3)
-        if sl is not None: k = e_out(prog(t, 1.1, .6)); pegar(b, sl, c.cx, min(c.H - 80, c.cy + c.ih / 2 + .05 * c.H), 1, k)
+    for d_, col in ((150, (120, 200, 255)), (110, (255, 214, 90)), (90, (160, 230, 170))):
+        m = Image.new("L", (d_, d_), 0); ImageDraw.Draw(m).ellipse((0, 0, d_ - 1, d_ - 1), fill=255); bolas.append(apilar((d_ + 40, d_ + 40), (inflar(m, col, 12, 10), (20, 20))))
+    pos = [(.14, .1), (.88, .17), (.82, .9)]; fondo = vgrad(W, H, (255, 232, 240), (232, 225, 255))
+    def bg(t):
+        b = fondo.copy()
+        for i, (bo, (px, py)) in enumerate(zip(bolas, pos)): pegar(b, bo, W * px, H * py + 22 * math.sin(t * 1.4 + i * 2))
         return b
-    return f
-
-def s_bento(c):
-    W, H = c.W, c.H; bg = plano((W, H), (240, 240, 243)); g = 22; x0 = int(W * .05); aw = W - 2 * x0; y0 = int(H * .05); ah = H - 2 * y0
-    h1, h2, h3 = int(ah * .17), int(ah * .50), int(ah * .13); h4 = ah - h1 - h2 - h3 - 3 * g; cw = (aw - g) // 2
-    tiles = [(x0, y0, aw, h1, (255, 213, 79), "t"), (x0, y0 + h1 + g, aw, h2, (255, 255, 255), "i"), (x0, y0 + h1 + h2 + 2 * g, cw, h3, (138, 180, 248), "s"), (x0 + cw + g, y0 + h1 + h2 + 2 * g, aw - cw - g, h3, (255, 138, 128), "d1"), (x0, y0 + h1 + h2 + h3 + 3 * g, aw, h4, (129, 199, 132), "d2")]
-    tt = c.tit or ""; capas = []
-    for (x, y, w, h, col, k) in tiles:
-        L = Image.new("RGBA", (w, h), (0, 0, 0, 0)); L.alpha_composite(redond(plano((w, h), col), 42))
-        if k == "i":
-            im = contain(c.img, w - 40, h - 40); L.alpha_composite(redond(im, 26), ((w - im.width) // 2, (h - im.height) // 2))
-        elif k == "t" and tt: tx = lay_txt(tt, "negra", min(h * .42, c.W * .07), (40, 30, 0), w - 60); L.alpha_composite(tx, ((w - tx.width) // 2, (h - tx.height) // 2))
-        elif k == "s" and c.sub: tx = lay_txt(c.sub, "sans", min(h * .2, c.W * .034), (20, 40, 90), w - 40); L.alpha_composite(tx, ((w - tx.width) // 2, (h - tx.height) // 2))
-        elif k == "d1":
-            dd = ImageDraw.Draw(L)
-            for i in range(4): dd.rounded_rectangle((40 + i * 70, h - 30 - (30 + i * 18), 90 + i * 70, h - 30), 10, fill=(255, 255, 255, 230))
-        elif k == "d2":
-            dd = ImageDraw.Draw(L); dd.ellipse((w / 2 - h * .3, h / 2 - h * .3, w / 2 + h * .3, h / 2 + h * .3), outline=(255, 255, 255, 255), width=18)
-            for i in range(3): dd.ellipse((60 + i * 70, 40, 100 + i * 70, 80), fill=(255, 255, 255, 220))
-        capas.append((L, x + w / 2, y + h / 2))
-    def f(t):
-        b = bg.copy()
-        for i, (L, cx, cy) in enumerate(capas):
-            x = prog(t, .15 + i * .22, .7); pegar(b, L, cx, cy, lerp(.4, 1, e_back(x)) * (1 + .012 * math.sin(t * 1.5 + i)), cl(x * 3))
-        return b
-    return f
-
-def s_neon(c):
-    W, H = c.W, c.H; cyan = (0, 240, 255); mag = (255, 40, 200); w, h = c.iw + 40, c.ih + 40; pad = 70
-    b0 = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0)); d0 = ImageDraw.Draw(b0); d0.rounded_rectangle((pad, pad, pad + w, pad + h), 26, outline=cyan + (255,), width=8); d0.rounded_rectangle((pad + 14, pad + 14, pad + w - 14, pad + h - 14), 18, outline=mag + (255,), width=3)
-    gl = brillo(b0, 22, 2.2); card = apilar(b0.size, (plano((w, h), (10, 6, 24)).convert("RGBA"), (pad, pad)), (c.im.convert("RGBA"), (pad + 20, pad + 20)), (gl, (0, 0)), (b0, (0, 0)))
-    tl = c.T("mono", .062, cyan); tg = brillo(tl, 14, 2.0) if tl is not None else None; sl = c.S("mono", .03, mag); sg = brillo(sl, 10, 2.0) if sl is not None else None
-    def fondo(t):
+    def panel(w, h, i):
+        pad = 70; L = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0)); L.alpha_composite(sombra(w, h, 110, 30, 0, 30, (190, 90, 130), .45, pad)); L.alpha_composite(inflar(mask_rr((w, h), 110), (255, 205, 220), 18, 14), (pad, pad)); return L, pad
+    return base_tema(W, H, bg=bg, panel=panel, ft="redonda", fh="redonda", fb="redonda", tit=(130, 60, 100), sub=(160, 100, 140), ph=(120, 45, 85), pb=(150, 80, 120), ac=(120, 190, 255), mx=.09, my=.08)
+def T_neobrutalismo(W, H):
+    bg = plano((W, H), (255, 222, 89)); star = Image.new("RGBA", (260, 260), (0, 0, 0, 0)); sd = ImageDraw.Draw(star)
+    pts = [(130 + (125 if i % 2 == 0 else 70) * math.cos(i * math.pi / 8), 130 + (125 if i % 2 == 0 else 70) * math.sin(i * math.pi / 8)) for i in range(16)]; sd.polygon(pts, fill=(80, 200, 255)); sd.line(pts + [pts[0]], fill=(0, 0, 0), width=8)
+    def b_(t): b = bg.copy(); pegar(b, star, W * .86, H * .1, 1, 1, rot=t * 40); return b
+    def panel(w, h, i):
+        off = 26; pad = 40; L = Image.new("RGBA", (w + 2 * pad + off, h + 2 * pad + off), (0, 0, 0, 0)); d = ImageDraw.Draw(L); d.rectangle((pad + off, pad + off, pad + off + w, pad + off + h), fill=(0, 0, 0)); d.rectangle((pad, pad, pad + w, pad + h), fill=(255, 255, 255), outline=(0, 0, 0), width=10); return L, pad
+    return base_tema(W, H, bg=b_, panel=panel, ft="negra", fh="negra", fb="sans", tit=(0, 0, 0), sub=(0, 0, 0), ph=(0, 0, 0), pb=(30, 30, 30), ac=(255, 110, 170), bn=(0, 0, 0), bshape="square", mayus=True)
+def T_bento(W, H):
+    bg = plano((W, H), (240, 240, 243)); cols = [(255, 213, 79), (138, 180, 248), (255, 138, 128), (129, 199, 132), (206, 147, 216), (128, 222, 234), (255, 171, 145)]
+    def panel(w, h, i): L, p = panel_s(w, h, 46, cols[i % len(cols)], None, pad=10); return L, p
+    def over(b, t, i):
+        d = ImageDraw.Draw(b); k = e_back(prog(t % 4, 0, .8))
+        for j, col in enumerate((cols[(i + 1) % 7], cols[(i + 2) % 7])):
+            x = W * (.08 if j == 0 else .56); w_ = W * .36; y = H * .045 if j == 0 else H * .9; d.rounded_rectangle((x, y, x + w_ * k, y + H * .05), 24, fill=col)
+    return base_tema(W, H, bg=lambda t: bg.copy(), panel=panel, tit=(40, 30, 0), sub=(90, 80, 40), ph=(30, 30, 40), pb=(50, 50, 60), ac=(255, 255, 255), bn=(40, 40, 50), over=over, ft="negra", fh="negra")
+def T_neon(W, H):
+    cyan = (0, 240, 255); mag = (255, 40, 200)
+    def bg(t):
         b = vgrad(W, H, (6, 3, 18), (22, 6, 40)); d = ImageDraw.Draw(b, "RGBA"); off = (t * 60) % 90
         for i in range(-1, W // 90 + 2): d.line((i * 90, 0, i * 90, H), fill=(120, 40, 220, 55), width=2)
         for j in range(-1, H // 90 + 2): d.line((0, j * 90 + off, W, j * 90 + off), fill=(120, 40, 220, 55), width=2)
         return b
-    def f(t):
-        b = fondo(t); s, a = ent(t); pul = .75 + .25 * math.sin(t * 5)
-        pegar(b, card, c.cx, c.cy + flot(t, 6), s * c.kb(t), a * (.85 + .15 * pul))
-        if tl is not None:
-            y = max(tl.height / 2 + .04 * H, c.cy - c.ih / 2 - .05 * H - tl.height / 2); k = e_out(prog(t, .5, .7)); pegar(b, tg, c.cx, y, 1, k * pul); pegar(b, tl, c.cx, y + (1 - k) * 40, 1, k)
-        if sl is not None:
-            y = min(H - sl.height / 2 - .04 * H, c.cy + c.ih / 2 + .06 * H); k = e_out(prog(t, 1., .7)); pegar(b, sg, c.cx, y, 1, k * pul); pegar(b, sl, c.cx, y, 1, k)
+    def panel(w, h, i):
+        pad = 70; L = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0)); b0 = Image.new("RGBA", L.size, (0, 0, 0, 0)); d = ImageDraw.Draw(b0); d.rounded_rectangle((pad, pad, pad + w, pad + h), 26, outline=cyan + (255,), width=8); d.rounded_rectangle((pad + 14, pad + 14, pad + w - 14, pad + h - 14), 18, outline=mag + (255,), width=3)
+        L.alpha_composite(redond(plano((w, h), (12, 8, 30)), 26) if False else Image.new("RGBA", (1, 1))); fondo = Image.new("RGBA", (w, h), (12, 8, 30, 235)); L.alpha_composite(fondo, (pad, pad)); L.alpha_composite(brillo(b0, 22, 2.2)); L.alpha_composite(b0); return L, pad
+    def over(b, t, i):
         d = ImageDraw.Draw(b, "RGBA")
         for yy in range(0, H, 6): d.line((0, yy, W, yy), fill=(0, 0, 0, 14))
-        return b
-    return f
-
-def s_aurora(c):
-    W, H = c.W, c.H; cols = [(30, 220, 160), (40, 120, 255), (150, 70, 255), (20, 200, 220), (255, 90, 190), (60, 255, 150)]; m = 20; w, h = c.iw + 2 * m, c.ih + 2 * m
-    panel = Image.new("RGBA", (w, h), (255, 255, 255, 40)); ImageDraw.Draw(panel).rounded_rectangle((0, 0, w - 1, h - 1), 60, outline=(255, 255, 255, 130), width=2); panel.putalpha(ImageChops.multiply(panel.getchannel("A"), mask_rr((w, h), 60)))
-    sh = sombra(w, h, 60, 34, 0, 26, (10, 20, 60), .4, 80); card = apilar(sh.size, (sh, (0, 0)), (panel, (80, 80)), (redond(c.im, 44), (80 + m, 80 + m)))
-    tl = c.T("sans", .068, (255, 255, 255), sombra=(0, 3, (20, 30, 90))); sl = c.S("sansl", .034, (255, 255, 255))
-    def f(t):
-        b = blobs(W, H, cols, t, .35, .8); s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 9), s * c.kb(t), a); c.textos(b, t, tl, sl); return b
-    return f
-
-def s_retro(c):
-    W, H = c.W, c.H; bar = 52; m = 16; w, h = c.iw + 2 * m, c.ih + 2 * m + bar; pad = 40
-    ven = Image.new("RGBA", (w, h), (0, 0, 0, 0)); d = ImageDraw.Draw(ven); d.rectangle((0, 0, w - 1, h - 1), fill=(192, 192, 192), outline=(255, 255, 255)); d.rectangle((4, 4, w - 4, 4 + bar - 10), fill=(0, 0, 170))
-    d.text((16, 6), c.tit[:22] if c.tit else "infografia.exe", font=F("sans", 30), fill=(255, 255, 255))
-    for i in range(3): x = w - 46 - i * 44; d.rectangle((x, 8, x + 34, 4 + bar - 14), fill=(192, 192, 192), outline=(0, 0, 0)); d.text((x + 9, 5), "_□x"[i], font=F("sans", 26), fill=(0, 0, 0))
-    ven.alpha_composite(c.im.convert("RGBA"), (m, bar + m - 6)); sh = sombra(w, h, 0, 1, 20, 20, (60, 0, 90), .85, pad); card = apilar(sh.size, (sh, (0, 0)), (ven, (pad, pad)))
-    tl = c.T("impact", .085, (255, 113, 206), stroke=0, sombra=(6, 6, (1, 205, 254)), mayus=True); sl = c.S("mono", .032, (255, 255, 255), sombra=(3, 3, (120, 0, 160)))
-    def f(t):
-        b = vgrad(W, H, (255, 113, 206), (130, 60, 220)); d = ImageDraw.Draw(b, "RGBA"); sy = int(H * .62); cx = W // 2; r = int(W * .3)
-        d.ellipse((cx - r, sy - 2 * r, cx + r, sy), fill=(255, 220, 90))
+    return base_tema(W, H, bg=bg, panel=panel, ft="mono", fh="mono", fb="mono", tit=cyan, sub=mag, ph=cyan, pb=(225, 225, 255), ac=mag, over=over)
+def T_aurora(W, H):
+    cols = [(30, 220, 160), (40, 120, 255), (150, 70, 255), (20, 200, 220), (255, 90, 190), (60, 255, 150)]
+    return base_tema(W, H, bg=lambda t: blobs(W, H, cols, t, .35, .8), panel=lambda w, h, i: panel_s(w, h, 60, (255, 255, 255, 46), (34, 0, 26, (10, 20, 60), .35), borde=(2, (255, 255, 255, 130))), tit=(255, 255, 255), sub=(255, 255, 255), ph=(255, 255, 255), pb=(255, 255, 255), ac=(255, 255, 255), bn=(30, 90, 200), sombra_t=(0, 3, (20, 30, 90)))
+def T_retro(W, H):
+    def bg(t):
+        b = vgrad(W, H, (255, 113, 206), (130, 60, 220)); d = ImageDraw.Draw(b, "RGBA"); sy = int(H * .62); cx = W // 2; r = int(W * .3); d.ellipse((cx - r, sy - 2 * r, cx + r, sy), fill=(255, 220, 90))
         for i in range(6): d.rectangle((cx - r, sy - r * .9 + i * r * .18, cx + r, sy - r * .9 + i * r * .18 + 4 + i * 3), fill=(255, 113, 206))
         d.rectangle((0, sy, W, H), fill=(30, 10, 70)); off = (t * 50) % 80
-        for k in range(-12, 13): d.line((cx + k * 120 * .35, sy, cx + k * 420, H), fill=(1, 205, 254, 160), width=2)
+        for k in range(-12, 13): d.line((cx + k * 42, sy, cx + k * 420, H), fill=(1, 205, 254, 160), width=2)
         j = 0; y = sy + off * .2
         while y < H: d.line((0, y, W, y), fill=(1, 205, 254, 160), width=2); j += 1; y += 14 + j * 9
-        s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 7), s * c.kb(t), a); c.textos(b, t, tl, sl); return b
-    return f
-
-def s_isometrico(c):
-    W, H = c.W, c.H; sc = min(W * .86 / ((c.img.width + c.img.height) * .866), H * .38 / ((c.img.width + c.img.height) * .5)); a, bb = .866 * sc, .5 * sc
-    w0, h0 = c.img.size; ow, oh = int((w0 + h0) * a) + 2, int((w0 + h0) * bb) + 2; coef = (1 / (2 * a), 1 / (2 * bb), -h0 / 2, -1 / (2 * a), 1 / (2 * bb), h0 / 2)
-    src = c.img.convert("RGBA"); top = src.transform((ow, oh), Image.AFFINE, coef, Image.BICUBIC); al = top.getchannel("A"); dark = Image.new("RGBA", (ow, oh), (60, 70, 120, 255)); dark.putalpha(al)
-    esp = 26; blk = Image.new("RGBA", (ow, oh + esp), (0, 0, 0, 0))
-    for i in range(esp, 0, -1): blk.alpha_composite(dark if i > 8 else Image.blend(dark, Image.new("RGBA", dark.size, (90, 100, 170, 255)), .3).convert("RGBA"), (0, i))
-    blk.alpha_composite(top, (0, 0))
+        return b
+    return base_tema(W, H, bg=bg, panel=lambda w, h, i: ventana(w, h, 56, (0, 0, 170), (192, 192, 192), "paso_%d.exe" % (i + 1), (255, 255, 255), bisel=True), ctop=56, ft="impact", fh="impact", fb="mono", tit=(255, 255, 255), sub=(255, 255, 255), ph=(0, 0, 120), pb=(20, 20, 20), ac=(255, 60, 170), bn=(255, 255, 255), sombra_t=(6, 6, (1, 205, 254)), mayus=True)
+def T_isometrico(W, H):
     def cubo(sz, cols):
         L = Image.new("RGBA", (int(sz * 1.8), int(sz * 2.1)), (0, 0, 0, 0)); d = ImageDraw.Draw(L); cx = L.width / 2; yy = sz * .3; k = sz * .9
         d.polygon([(cx, yy), (cx + k, yy + k * .5), (cx, yy + k), (cx - k, yy + k * .5)], fill=cols[0]); d.polygon([(cx - k, yy + k * .5), (cx, yy + k), (cx, yy + k * 2), (cx - k, yy + k * 1.5)], fill=cols[1]); d.polygon([(cx + k, yy + k * .5), (cx, yy + k), (cx, yy + k * 2), (cx + k, yy + k * 1.5)], fill=cols[2]); return L
-    cubos = [(cubo(90, ((255, 190, 90), (225, 150, 50), (190, 120, 30))), .14, .12), (cubo(70, ((120, 220, 190), (80, 180, 150), (50, 140, 110))), .86, .78), (cubo(60, ((255, 140, 170), (225, 100, 130), (190, 70, 100))), .84, .16), (cubo(80, ((140, 160, 255), (100, 120, 225), (70, 90, 190))), .12, .82)]
-    tl = c.T("sans", .066, (50, 55, 110)); sl = c.S("sansr", .032, (80, 90, 140)); sw = int(ow * .9); sdw = Image.new("RGBA", (sw, int(sw * .3)), (0, 0, 0, 0)); ImageDraw.Draw(sdw).ellipse((0, 0, sw - 1, int(sw * .3) - 1), fill=(60, 60, 120, 120)); sdw = sdw.filter(ImageFilter.GaussianBlur(24))
-    def f(t):
-        b = vgrad(W, H, (226, 233, 255), (250, 232, 245)); s, a = ent(t); y = c.cy + flot(t, 12) + 20
-        pegar(b, sdw, c.cx, c.cy + oh / 2 + esp + 60, s * (1 - .04 * math.sin(t * 1.7)), a * .8)
-        for i, (cb, px, py) in enumerate(cubos): pegar(b, cb, W * px, H * py + 24 * math.sin(t * 1.3 + i * 1.7), e_back(prog(t, .4 + i * .15, .6)), 1)
-        pegar(b, blk, c.cx, y, s * c.kb(t), a)
-        if tl is not None: k = e_out(prog(t, .5, .7)); pegar(b, tl, c.cx, max(tl.height / 2 + .04 * H, c.cy - oh / 2 - .05 * H - tl.height / 2) + (1 - k) * 40, 1, k)
-        if sl is not None: k = e_out(prog(t, 1., .7)); pegar(b, sl, c.cx, min(H - sl.height / 2 - .04 * H, c.cy + oh / 2 + esp + .09 * H) + (1 - k) * 40, 1, k)
+    cubos = [(cubo(90, ((255, 190, 90), (225, 150, 50), (190, 120, 30))), .14, .1), (cubo(70, ((120, 220, 190), (80, 180, 150), (50, 140, 110))), .86, .9), (cubo(60, ((255, 140, 170), (225, 100, 130), (190, 70, 100))), .86, .12), (cubo(80, ((140, 160, 255), (100, 120, 225), (70, 90, 190))), .12, .88)]
+    fondo = vgrad(W, H, (226, 233, 255), (250, 232, 245))
+    def bg(t):
+        b = fondo.copy()
+        for i, (cb, px, py) in enumerate(cubos): pegar(b, cb, W * px, H * py + 24 * math.sin(t * 1.3 + i * 1.7))
         return b
-    return f
-
-def s_ilustrado(c):
-    W, H = c.W, c.H; rs = np.random.RandomState(7); gr = rs.randint(-9, 9, (H // 2, W // 2, 1)); bg = Image.fromarray(np.clip(np.array(plano((W // 2, H // 2), (247, 240, 224)), dtype="int16") + gr, 0, 255).astype("uint8")).resize((W, H), Image.BILINEAR)
-    pad = 30; w, h = c.iw + 2 * pad, c.ih + pad * 2 + 90; pol = Image.new("RGBA", (w, h), (0, 0, 0, 0)); pol.alpha_composite(plano((w, h), (255, 255, 255)).convert("RGBA")); pol.alpha_composite(c.im.convert("RGBA"), (pad, pad))
-    sh = sombra(w, h, 4, 18, 8, 14, (60, 40, 20), .4, 50); card = apilar(sh.size, (sh, (0, 0)), (pol, (50, 50)))
-    for ax, ay in ((card.width * .5 - 90, 36), ):
-        cinta = Image.new("RGBA", (190, 56), (255, 214, 90, 200)); card.alpha_composite(cinta.rotate(-4, expand=True), (int(ax), int(ay)))
-    tl = c.T("mano", .068, (60, 40, 30)); sl = c.S("mano", .034, (100, 75, 60)); rj = np.random.RandomState(2)
-    def onda(x0, x1, y, amp, n=40): return [(lerp(x0, x1, i / n), y + amp * math.sin(i * .9) + rj.uniform(-2, 2)) for i in range(n + 1)]
-    ond = onda(c.W * .25, c.W * .75, 0, 8)
+    def panel(w, h, i):
+        pad = 60; esp = 28; L = Image.new("RGBA", (w + 2 * pad + esp, h + 2 * pad + esp), (0, 0, 0, 0)); L.alpha_composite(sombra(w, h, 14, 30, esp, esp + 18, (50, 60, 130), .35, pad))
+        for k in range(esp, 0, -2): L.alpha_composite(redond(plano((w, h), (70, 82, 150) if k > 8 else (90, 102, 175)), 14), (pad + k // 2, pad + k))
+        L.alpha_composite(redond(plano((w, h), (255, 255, 255)), 14), (pad, pad)); return L, pad
+    return base_tema(W, H, bg=bg, panel=panel, tit=(50, 55, 110), sub=(80, 90, 140), ph=(40, 45, 100), pb=(80, 90, 140), ac=(255, 140, 90))
+def T_ilustrado(W, H):
+    rs = np.random.RandomState(7); gr = rs.randint(-9, 9, (H // 2, W // 2, 1)); bg = Image.fromarray(np.clip(np.array(plano((W // 2, H // 2), (247, 240, 224)), dtype="int16") + gr, 0, 255).astype("uint8")).resize((W, H), Image.BILINEAR)
+    def panel(w, h, i):
+        pad = 60; L = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0)); L.alpha_composite(sombra(w, h, 4, 18, 8, 14, (60, 40, 20), .4, pad)); L.alpha_composite(Image.new("RGBA", (w, h), (254, 252, 246, 255)), (pad, pad))
+        cinta = Image.new("RGBA", (190, 56), (255, 214, 90, 200)).rotate(-4, expand=True); L.alpha_composite(cinta, (int(pad + w / 2 - 95), pad - 28)); return L, pad
     def estrella(cx, cy, r): return [(cx + (r if i % 2 == 0 else r * .45) * math.sin(i * math.pi / 5), cy - (r if i % 2 == 0 else r * .45) * math.cos(i * math.pi / 5)) for i in range(11)]
-    def f(t):
-        b = bg.copy(); d = ImageDraw.Draw(b); s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 6), s, a, rot=2.5 * math.sin(t * .9))
-        c.textos(b, t, tl, sl)
-        if tl is not None:
-            y = max(tl.height / 2 + .04 * H, c.cy - c.ih / 2 - .03 * H - tl.height / 2) + tl.height / 2 + 4; n = int(len(ond) * prog(t, 1., .8))
-            if n > 1: d.line([(x, yy + y) for x, yy in ond[:n]], fill=(240, 90, 90), width=7, joint="curve")
-        n = int(11 * prog(t, 1.3, .7)); e = estrella(W * .86, H * .14 + 6 * math.sin(t * 2), 56)
+    def b_(t):
+        b = bg.copy(); d = ImageDraw.Draw(b); n = int(11 * prog(t % 6, .2, .8)); e = estrella(W * .86, H * .1, 56)
         if n > 1: d.line(e[:n + 1], fill=(40, 140, 220), width=6, joint="curve")
-        n = int(40 * prog(t, 1.6, .8)); sp = [(W * .12 + (i * 1.5) * math.cos(i * .35) * 2.2, H * .88 + (i * 1.5) * math.sin(i * .35) * 2.2) for i in range(41)]
+        sp = [(W * .12 + (i * 1.5) * math.cos(i * .35) * 2.2, H * .9 + (i * 1.5) * math.sin(i * .35) * 2.2) for i in range(41)]; n = int(40 * prog(t % 6, 1., .9))
         if n > 1: d.line(sp[:n], fill=(60, 170, 110), width=6, joint="curve")
         return b
-    return f
-
-def s_editorial(c):
-    W, H = c.W, c.H; bg = plano((W, H), (244, 239, 230)); ink = (20, 20, 20); marg = int(W * .07)
-    cab = lay_txt("EDICIÓN ESPECIAL · INFOGRAFÍA", "sans", W * .026, ink, W * .86, align="left"); num = lay_txt("01", "serif", W * .2, (200, 40, 40), W, align="right")
-    tl = lay_txt(c.tit, "serif", W * .105, ink, W * .86, align="left", lh=1.02) if c.tit else None; sl = lay_txt(c.sub, "serifr", W * .036, (70, 70, 70), W * .86, align="left") if c.sub else None
-    im = c.im
-    def f(t):
-        b = bg.copy(); d = ImageDraw.Draw(b); k = e_out(prog(t, .1, .8)); d.rectangle((marg, 70, marg + (W - 2 * marg) * k, 76), fill=ink); pegar(b, cab, marg + cab.width / 2 - 10, 112, 1, e_out(prog(t, .3, .6)))
-        ty = 170
-        if tl is not None: kk = e_out(prog(t, .4, .8)); pegar(b, tl, marg + tl.width / 2 - 10, ty + tl.height / 2 + (1 - kk) * 40, 1, kk); ty += tl.height + 20
-        d.rectangle((marg, ty, marg + (W - 2 * marg) * e_out(prog(t, .9, .8)), ty + 3), fill=ink); ty += 30
-        hh = min(im.height, H - ty - (sl.height if sl is not None else 0) - 160); sh_ = contain(im, W - 2 * marg, hh); rev = e_io(prog(t, .8, 1.1))
-        if sh_.height * rev > 2: b.paste(sh_.crop((0, 0, sh_.width, int(sh_.height * rev))), (int((W - sh_.width) / 2), int(ty)))
-        yb = ty + sh_.height + 18
-        if sl is not None: kk = e_out(prog(t, 1.7, .7)); pegar(b, sl, marg + sl.width / 2 - 10, yb + sl.height / 2 + (1 - kk) * 20, 1, kk)
-        pegar(b, num, W - marg - num.width / 2 + 10, H - 120, 1, .9 * e_out(prog(t, 1.2, .8))); return b
-    return f
-
-def s_memphis(c):
-    W, H = c.W, c.H; bg = plano((W, H), (255, 245, 225)); bd = 10; w, h = c.iw + 2 * bd, c.ih + 2 * bd
-    card = apilar((w + 52, h + 52), (plano((w, h), (255, 87, 127)).convert("RGBA"), (52, 52)), (plano((w, h), (0, 200, 200)).convert("RGBA"), (26, 26)), (plano((w, h), (255, 255, 255)).convert("RGBA"), (0, 0)), (c.im.convert("RGBA"), (bd, bd)))
-    ImageDraw.Draw(card).rectangle((0, 0, w - 1, h - 1), outline=(0, 0, 0), width=bd)
+    return base_tema(W, H, bg=b_, panel=panel, ft="mano", fh="mano", fb="mano", tit=(60, 40, 30), sub=(100, 75, 60), ph=(60, 40, 30), pb=(100, 75, 60), ac=(240, 90, 90), rot=lambda i: (-2.5 if i % 2 == 0 else 2.2))
+def T_editorial(W, H):
+    bg = plano((W, H), (244, 239, 230)); ink = (20, 20, 20); marg = int(W * .07); cab = lay_txt("EDICIÓN ESPECIAL · INFOGRAFÍA", "sans", W * .026, ink, W * .86, align="left")
+    def over(b, t, i):
+        d = ImageDraw.Draw(b); k = e_out(prog(t % 100, .1, .8)); d.rectangle((marg, 70, marg + (W - 2 * marg) * k, 76), fill=ink); pegar(b, cab, marg + cab.width / 2 - 10, 112); d.rectangle((marg, H - 90, marg + (W - 2 * marg) * k, H - 86), fill=ink)
+    return base_tema(W, H, bg=lambda t: bg.copy(), panel=None, over=over, ft="serif", fh="serif", fb="serifr", tit=ink, sub=(70, 70, 70), ph=ink, pb=(60, 60, 60), ac=(200, 40, 40), bshape="num", pw=lambda i: .84 * W)
+def T_memphis(W, H):
     def forma(k, col, sz):
         L = Image.new("RGBA", (sz + 20, sz + 20), (0, 0, 0, 0)); d = ImageDraw.Draw(L); o = 10
         if k == "c": d.ellipse((o, o, o + sz, o + sz), fill=col, outline=(0, 0, 0), width=6)
@@ -364,176 +326,153 @@ def s_memphis(c):
         elif k == "p":
             for i in range(3):
                 for j in range(3): d.ellipse((o + i * sz / 3, o + j * sz / 3, o + i * sz / 3 + 12, o + j * sz / 3 + 12), fill=col)
-        elif k == "r": d.rectangle((o, o, o + sz, o + sz * .6), fill=col, outline=(0, 0, 0), width=6)
+        else: d.rectangle((o, o, o + sz, o + sz * .6), fill=col, outline=(0, 0, 0), width=6)
         return L
-    fs = [("c", (255, 214, 0), 130, .12, .1), ("t", (94, 80, 255), 150, .86, .13), ("z", (255, 87, 127), 160, .14, .9), ("p", (0, 160, 160), 150, .85, .88), ("r", (255, 140, 0), 120, .9, .5), ("c", (0, 200, 200), 90, .08, .5), ("t", (255, 214, 0), 100, .5, .95)]
-    capas = [(forma(k, col, sz), px, py) for k, col, sz, px, py in fs]
-    tl = c.T("negra", .068, (0, 0, 0), sombra=(6, 6, (255, 214, 0)), mayus=True); sl = c.S("sans", .032, (60, 40, 110))
-    def f(t):
-        b = bg.copy()
-        for i, (L, px, py) in enumerate(capas): pegar(b, L, W * px + 22 * math.sin(t * .9 + i), H * py + 22 * math.cos(t * .8 + i * 1.3), e_back(prog(t, .1 + i * .08, .6)), 1, rot=t * (25 if i % 2 else -20))
-        s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 7), s * c.kb(t), a, rot=math.sin(t * 1.2) * 1.2); c.textos(b, t, tl, sl); return b
-    return f
-
-def s_material(c):
-    W, H = c.W, c.H; bg = plano((W, H), (238, 238, 238)); barh = int(H * .085); pri = (98, 0, 238)
-    w, h = c.iw, c.ih; pad = 70; s1 = sombra(w, h, 14, 8, 0, 6, (0, 0, 0), .35, pad); s2 = sombra(w, h, 14, 30, 0, 26, (0, 0, 0), .45, pad); im = redond(c.im, 14)
-    c1 = apilar(s1.size, (s1, (0, 0)), (im, (pad, pad))); c2 = apilar(s2.size, (s2, (0, 0)), (im, (pad, pad)))
-    tl = lay_txt(c.tit, "sansr", W * .05, (255, 255, 255), W * .8, align="left") if c.tit else None; sl = c.S("sansr", .03, (66, 66, 66))
-    fab = Image.new("RGBA", (190, 190), (0, 0, 0, 0)); fd = ImageDraw.Draw(fab); fd.ellipse((15, 25, 175, 185), fill=(0, 0, 0, 90)); fab = fab.filter(ImageFilter.GaussianBlur(6)); fd = ImageDraw.Draw(fab); fd.ellipse((15, 15, 175, 175), fill=(255, 64, 129)); fd.rectangle((88, 55, 102, 135), fill=(255, 255, 255)); fd.rectangle((55, 88, 135, 102), fill=(255, 255, 255))
-    def f(t):
-        b = bg.copy(); d = ImageDraw.Draw(b, "RGBA"); k = e_out(prog(t, 0, .5)); d.rectangle((0, 0, W, barh * k), fill=pri)
-        if tl is not None: pegar(b, tl, 40 + tl.width / 2, barh / 2, 1, e_out(prog(t, .3, .5)))
-        for i in range(3): d.ellipse((W - 50 - i * 22 - 5, barh / 2 - 5, W - 50 - i * 22 + 5, barh / 2 + 5), fill=(255, 255, 255, 230))
-        s, a = ent(t, .3); el = e_io(prog(t, .9, .9)); pegar(b, c1, c.cx, c.cy + flot(t, 3), s * c.kb(t), a); pegar(b, c2, c.cx, c.cy + flot(t, 3) - 8 * el, s * c.kb(t), a * el)
-        r = prog(t, 1.7, .9)
-        if 0 < r < 1:
-            rr = r * max(c.iw, c.ih) * .75; ov = Image.new("RGBA", (W, H), (0, 0, 0, 0)); ImageDraw.Draw(ov).ellipse((c.cx - rr, c.cy - rr, c.cx + rr, c.cy + rr), fill=(98, 0, 238, int(90 * (1 - r)))); mk = Image.new("L", (W, H), 0); mk.paste(mask_rr((c.iw, c.ih), 14), (int(c.cx - c.iw / 2), int(c.cy - c.ih / 2))); ov.putalpha(ImageChops.multiply(ov.getchannel("A"), mk)); b.paste(ov.convert("RGB"), (0, 0), ov.getchannel("A"))
-        if sl is not None: kk = e_out(prog(t, 1.1, .6)); pegar(b, sl, c.cx, min(H - 200, c.cy + c.ih / 2 + .05 * H), 1, kk)
-        pegar(b, fab, W - 130, H - 130, e_back(prog(t, 1.3, .6)) * (1 + .05 * math.sin(t * 3)), 1); return b
-    return f
-
-def s_apple(c):
-    W, H = c.W, c.H; fondo = ImageOps.fit(c.img.convert("RGB"), (int(W * 1.18), int(H * 1.18)), Image.BILINEAR).filter(ImageFilter.GaussianBlur(60))
-    fondo = Image.blend(fondo, Image.new("RGB", fondo.size, (40, 40, 60)), .15); fondo = ImageEnhance_color(fondo, 1.5)
-    w, h = c.iw, c.ih; pad = 80; im = redond(c.im, 64); sh = sombra(w, h, 64, 34, 0, 30, (0, 0, 0), .5, pad)
-    borde = Image.new("RGBA", (w, h), (0, 0, 0, 0)); ImageDraw.Draw(borde).rounded_rectangle((0, 0, w - 1, h - 1), 64, outline=(255, 255, 255, 120), width=3); card = apilar(sh.size, (sh, (0, 0)), (im, (pad, pad)), (borde, (pad, pad)))
-    cap = None
-    if c.tit:
-        t0 = lay_txt(c.tit, "sans", W * .05, (255, 255, 255), W * .74); cap = Image.new("RGBA", (t0.width + 80, t0.height + 40), (0, 0, 0, 0)); cd = ImageDraw.Draw(cap); cd.rounded_rectangle((0, 0, cap.width - 1, cap.height - 1), cap.height // 2, fill=(255, 255, 255, 60), outline=(255, 255, 255, 140), width=2); cap.alpha_composite(t0, (40, 20))
-    sl = c.S("sansl", .032, (255, 255, 255))
-    def f(t):
-        z = 1 + .06 * t / c.dur; fw, fh = int(W * z), int(H * z); bg = fondo.resize((fw, fh), Image.BILINEAR).crop(((fw - W) // 2, (fh - H) // 2, (fw - W) // 2 + W, (fh - H) // 2 + H)); s, a = ent(t); pegar(bg, card, c.cx, c.cy + flot(t, 8), s * c.kb(t), a)
-        g = prog((t - 1.4) % 4.0, 0, 1.0)
-        if t > 1.4 and g < 1:
-            ov = Image.new("RGBA", (w, h), (0, 0, 0, 0)); x = int(lerp(-w * .4, w * 1.1, g)); ImageDraw.Draw(ov).polygon([(x, 0), (x + 120, 0), (x - 90, h), (x - 210, h)], fill=(255, 255, 255, 90)); ov = ov.filter(ImageFilter.GaussianBlur(18)); ov.putalpha(ImageChops.multiply(ov.getchannel("A"), mask_rr((w, h), 64)))
-            bg.paste(ov.convert("RGB"), (int(c.cx - w / 2), int(c.cy + flot(t, 8) - h / 2)), ov.getchannel("A"))
-        if cap is not None: k = e_back(prog(t, .6, .7)); pegar(bg, cap, c.cx, max(cap.height / 2 + .04 * H, c.cy - h / 2 - .04 * H - cap.height / 2), k, cl(k * 3))
-        if sl is not None: k = e_out(prog(t, 1., .7)); pegar(bg, sl, c.cx, min(H - sl.height / 2 - .04 * H, c.cy + h / 2 + .04 * H + sl.height / 2) + (1 - k) * 30, 1, k)
-        return bg
-    return f
-def ImageEnhance_color(im, k):
-    from PIL import ImageEnhance
-    return ImageEnhance.Color(im).enhance(k)
-
-def s_fluent(c):
-    W, H = c.W, c.H; acc = (0, 120, 212); bar = 66; w, h = c.iw, c.ih + bar; pad = 70
-    ven = Image.new("RGBA", (w, h), (0, 0, 0, 0)); d = ImageDraw.Draw(ven); d.rectangle((0, 0, w, bar), fill=(248, 248, 250)); d.text((22, 13), (c.tit or "Infografía")[:26], font=F("sansr", 30), fill=(30, 30, 30))
-    for i, g in enumerate(("—", "▢", "✕")): d.text((w - 150 + i * 50, 12), g, font=F("sansr", 30), fill=(60, 60, 60))
-    ven.alpha_composite(c.im.convert("RGBA"), (0, bar)); ven.putalpha(mask_rr((w, h), 14)); bd = Image.new("RGBA", (w, h), (0, 0, 0, 0)); ImageDraw.Draw(bd).rounded_rectangle((0, 0, w - 1, h - 1), 14, outline=(0, 0, 0, 40), width=2)
-    sh = sombra(w, h, 14, 26, 0, 20, (0, 0, 0), .35, pad); card = apilar(sh.size, (sh, (0, 0)), (ven, (pad, pad)), (bd, (pad, pad)))
-    luz = Image.new("RGBA", (300, 300), (0, 0, 0, 0)); ld = ImageDraw.Draw(luz)
-    for r in range(150, 0, -6): ld.ellipse((150 - r, 150 - r, 150 + r, 150 + r), fill=(255, 255, 255, int(70 * (1 - r / 150))))
-    sl = c.S("sansr", .03, (40, 40, 40)); ac = None
-    if sl is not None:
-        ac = Image.new("RGBA", (sl.width + 60, sl.height + 30), (0, 0, 0, 0)); ImageDraw.Draw(ac).rounded_rectangle((0, 0, ac.width - 1, ac.height - 1), 20, fill=(255, 255, 255, 200), outline=(0, 0, 0, 30), width=2); ac.alpha_composite(sl, (30, 15))
-    def f(t):
-        b = blobs(W, H, [(243, 243, 243), (222, 236, 250), (236, 232, 250), (250, 240, 232)], t, .3, .9); s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 6), s * c.kb(t), a)
-        g = prog(t, 1., 2.0)
-        if 0 < g < 1:
-            ov = Image.new("RGBA", (w, h), (0, 0, 0, 0)); ov.alpha_composite(luz, (int(lerp(-150, w - 150, g)), int(h * .5 - 150 + 120 * math.sin(g * 6)))); ov.putalpha(ImageChops.multiply(ov.getchannel("A"), mask_rr((w, h), 14))); b.paste(ov.convert("RGB"), (int(c.cx - w / 2), int(c.cy + flot(t, 6) - h / 2)), ov.getchannel("A"))
-        d = ImageDraw.Draw(b); yy = c.cy + h / 2 + 40; d.rounded_rectangle((c.cx - 180, yy, c.cx + 180, yy + 8), 4, fill=(200, 200, 200)); d.rounded_rectangle((c.cx - 180, yy, c.cx - 180 + 360 * e_io(prog(t, .8, 2.0)), yy + 8), 4, fill=acc)
-        if ac is not None: k = e_out(prog(t, 1.2, .6)); pegar(b, ac, c.cx, yy + 70 + ac.height / 2, 1, k)
+    fs = [("c", (255, 214, 0), 130, .12, .08), ("t", (94, 80, 255), 150, .86, .1), ("z", (255, 87, 127), 160, .14, .92), ("p", (0, 160, 160), 150, .85, .9), ("r", (255, 140, 0), 120, .92, .5), ("c", (0, 200, 200), 90, .07, .5)]
+    capas = [(forma(k, col, sz), px, py) for k, col, sz, px, py in fs]; bg0 = plano((W, H), (255, 245, 225))
+    def bg(t):
+        b = bg0.copy()
+        for i, (L, px, py) in enumerate(capas): pegar(b, L, W * px + 22 * math.sin(t * .9 + i), H * py + 22 * math.cos(t * .8 + i * 1.3), 1, 1, rot=t * (25 if i % 2 else -20))
         return b
-    return f
+    def panel(w, h, i):
+        pad = 60; L = Image.new("RGBA", (w + 2 * pad + 52, h + 2 * pad + 52), (0, 0, 0, 0)); d = ImageDraw.Draw(L); d.rectangle((pad + 52, pad + 52, pad + 52 + w, pad + 52 + h), fill=(255, 87, 127)); d.rectangle((pad + 26, pad + 26, pad + 26 + w, pad + 26 + h), fill=(0, 200, 200)); d.rectangle((pad, pad, pad + w, pad + h), fill=(255, 255, 255), outline=(0, 0, 0), width=10); return L, pad
+    return base_tema(W, H, bg=bg, panel=panel, ft="negra", fh="negra", fb="sans", tit=(0, 0, 0), sub=(60, 40, 110), ph=(0, 0, 0), pb=(60, 40, 110), ac=(255, 214, 0), bn=(0, 0, 0), sombra_t=(6, 6, (255, 214, 0)), mayus=True)
+def T_material(W, H):
+    bg = plano((W, H), (238, 238, 238)); barh = int(H * .085); fab = Image.new("RGBA", (190, 190), (0, 0, 0, 0)); fd = ImageDraw.Draw(fab); fd.ellipse((15, 25, 175, 185), fill=(0, 0, 0, 90)); fab = fab.filter(ImageFilter.GaussianBlur(6)); fd = ImageDraw.Draw(fab)
+    fd.ellipse((15, 15, 175, 175), fill=(255, 64, 129)); fd.rectangle((88, 55, 102, 135), fill=(255, 255, 255)); fd.rectangle((55, 88, 135, 102), fill=(255, 255, 255))
+    def over(b, t, i):
+        d = ImageDraw.Draw(b, "RGBA"); d.rectangle((0, 0, W, barh), fill=(98, 0, 238)); d.text((40, barh / 2 - 22), "Infografía", font=F("sansr", 40), fill=(255, 255, 255))
+        for j in range(3): d.ellipse((W - 50 - j * 22 - 5, barh / 2 - 5, W - 50 - j * 22 + 5, barh / 2 + 5), fill=(255, 255, 255, 230))
+        pegar(b, fab, W - 130, H - 130, 1 + .05 * math.sin(t * 3))
+    return base_tema(W, H, bg=lambda t: bg.copy(), panel=lambda w, h, i: panel_s(w, h, 14, (255, 255, 255), (28, 0, 20, (0, 0, 0), .4)), over=over, cy=.52 * H, tit=(33, 33, 33), sub=(90, 90, 90), ph=(33, 33, 33), pb=(90, 90, 90), ac=(98, 0, 238), fb="sansr")
+def T_apple(W, H):
+    cols = [(255, 94, 98), (255, 153, 102), (120, 80, 255), (30, 190, 220), (255, 90, 200)]
+    def bg(t): return Image.blend(blobs(W, H, cols, t, .3, .9), Image.new("RGB", (W, H), (20, 20, 40)), .35)
+    return base_tema(W, H, bg=bg, panel=lambda w, h, i: panel_s(w, h, 72, (255, 255, 255, 70), (34, 0, 28, (0, 0, 0), .4), borde=(3, (255, 255, 255, 130))), tit=(255, 255, 255), sub=(255, 255, 255), ph=(255, 255, 255), pb=(240, 240, 250), ac=(255, 255, 255), bn=(40, 40, 80), fh="sans", fb="sansl")
+def T_fluent(W, H):
+    cols = [(243, 243, 243), (222, 236, 250), (236, 232, 250), (250, 240, 232)]
+    return base_tema(W, H, bg=lambda t: blobs(W, H, cols, t, .3, .9), panel=lambda w, h, i: ventana(w, h, 66, (248, 248, 250), (255, 255, 255), "Paso %d" % (i + 1), (30, 30, 30), r=14, sh=(26, 0, 20, (0, 0, 0), .35), pad=70), ctop=66, tit=(30, 30, 30), sub=(80, 80, 80), ph=(30, 30, 30), pb=(80, 80, 80), ac=(0, 120, 212), fb="sansr")
+def T_responsivo(W, H):
+    fondo = vgrad(W, H, (238, 243, 255), (222, 232, 252)); labs = ["Móvil", "Tablet", "Escritorio"]; lt = [lay_txt(x, "sans", W * .032, (110, 120, 160), W) for x in labs]; la = [lay_txt(x, "sans", W * .032, (255, 255, 255), W) for x in labs]
+    def panel(w, h, i):
+        pad = 60; bz = 26 if i % 3 == 0 else 20; L = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0)); L.alpha_composite(sombra(w, h, 40, 30, 0, 26, (30, 41, 90), .35, pad)); d = ImageDraw.Draw(L)
+        d.rounded_rectangle((pad, pad, pad + w, pad + h), 40 if i % 3 == 0 else 24, fill=(28, 28, 34)); d.rounded_rectangle((pad + bz, pad + bz, pad + w - bz, pad + h - bz), 20 if i % 3 == 0 else 8, fill=(255, 255, 255)); return L, pad
+    def over(b, t, i):
+        d = ImageDraw.Draw(b)
+        for j in range(3):
+            x = W / 2 + (j - 1) * 270
+            if j == max(0, i) % 3: d.rounded_rectangle((x - 120, H * .92 - 34, x + 120, H * .92 + 34), 34, fill=(60, 90, 230))
+            pegar(b, la[j] if j == max(0, i) % 3 else lt[j], x, H * .92)
+    return base_tema(W, H, bg=lambda t: fondo.copy(), panel=panel, over=over, pw=lambda i: (.64, .82, .9)[i % 3] * W, cy=.47 * H, mx=.12, my=.1, tit=(30, 41, 90), sub=(80, 90, 150), ph=(30, 41, 90), pb=(80, 90, 130), ac=(60, 90, 230))
+def T_accesible(W, H):
+    bg = plano((W, H), (0, 0, 0))
+    def panel(w, h, i):
+        pad = 50; L = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0)); d = ImageDraw.Draw(L); d.rounded_rectangle((pad, pad, pad + w, pad + h), 24, fill=(0, 0, 0), outline=(255, 255, 255), width=12); dash_rect(d, (pad - 24, pad - 24, pad + w + 24, pad + h + 24), (255, 221, 0), 8, 30, 18); return L, pad
+    return base_tema(W, H, bg=lambda t: bg.copy(), panel=panel, esc=1.12, ft="sans", fh="sans", fb="sans", tit=(255, 221, 0), sub=(255, 255, 255), ph=(255, 221, 0), pb=(255, 255, 255), ac=(255, 221, 0), bn=(0, 0, 0))
+def T_atomico(W, H):
+    base = plano((W, H), (247, 248, 252)); d = ImageDraw.Draw(base)
+    for x in range(0, W, 60):
+        for y in range(0, H, 60): d.ellipse((x, y, x + 4, y + 4), fill=(215, 220, 238))
+    acc = (88, 80, 236); labs = ["ÁTOMO", "MOLÉCULA", "ORGANISMO"]; sw = [(88, 80, 236), (255, 87, 127), (255, 190, 60), (30, 200, 160), (30, 35, 80)]
+    lays = [lay_txt(x, "mono", W * .028, acc, W) for x in labs]
+    def panel(w, h, i):
+        pad = 70; L, p = panel_s(w, h, 26, (255, 255, 255), (18, 0, 12, (40, 40, 100), .25), pad=pad); dd = ImageDraw.Draw(L); dash_rect(dd, (pad - 14, pad - 14, pad + w + 14, pad + h + 14), acc, 4); return L, pad
+    def over(b, t, i):
+        dd = ImageDraw.Draw(b)
+        for j, col in enumerate(sw): k = e_back(prog(t % 100, .2 + j * .1, .5)); r = 24 * k; x = W * .1 + j * 70; dd.ellipse((x - r, H * .055 - r, x + r, H * .055 + r), fill=col)
+        pegar(b, lays[max(0, i) % 3], W / 2, H * .15 if i >= 0 else H * .1, 1, 1)
+    return base_tema(W, H, bg=lambda t: base.copy(), panel=panel, over=over, tit=(30, 35, 80), sub=(80, 88, 130), ph=(30, 35, 80), pb=(80, 88, 130), ac=acc, cy=.52 * H)
+def T_oscuro(W, H, dark):
+    bgc = (16, 18, 26) if dark else (246, 247, 251); tc = (240, 242, 250) if dark else (25, 28, 45); sc = (150, 158, 185) if dark else (100, 108, 135); bg = plano((W, H), bgc)
+    def panel(w, h, i):
+        pad = 80
+        if dark:
+            L = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0)); gl = Image.new("RGBA", L.size, (0, 0, 0, 0)); ImageDraw.Draw(gl).rounded_rectangle((pad, pad, pad + w, pad + h), 30, fill=(110, 130, 255, 70)); L.alpha_composite(gl.filter(ImageFilter.GaussianBlur(26)))
+            L.alpha_composite(redond(plano((w, h), (28, 31, 44)), 30), (pad, pad)); ImageDraw.Draw(L).rounded_rectangle((pad, pad, pad + w, pad + h), 30, outline=(120, 135, 255, 180), width=3); return L, pad
+        return panel_s(w, h, 30, (255, 255, 255), (28, 0, 22, (60, 70, 120), .28))
+    def over(b, t, i):
+        d = ImageDraw.Draw(b); x0 = W - 210; d.rounded_rectangle((x0, 55, x0 + 120, 105), 25, fill=(60, 66, 100) if dark else (205, 210, 230)); kx = x0 + 25 + 70 * (1 if dark else 0); d.ellipse((kx - 19, 61, kx + 19, 99), fill=(255, 255, 255))
+    return base_tema(W, H, bg=lambda t: bg.copy(), panel=panel, over=over, tit=tc, sub=sc, ph=tc, pb=sc, ac=(110, 130, 255), bn=(255, 255, 255))
 
-def s_responsivo(c):
-    W, H = c.W, c.H; tl = c.T("sans", .056, (30, 41, 90)); labs = ["Móvil", "Tablet", "Escritorio"]; ars = [.47, .75, 1.6]
-    lt = [lay_txt(x, "sans", W * .032, (110, 120, 160), W) for x in labs]; la = [lay_txt(x, "sans", W * .032, (255, 255, 255), W) for x in labs]
-    def ar(t):
-        ph = ((t - .4) / ((c.dur - .4) / 3)) if t > .4 else 0; ph = cl(ph, 0, 2.999); i = int(ph); x = ph - i; x = e_io(cl((x - .45) / .5)) if i < 2 else 0
-        return ars[i] + (ars[min(2, i + 1)] - ars[i]) * x, (i + (1 if x > .5 else 0)) if i < 2 else 2
-    def f(t):
-        b = vgrad(W, H, (238, 243, 255), (222, 232, 252)); a_r, idx = ar(t); mw = W * .8; mh = H * (.5 if c.tit else .58); w = min(mw, mh * a_r); h = w / a_r; bz = 26 if a_r < 1 else 20; sp = ent(t)
-        cy = c.cy + (.0 if c.tit else 0); cy = H * (.5 if c.tit else .46); d = ImageDraw.Draw(b)
-        sh = sombra(int(w), int(h), 40, 30, 0, 26, (30, 41, 90), .35, 60); b.paste(sh.convert("RGB"), (int(c.cx - sh.width / 2), int(cy - sh.height / 2)), sh.getchannel("A").point(lambda v: int(v * sp[1])))
-        d.rounded_rectangle((c.cx - w / 2, cy - h / 2, c.cx + w / 2, cy + h / 2), 38 if a_r < 1 else 24, fill=(28, 28, 34)); sw, shh = int(w - 2 * bz), int(h - 2 * bz)
-        scr = Image.new("RGB", (sw, shh), (255, 255, 255)); im = contain(c.img, sw, shh); scr.paste(im, ((sw - im.width) // 2, (shh - im.height) // 2)); b.paste(scr, (int(c.cx - sw / 2), int(cy - shh / 2)), mask_rr((sw, shh), 20 if a_r < 1 else 8))
-        if a_r > 1.2: d.rectangle((c.cx - 90, cy + h / 2, c.cx + 90, cy + h / 2 + 26), fill=(160, 165, 180)); d.rounded_rectangle((c.cx - 200, cy + h / 2 + 24, c.cx + 200, cy + h / 2 + 44), 8, fill=(190, 195, 210))
-        for i in range(3):
-            x = c.cx + (i - 1) * 270; src = la[i] if i == idx else lt[i]
-            if i == idx: d.rounded_rectangle((x - 120, H * .9 - 34, x + 120, H * .9 + 34), 34, fill=(60, 90, 230))
-            pegar(b, src, x, H * .9, 1, 1)
-        if tl is not None: k = e_out(prog(t, .4, .6)); pegar(b, tl, c.cx, max(tl.height / 2 + .035 * H, .09 * H) + (1 - k) * 30, 1, k)
+TEMAS = {"minimalista": T_minimalista, "flat": T_flat, "skeuo": T_skeuo, "neumorfismo": T_neumorfismo, "glass": T_glass, "clay": T_clay, "neobrutalismo": T_neobrutalismo, "bento": T_bento, "neon": T_neon, "aurora": T_aurora,
+         "retro": T_retro, "isometrico": T_isometrico, "ilustrado": T_ilustrado, "editorial": T_editorial, "memphis": T_memphis, "material": T_material, "apple": T_apple, "fluent": T_fluent, "responsivo": T_responsivo,
+         "accesible": T_accesible, "atomico": T_atomico, "oscuro": None}
+ESTILOS = list(TEMAS.keys())
+
+# ---------------------------------------------------------------- 4) ESCENAS: intro -> un panel por punto -> cierre
+class Video:
+    def __init__(s, th, D, W, H, k):
+        s.th, s.W, s.H, s.sc = th, W, H, []; e = th["esc"]; t = 0.0; may = th["mayus"]; sb = th["sombra_t"]
+        if D["titulo"]:
+            tm = maq(D["titulo"], th["ft"], W * .088 * e, th["tit"], W * .84, may); sm = maq(D["subtitulo"], th["fb"], W * .04 * e, th["sub"], W * .8) if D["subtitulo"] else None
+            dur = k * min(5, 1.8 + .12 * (tm["n"] + (sm["n"] if sm else 0))); s.sc.append(dict(k="intro", a=t, b=t + dur, tm=tm, sm=sm)); t += dur
+        for i, p in enumerate(D["puntos"]):
+            pw = int(th["pw"](i)); mx = int(pw * th["mx"]); iw = pw - 2 * mx
+            hm = maq(p["encabezado"] or p["texto"], th["fh"], W * .068 * e, th["ph"], iw, may) if (p["encabezado"] or p["texto"]) else None
+            bm = maq(p["texto"], th["fb"], W * .046 * e, th["pb"], iw) if (p["texto"] and p["encabezado"]) else None
+            bd = W * .105 * e if th["bshape"] != "none" else 0; gap = W * .028; ch = bd + gap + (hm["h"] if hm else 0) + (W * .02 + bm["h"] if bm else 0); my = int(max(W * .04, ch * th["my"] * 1.4))
+            ph = int(ch + 2 * my + th["ctop"]); ph = max(int(H * .3), min(ph, int(H * .86))); my = int((ph - th["ctop"] - ch) / 2); pan = th["panel"](pw, ph, i) if th["panel"] else None
+            dur = k * max(2.6, min(6.5, 1.8 + .26 * ((hm["n"] if hm else 0) + (bm["n"] if bm else 0)))); s.sc.append(dict(k="punto", i=i, a=t, b=t + dur, hm=hm, bm=bm, pw=pw, ph=ph, mx=mx, my=my, bd=bd, gap=gap, ch=ch, iw=iw, pan=pan)); t += dur
+        if D["cierre"]:
+            cm = maq(D["cierre"], th["ft"], W * .075 * e, th["tit"], W * .82, may); dur = k * min(5, 2.2 + .12 * cm["n"]); s.sc.append(dict(k="cierre", a=t, b=t + dur, tm=cm)); t += dur
+        if not s.sc: sys.exit("No hay texto que animar.")
+        s.total = t
+    def _bloque(s, b, M, cx, cy, tr, ini, paso, alpha, sombra=None):
+        w, h = int(M["w"]) + 40, int(M["h"]) + 30; C = Image.new("RGBA", (w, h), (0, 0, 0, 0)); dib_pal(C, M, tr, ini, paso, 20, 8, sombra); pegar(b, C, cx, cy, 1, alpha)
+    def frame(s, t):
+        th = s.th; W, H = s.W, s.H; b = th["bg"](t); act = None
+        for sc in s.sc:
+            if sc["a"] <= t < sc["b"]: act = sc; break
+        if act is None: act = s.sc[-1]
+        tr = t - act["a"]; ret = act["b"] - t; al = min(cl(tr / .4), cl(ret / .3)) if act is not s.sc[-1] else cl(tr / .4); idx = -1
+        if act["k"] in ("intro", "cierre"):
+            tm, sm = act["tm"], act.get("sm"); n = tm["n"] + (sm["n"] if sm else 0); paso = min(.16, (act["b"] - act["a"]) * .5 / n); tot = tm["h"] + (sm["h"] + W * .03 if sm else 0); y0 = H * .5 - tot / 2
+            s._bloque(b, tm, W / 2, y0 + tm["h"] / 2, tr, .1, paso, al, th["sombra_t"])
+            ImageDraw.Draw(b).rectangle((W / 2 - W * .1 * e_out(prog(tr, .5, .6)), y0 - W * .05, W / 2 + W * .1 * e_out(prog(tr, .5, .6)), y0 - W * .05 + 10), fill=th["ac"])
+            if sm: s._bloque(b, sm, W / 2, y0 + tm["h"] + W * .03 + sm["h"] / 2, tr, .1 + tm["n"] * paso + .2, paso, al)
+        else:
+            idx = act["i"]; hm, bm = act["hm"], act["bm"]; n = (hm["n"] if hm else 0) + (bm["n"] if bm else 0); paso = min(.13, (act["b"] - act["a"]) * .5 / max(1, n)); C = Image.new("RGBA", (act["iw"] + 40, int(act["ch"] + 40)), (0, 0, 0, 0)); y = 0.0
+            if act["bd"]:
+                kb = e_back(prog(tr, .15, .5)); bd = act["bd"]; cx = C.width / 2; cy = bd / 2; r = bd / 2 * max(0.01, kb); d = ImageDraw.Draw(C, "RGBA"); num = str(idx + 1); fn = F("negra" if th["bshape"] != "num" else "serif", bd * (.5 if th["bshape"] != "num" else 1.0))
+                if th["bshape"] == "circle": d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=th["ac"])
+                elif th["bshape"] == "square": d.rounded_rectangle((cx - r, cy - r, cx + r, cy + r), 8, fill=th["ac"], outline=(0, 0, 0), width=6)
+                col = th["bn"] if th["bshape"] != "num" else th["ac"]
+                if kb > .3: d.text((cx, cy), num, font=fn, fill=tuple(col[:3]) + (int(255 * cl(kb)),), anchor="mm")
+                y = bd + act["gap"]
+            ini = .35
+            if hm: dib_pal(C, hm, tr, ini, paso, 20, y, th["sombra_t"]); y += hm["h"] + W * .02; ini += hm["n"] * paso + .15
+            if bm: dib_pal(C, bm, tr, ini, paso, 20, y)
+            k = lerp(.72, 1.0, e_back(prog(tr, 0, .55))) * (1 + .012 * tr / max(.1, act["b"] - act["a"]))
+            if act["pan"]:
+                L, pad = act["pan"]; L = L.copy(); L.alpha_composite(C, (int(pad + act["mx"] - 20), int(pad + act["my"] + th["ctop"]))); pegar(b, L, W / 2, th["cy"], k, al, th["rot"](idx))
+            else: pegar(b, C, W / 2, th["cy"], k, al)
+        if th["over"]: th["over"](b, t, idx)
         return b
-    return f
 
-def s_accesible(c):
-    W, H = c.W, c.H; bd = 14; w, h = c.iw + 2 * bd, c.ih + 2 * bd; card = Image.new("RGBA", (w, h), (255, 255, 255, 255)); card.alpha_composite(c.im.convert("RGBA"), (bd, bd)); card = redond(card.convert("RGB"), 18)
-    tl = c.T("sans", .08, (255, 221, 0)); sl = c.S("sans", .042, (255, 255, 255)); pills = []
-    for txt, col, fg in (("Contraste 21:1", (255, 255, 255), (0, 0, 0)), ("WCAG AAA", (0, 200, 90), (0, 0, 0)), ("Aa  Texto grande", (255, 221, 0), (0, 0, 0))):
-        tx = lay_txt(txt, "sans", W * .03, fg, W); L = Image.new("RGBA", (tx.width + 50, tx.height + 24), (0, 0, 0, 0)); ImageDraw.Draw(L).rounded_rectangle((0, 0, L.width - 1, L.height - 1), L.height // 2, fill=col); L.alpha_composite(tx, (25, 8)); pills.append(L)
+def construir(clave, D, W, H, dur_fija):
+    th = T_oscuro(W, H, False) if clave == "oscuro" else TEMAS[clave](W, H)
+    v0 = Video(th, D, W, H, 1.0); k = (dur_fija / v0.total) if dur_fija else 1.0
+    if k > 1.6: k = 1.6
+    if k != 1.0: v0 = Video(th, D, W, H, k)
+    if clave != "oscuro": return v0.frame, v0.total
+    v1 = Video(T_oscuro(W, H, True), D, W, H, k); T0 = v0.total * .38; tx, ty = W - 150, 80
     def f(t):
-        b = plano((W, H), (0, 0, 0)); s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 4), s * c.kb(t), a); k = prog(t, .6, .6)
-        if k > 0:
-            d = ImageDraw.Draw(b); ex = 26 + 4 * math.sin(t * 4); sc_ = s * c.kb(t); x0, y0 = c.cx - w * sc_ / 2 - ex, c.cy + flot(t, 4) - h * sc_ / 2 - ex; x1, y1 = c.cx + w * sc_ / 2 + ex, c.cy + flot(t, 4) + h * sc_ / 2 + ex
-            if int(t * 2.5) % 2 == 0 or k < 1: d.rounded_rectangle((x0, y0, x1, y1), 30, outline=(255, 221, 0), width=int(10 * k))
-        c.textos(b, t, tl, sl, 1.05)
-        tot = sum(p.width for p in pills) + 30 * 2; x = c.cx - tot / 2; y = min(H - 70, c.cy + c.ih / 2 + .13 * H)
-        if sl is None: y = min(H - 70, c.cy + c.ih / 2 + .06 * H)
-        for i, p in enumerate(pills): kk = e_back(prog(t, 1.2 + i * .25, .5)); pegar(b, p, x + p.width / 2, y, kk, cl(kk * 3)); x += p.width + 30
-        return b
-    return f
-
-def s_atomico(c):
-    W, H = c.W, c.H; marg = int(W * .07); mono = lambda tx, col=(90, 100, 140): lay_txt(tx, "mono", W * .026, col, W)
-    acc = (88, 80, 236); tl = c.T("sans", .062, (30, 35, 80)); sl = c.S("sansr", .03, (80, 88, 130)); w, h = c.iw + 50, c.ih + 50; marco = Image.new("RGBA", (w + 4, h + 4), (0, 0, 0, 0)); sh = sombra(w, h, 22, 18, 0, 12, (40, 40, 100), .25, 40)
-    card = apilar(sh.size, (sh, (0, 0)), (redond(plano((w, h), (255, 255, 255)), 22), (40, 40)), (redond(c.im, 14), (65, 65)))
-    sw = [(88, 80, 236), (255, 87, 127), (255, 190, 60), (30, 200, 160), (30, 35, 80)]; lab = [mono("ÁTOMOS"), mono("MOLÉCULAS"), mono("ORGANISMO", acc)]
-    boton = Image.new("RGBA", (250, 76), (0, 0, 0, 0)); ImageDraw.Draw(boton).rounded_rectangle((0, 0, 249, 75), 38, fill=acc); boton.alpha_composite(lay_txt("Botón", "sans", 34, (255, 255, 255), 240), (60, 8))
-    chip = Image.new("RGBA", (220, 76), (0, 0, 0, 0)); ImageDraw.Draw(chip).rounded_rectangle((0, 0, 219, 75), 38, fill=(255, 255, 255), outline=(200, 205, 230), width=3); chip.alpha_composite(lay_txt("Etiqueta", "sans", 30, (30, 35, 80), 200), (38, 10))
-    def f(t):
-        b = plano((W, H), (247, 248, 252)); d = ImageDraw.Draw(b)
-        for x in range(0, W, 60):
-            for y in range(0, H, 60): d.ellipse((x, y, x + 4, y + 4), fill=(215, 220, 238))
-        ty = H * .08
-        if tl is not None: k = e_out(prog(t, .1, .6)); pegar(b, tl, c.cx, max(tl.height / 2 + .03 * H, ty + tl.height / 2) + (1 - k) * 25, 1, k); ty += tl.height + 14
-        y1 = ty + 40; pegar(b, lab[0], marg + 80, y1 - 40, 1, e_out(prog(t, .3, .4)))
-        for i, col in enumerate(sw): kk = e_back(prog(t, .35 + i * .12, .5)); x = marg + 40 + i * 86; d2 = 60 * kk; d.ellipse((x - d2 / 2 + 40, y1 + 40 - d2 / 2, x + d2 / 2 + 40, y1 + 40 + d2 / 2), fill=col)
-        pegar(b, boton, W - marg - 125, y1 + 40, e_back(prog(t, 1., .5)), 1); y2 = y1 + 150; pegar(b, lab[1], marg + 105, y2 - 15, 1, e_out(prog(t, .9, .4))); pegar(b, chip, marg + 110, y2 + 55, e_back(prog(t, 1.2, .5)), 1)
-        cy = max(c.cy + .06 * H, y2 + 130 + h / 2) if c.tit else c.cy + .06 * H; cy = min(cy, H - h / 2 - .12 * H); s, a = ent(t, 1.5, .8); pegar(b, card, c.cx, cy + flot(t, 4), s, a)
-        k = prog(t, 2.0, .6)
-        if k > 0: dash_rect(d, (c.cx - w / 2 - 20, cy - h / 2 - 20, c.cx + w / 2 + 20, cy + h / 2 + 20), acc, 4); pegar(b, lab[2], c.cx, cy - h / 2 - 46, 1, k)
-        if sl is not None: pegar(b, sl, c.cx, min(H - sl.height / 2 - .03 * H, cy + h / 2 + .06 * H), 1, e_out(prog(t, 2.2, .6)))
-        return b
-    return f
-
-def s_oscuro(c):
-    W, H = c.W, c.H; tx, ty, tr = W - 150, 90, 150
-    def tema(dark):
-        bgc = (16, 18, 26) if dark else (246, 247, 251); tc = (240, 242, 250) if dark else (25, 28, 45); sc = (150, 158, 185) if dark else (100, 108, 135)
-        w, h = c.iw, c.ih; pad = 70
-        if dark: gl = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0)); ImageDraw.Draw(gl).rounded_rectangle((pad, pad, pad + w, pad + h), 28, fill=(110, 130, 255, 70)); sh = gl.filter(ImageFilter.GaussianBlur(26))
-        else: sh = sombra(w, h, 28, 28, 0, 22, (60, 70, 120), .28, pad)
-        card = apilar(sh.size, (sh, (0, 0)), (redond(c.im, 28), (pad, pad)))
-        if dark: ImageDraw.Draw(card).rounded_rectangle((pad, pad, pad + w, pad + h), 28, outline=(120, 135, 255, 180), width=3)
-        return bgc, card, c.T("sans", .064, tc), c.S("sansr", .032, sc)
-    L = tema(False); D = tema(True)
-    def capa(t, th, dark):
-        bgc, card, tl, sl = th; b = plano((W, H), bgc); s, a = ent(t); pegar(b, card, c.cx, c.cy + flot(t, 7), s * c.kb(t), a); c.textos(b, t, tl, sl)
-        d = ImageDraw.Draw(b); k = e_io(prog(t, 1.4, .5)) if dark else 0; x0 = W - 210; d.rounded_rectangle((x0, 55, x0 + 120, 105), 25, fill=(60, 66, 100) if dark else (205, 210, 230)); kx = x0 + 25 + 70 * (1 if dark else 0)
-        d.ellipse((kx - 19, 61, kx + 19, 99), fill=(255, 255, 255)); return b
-    def f(t):
-        t0, t1 = 1.4, 2.6
-        if t < t0: return capa(t, L, False)
-        k = e_io(prog(t, t0, t1 - t0)); a = capa(t, L, False); bb = capa(t, D, True)
-        if k >= 1: return bb
-        m = Image.new("L", (W, H), 0); r = k * math.hypot(W, H) * 1.05; ImageDraw.Draw(m).ellipse((tx - r, ty - r, tx + r, ty + r), fill=255); return Image.composite(bb, a, m)
-    return f
-
-ESTILOS = {"minimalista": s_minimalista, "flat": s_flat, "skeuo": s_skeuo, "neumorfismo": s_neumorfismo, "glass": s_glass, "clay": s_clay, "neobrutalismo": s_neobrutalismo,
-           "bento": s_bento, "neon": s_neon, "aurora": s_aurora, "retro": s_retro, "isometrico": s_isometrico, "ilustrado": s_ilustrado, "editorial": s_editorial, "memphis": s_memphis,
-           "material": s_material, "apple": s_apple, "fluent": s_fluent, "responsivo": s_responsivo, "accesible": s_accesible, "atomico": s_atomico, "oscuro": s_oscuro}
+        a = v0.frame(t)
+        if t < T0: return a
+        kk = e_io(prog(t, T0, 1.0)); bb = v1.frame(t)
+        if kk >= 1: return bb
+        m = Image.new("L", (W, H), 0); r = kk * math.hypot(W, H) * 1.05; ImageDraw.Draw(m).ellipse((tx - r, ty - r, tx + r, ty + r), fill=255); return Image.composite(bb, a, m)
+    return f, v0.total
 
 # ---------------------------------------------------------------- render
-def render(clave, img, W, H, tit, sub, dur, ruta):
-    c = Ctx(img, W, H, tit, sub, dur); f = ESTILOS[clave](c); n = int(dur * FPS)
+def render(clave, D, W, H, dur_fija, ruta):
+    f, total = construir(clave, D, W, H, dur_fija); dur = total + .8; n = int(dur * FPS)
     cmd = [FF, "-nostdin", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "%dx%d" % (W, H), "-r", str(FPS), "-i", "-", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
            "-t", "%.3f" % dur, "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-shortest", "-movflags", "+faststart", ruta]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     try:
         for i in range(n):
-            fr = f(i / FPS)
+            fr = f(min(i / FPS, total - 0.001))
             if fr.size != (W, H): fr = fr.resize((W, H))
             p.stdin.write(fr.convert("RGB").tobytes())
         p.stdin.close()
@@ -543,18 +482,25 @@ def render(clave, img, W, H, tit, sub, dur, ruta):
 def main():
     ruta = (P.get("imagen") or "").strip()
     if P.get("imagenB64"):                                   # la app guarda la imagen dentro de los ajustes
-        import base64
-        tmp = os.path.join(AG, "infografias", "_operacion"); os.makedirs(tmp, exist_ok=True); ruta = os.path.join(tmp, "imagen_entrada.jpg")
-        open(ruta, "wb").write(base64.b64decode(P["imagenB64"].split(",", 1)[-1]))
-    if not ruta or not os.path.exists(ruta): sys.exit("Falta la imagen (o la ruta ya no existe): " + ruta)
-    estilos = [e for e in (P.get("estilos") or []) if e in ESTILOS]
+        import base64, io
+        img = Image.open(io.BytesIO(base64.b64decode(P["imagenB64"].split(",", 1)[-1])))
+    elif ruta and os.path.exists(ruta): img = Image.open(ruta)
+    else: sys.exit("Falta la imagen (o la ruta ya no existe): " + ruta)
+    estilos = [e for e in (P.get("estilos") or []) if e in TEMAS]
     if not estilos: sys.exit("Elige al menos un estilo.")
-    W, H = FORMATOS.get(P.get("formato"), FORMATOS["reels"]); dur = cl(float(P.get("duracion") or 8), 4, 20); tit = (P.get("titulo") or "").strip(); sub = (P.get("subtitulo") or "").strip()
-    img = ImageOps.exif_transpose(Image.open(ruta)).convert("RGB"); sello = time.strftime("%Y%m%d-%H%M%S"); ok = 0
+    W, H = FORMATOS.get(P.get("formato"), FORMATOS["reels"])
+    try: dur_fija = float(P.get("duracion") or 0)
+    except Exception: dur_fija = 0
+    dur_fija = cl(dur_fija, 6, 40) if dur_fija else 0
+    img = ImageOps.exif_transpose(img).convert("RGB"); D = interpretar(img, P.get("idioma") or "")
+    if (P.get("titulo") or "").strip(): D["titulo"] = P["titulo"].strip()
+    if (P.get("subtitulo") or "").strip(): D["subtitulo"] = P["subtitulo"].strip()
+    print("Título: %s | %d puntos%s" % (D["titulo"], len(D["puntos"]), " | cierre" if D["cierre"] else ""), flush=True)
+    sello = time.strftime("%Y%m%d-%H%M%S"); ok = 0
     for i, e in enumerate(estilos, 1):
         out = os.path.join(SALIDA, "infografia_%s_%s.mp4" % (e, sello)); print("[%d/%d] Estilo %s ..." % (i, len(estilos), e), flush=True)
         try:
-            if render(e, img, W, H, tit, sub, dur, out): ok += 1; print("OK " + out, flush=True)
+            if render(e, D, W, H, dur_fija, out): ok += 1; print("OK " + out, flush=True)
             else: print("ERROR: ffmpeg no pudo crear " + out, flush=True)
         except Exception as ex:
             import traceback; traceback.print_exc(); print("ERROR en el estilo %s: %s" % (e, ex), flush=True)

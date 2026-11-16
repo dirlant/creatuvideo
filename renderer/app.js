@@ -554,8 +554,8 @@ const ESTILOS = [
   ["atomico", "Atomic design y design systems", "Componentes reutilizables que mantienen la coherencia de una marca.", "f"],
   ["oscuro", "Modo oscuro", "Nació por legibilidad y ahorro de batería.", "f"],
 ];
-const IF_DEMO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 110"><rect width="90" height="110" fill="#fff"/><rect width="90" height="19" fill="#d61480"/><rect x="6" y="7" width="58" height="5" rx="2" fill="#fff"/>' + [[(255), 190, 60], [60, 190, 150], [90, 120, 240], [240, 100, 120], [150, 90, 220]].map((c, i) => '<circle cx="14" cy="' + (33 + i * 16) + '" r="6" fill="rgb(' + c.join(",") + ')"/><rect x="26" y="' + (30 + i * 16) + '" width="' + (46 - i * 4) + '" height="5" rx="2" fill="#bbb"/>').join("") + "</svg>");
-const IF0 = { imagen: "", estilos: [], titulo: "", subtitulo: "", duracion: 8, formato: "reels" };
+const IF_DEMO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 110"><rect width="90" height="110" fill="#fff"/><circle cx="45" cy="26" r="13" fill="#d61480"/><rect x="42" y="19" width="6" height="14" rx="2" fill="#fff"/><rect x="18" y="50" width="54" height="8" rx="3" fill="#2a2a3a"/><rect x="12" y="68" width="66" height="5" rx="2" fill="#aaa"/><rect x="12" y="79" width="66" height="5" rx="2" fill="#aaa"/><rect x="24" y="90" width="42" height="5" rx="2" fill="#aaa"/></svg>');
+const IF0 = { imagen: "", estilos: [], titulo: "", subtitulo: "", duracion: 0, idioma: "", formato: "reels" };
 let ifMini = "", ifMiniRuta = "", ifConstruido = false;
 function ifp() { const p = ajustes.presets.infografias || (ajustes.presets.infografias = {}); for (const k of Object.keys(IF0)) if (p[k] === undefined) p[k] = Array.isArray(IF0[k]) ? [] : IF0[k]; return p; }
 function pintarInfografias() {
@@ -563,8 +563,8 @@ function pintarInfografias() {
   const p = ifp(), v = $("#v-infografias");
   if (p.imagenB64 && ifMiniRuta !== p.imagen) { ifMiniRuta = p.imagen; ifMini = p.imagenB64; }
   if (!p.imagen) { ifMini = ""; ifMiniRuta = ""; }
-  v.style.setProperty("--img", 'url("' + (ifMini || IF_DEMO) + '")');
-  $("#if-miniatura").style.backgroundImage = 'url("' + (ifMini || IF_DEMO) + '")'; $("#if-miniatura").classList.toggle("demo", !ifMini);
+  v.style.setProperty("--img", 'url("' + IF_DEMO + '")');                     // las vistas previas son genericas: no usan la imagen del usuario
+  $("#if-miniatura").style.backgroundImage = ifMini ? 'url("' + ifMini + '")' : "none"; $("#if-miniatura").classList.toggle("demo", !ifMini);
   $("#if-nombre").textContent = p.imagen ? p.imagen.split(/[\\/]/).pop() + (ifMini ? "" : " (no se pudo mostrar la miniatura)") : "Aún no has elegido una imagen. Abajo, las vistas previas usan una imagen de ejemplo.";
   if (!ifConstruido) {
     ifConstruido = true;
@@ -579,7 +579,7 @@ function pintarInfografias() {
   $$(".est", v).forEach((l) => { const on = p.estilos.includes(l.dataset.e); l.classList.toggle("sel", on); $("input", l).checked = on; });
   $("#if-cuenta").textContent = p.estilos.length ? p.estilos.length + (p.estilos.length === 1 ? " estilo elegido" : " estilos elegidos") : "Ninguno elegido todavía";
   for (const [id, k] of [["if-titulo", "titulo"], ["if-subtitulo", "subtitulo"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
-  $("#if-formato").value = p.formato; $("#if-duracion").value = String(p.duracion);
+  $("#if-formato").value = p.formato; $("#if-duracion").value = String([10, 15, 20, 30].includes(Number(p.duracion)) ? p.duracion : 0); $("#if-idioma").value = p.idioma || "";
 }
 // La imagen se elige con el selector del sistema y se guarda dentro de los ajustes (reducida a 2200 px): no depende de la version del instalador.
 $("#b-if-imagen").addEventListener("click", () => $("#if-archivo").click());
@@ -611,6 +611,7 @@ for (const [id, k] of [["if-titulo", "titulo"], ["if-subtitulo", "subtitulo"]]) 
   $("#" + id).addEventListener("change", () => guardarAuto());
 }
 $("#if-formato").addEventListener("change", (ev) => { ifp().formato = ev.target.value; guardarAuto(); });
+$("#if-idioma").addEventListener("change", (ev) => { ifp().idioma = ev.target.value; guardarAuto(); });
 $("#if-duracion").addEventListener("change", (ev) => { ifp().duracion = Number(ev.target.value); guardarAuto(); });
 $("#b-if-todos").addEventListener("click", () => { ifp().estilos = ESTILOS.map((e) => e[0]); guardarAuto(); });
 $("#b-if-ninguno").addEventListener("click", () => { ifp().estilos = []; guardarAuto(); });
@@ -621,7 +622,7 @@ $("#b-if-generar").addEventListener("click", async () => {
   if (!p.estilos.length) { st.textContent = "⚠ Elige al menos un estilo de diseño."; return; }
   st.textContent = "Comprobando que tengas la última versión…";
   if (!(await exigirUltimaVersion())) { st.textContent = "⚠ Primero hay que actualizar a la última versión."; return; }
-  st.textContent = "Generando " + p.estilos.length + (p.estilos.length === 1 ? " video" : " videos") + "… (cada uno tarda alrededor de 1 minuto)";
+  st.textContent = "Generando " + p.estilos.length + (p.estilos.length === 1 ? " video" : " videos") + "… primero se lee el texto de la imagen (unos segundos) y luego se anima cada estilo (alrededor de 1 minuto cada uno)";
   await guardarAuto();
   const r = await window.ctv.run({ linea: "infografias", modo: "generar", slugs: [] });
   if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
