@@ -53,6 +53,7 @@ function pintarProgreso() {
   el.appendChild(f1); el.appendChild(bar); el.appendChild(f2);
 }
 window.ctv.onLog((t) => {
+  for (const l of String(t).split(/\r?\n/)) { const m = l.match(/^OK (.+infografia_.+\.mp4)\s*$/); if (m) ifVideoListo(m[1]); }
   const limpias = String(t).split(/\r?\n/).filter((l) => !lineaProgreso(l));
   if (limpias.length) escribir(limpias.join("\n"));
 });
@@ -560,10 +561,7 @@ function ifp() { const p = ajustes.presets.infografias || (ajustes.presets.infog
 function pintarInfografias() {
   if (!ajustes || !$("#if-est-v")) return;
   const p = ifp(), v = $("#v-infografias");
-  if (p.imagen && ifMiniRuta !== p.imagen) {                                    // tras reiniciar la app hay que volver a leer la miniatura de la ruta guardada
-    ifMiniRuta = p.imagen; ifMini = "";
-    if (window.ctv.imageThumb) window.ctv.imageThumb(p.imagen).then((r) => { ifMini = (r && r.miniatura) || ""; pintarInfografias(); }).catch(() => {});
-  }
+  if (p.imagenB64 && ifMiniRuta !== p.imagen) { ifMiniRuta = p.imagen; ifMini = p.imagenB64; }
   if (!p.imagen) { ifMini = ""; ifMiniRuta = ""; }
   v.style.setProperty("--img", 'url("' + (ifMini || IF_DEMO) + '")');
   $("#if-miniatura").style.backgroundImage = 'url("' + (ifMini || IF_DEMO) + '")'; $("#if-miniatura").classList.toggle("demo", !ifMini);
@@ -583,12 +581,31 @@ function pintarInfografias() {
   for (const [id, k] of [["if-titulo", "titulo"], ["if-subtitulo", "subtitulo"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
   $("#if-formato").value = p.formato; $("#if-duracion").value = String(p.duracion);
 }
-$("#b-if-imagen").addEventListener("click", async () => {
-  const st = $("#if-estado");
-  if (!window.ctv.pickImage) { st.textContent = "⚠ Esta función necesita el instalador nuevo de CreaTuVideo (descárgalo e instálalo una vez)."; return; }
-  const r = await window.ctv.pickImage("Elegir la imagen a animar"); if (!r) return;
-  ifp().imagen = r.ruta; ifMini = r.miniatura || ""; ifMiniRuta = r.ruta; st.textContent = ""; await guardarAuto();
+// La imagen se elige con el selector del sistema y se guarda dentro de los ajustes (reducida a 2200 px): no depende de la version del instalador.
+$("#b-if-imagen").addEventListener("click", () => $("#if-archivo").click());
+$("#if-archivo").addEventListener("change", (ev) => {
+  const f = ev.target.files && ev.target.files[0]; ev.target.value = ""; if (!f) return;
+  const msg = (t) => { $("#if-nombre").textContent = t; $("#if-estado").textContent = t.startsWith("⚠") ? t : ""; };
+  const url = URL.createObjectURL(f), im = new Image();
+  im.onerror = () => { URL.revokeObjectURL(url); msg("⚠ No se pudo leer esa imagen. Prueba con un PNG o JPG."); };
+  im.onload = async () => {
+    const k = Math.min(1, 2200 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement("canvas");
+    c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+    const p = ifp(); p.imagenB64 = c.toDataURL("image/jpeg", 0.92); p.imagen = f.name; ifMini = c.toDataURL("image/jpeg", 0.6); ifMiniRuta = f.name;
+    $("#if-estado").textContent = ""; await guardarAuto();
+  };
+  im.src = url;
 });
+const ifListos = [];
+function ifVideoListo(ruta) {
+  const r = ruta.replace(/\\/g, "/"), nombre = r.split("/").pop(); if (ifListos.includes(r)) return; ifListos.push(r);
+  const url = "file:///" + r.replace(/^\/+/, "").split("/").map((s, i) => (i === 0 ? s : encodeURIComponent(s))).join("/");
+  const d = document.createElement("div"); d.className = "if-res";
+  d.innerHTML = '<video controls loop preload="metadata"></video><div><b></b><a class="boton-a" download>Descargar video</a></div>';
+  $("video", d).src = url; $("b", d).textContent = nombre; const a = $("a", d); a.href = url; a.download = nombre;
+  $("#if-lista").prepend(d); $("#if-resultados").classList.remove("oculto");
+}
 for (const [id, k] of [["if-titulo", "titulo"], ["if-subtitulo", "subtitulo"]]) {
   $("#" + id).addEventListener("input", (ev) => { ifp()[k] = ev.target.value; });
   $("#" + id).addEventListener("change", () => guardarAuto());
@@ -599,7 +616,7 @@ $("#b-if-todos").addEventListener("click", () => { ifp().estilos = ESTILOS.map((
 $("#b-if-ninguno").addEventListener("click", () => { ifp().estilos = []; guardarAuto(); });
 $("#b-if-generar").addEventListener("click", async () => {
   const p = ifp(), st = $("#if-estado");
-  if (!window.ctv.pickImage) { st.textContent = "⚠ Esta función necesita el instalador nuevo de CreaTuVideo (descárgalo e instálalo una vez)."; return; }
+  if (!p.imagen || !p.imagenB64) { p.imagen = ""; $("#if-nombre").textContent = "⚠ Primero sube la imagen."; }
   if (!p.imagen) { st.textContent = "⚠ Primero sube la imagen."; return; }
   if (!p.estilos.length) { st.textContent = "⚠ Elige al menos un estilo de diseño."; return; }
   st.textContent = "Comprobando que tengas la última versión…";
@@ -608,7 +625,7 @@ $("#b-if-generar").addEventListener("click", async () => {
   await guardarAuto();
   const r = await window.ctv.run({ linea: "infografias", modo: "generar", slugs: [] });
   if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
-  st.textContent = r && r.ok ? "✔ Listo. Los videos están en la carpeta de resultados." : "⚠ No se pudo terminar; revisa el registro de abajo.";
+  st.textContent = r && r.ok ? "✔ Listo. Tus videos aparecen abajo para verlos y descargarlos." : "⚠ No se pudo terminar; revisa el registro de abajo.";
 });
 
 $$(".sel-voz").forEach((s) => { for (const [v, n] of VOCES) { const o = document.createElement("option"); o.value = v; o.textContent = n; s.appendChild(o); } });

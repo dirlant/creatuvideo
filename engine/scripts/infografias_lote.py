@@ -542,6 +542,10 @@ def render(clave, img, W, H, tit, sub, dur, ruta):
 
 def main():
     ruta = (P.get("imagen") or "").strip()
+    if P.get("imagenB64"):                                   # la app guarda la imagen dentro de los ajustes
+        import base64
+        tmp = os.path.join(AG, "infografias", "_operacion"); os.makedirs(tmp, exist_ok=True); ruta = os.path.join(tmp, "imagen_entrada.jpg")
+        open(ruta, "wb").write(base64.b64decode(P["imagenB64"].split(",", 1)[-1]))
     if not ruta or not os.path.exists(ruta): sys.exit("Falta la imagen (o la ruta ya no existe): " + ruta)
     estilos = [e for e in (P.get("estilos") or []) if e in ESTILOS]
     if not estilos: sys.exit("Elige al menos un estilo.")

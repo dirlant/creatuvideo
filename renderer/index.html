@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' file:; script-src 'self'" />
 <title>CreaTuVideo</title>
 <link rel="stylesheet" href="style.css" />
 </head>
@@ -346,6 +346,12 @@
         <button data-abrir="infografias/resultado">Abrir resultados</button>
         <span id="if-estado" class="chico"></span>
       </div>
+
+      <div id="if-resultados" class="cfg oculto"><h3>Videos listos</h3>
+        <p class="sub">Míralos aquí y pulsa «Descargar video» para guardarlos donde quieras. También quedan en la carpeta de resultados.</p>
+        <div id="if-lista" class="if-lista"></div>
+      </div>
+      <input type="file" id="if-archivo" accept="image/*" hidden />
     </section>
 
     <section id="v-claude" class="vista">
