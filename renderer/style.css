@@ -236,3 +236,6 @@ html, body, button, input, select, textarea, pre, code { font-family: "Lato", "S
 .if-res video { width: 100%; aspect-ratio: 9 / 16; max-height: 420px; object-fit: contain; background: #000; border-radius: 10px; }
 .if-res b { display: block; font-size: 12px; word-break: break-all; margin-bottom: 8px; }
 .boton-a { display: block; text-align: center; background: var(--acento); color: #fff; font-weight: 900; padding: 10px 12px; border-radius: 10px; text-decoration: none; cursor: pointer; }
+
+#pr-aspecto[data-d="modelo"] .solo-recuadro { display: none; }
+#pr-aspecto[data-d="recuadro"] .solo-modelo { display: none; }

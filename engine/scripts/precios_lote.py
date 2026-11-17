@@ -8,7 +8,7 @@ import asyncio, glob, json, os, random, re, shutil, subprocess, sys, unicodedata
 from datetime import datetime
 import edge_tts
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 FF = os.path.abspath(sys.argv[1]); MODO = sys.argv[2] if len(sys.argv) > 2 else "generar"
 FP = FF.replace("ffmpeg.exe", "ffprobe.exe")
@@ -26,7 +26,7 @@ def _ajustes():
 AJ = _ajustes(); PRE = AJ.get("presets", {}); DIRS = AJ.get("dirs", {})
 P = PRE.get("precios", {}) or {}
 SALIDA = DIRS.get("preciosResultado") or os.path.join(AG, "precios", "resultado"); os.makedirs(SALIDA, exist_ok=True)
-ESTILO = {"tarjeta": "#1c1030", "opacidad": 0.80, "amarillo": "#FFD400", "letras": "#FFFFFF", "chip": "#D61480", "escala": 1.0, "posicion": "centro"}
+ESTILO = {"tarjeta": "#1c1030", "opacidad": 0.80, "amarillo": "#FFD400", "letras": "#FFFFFF", "chip": "#D61480", "escala": 1.0, "posicion": "centro", "diseno": "modelo", "oscuro": 0.28}
 ESTILO.update({k: v for k, v in (PRE.get("preciosEstilo", {}) or {}).items() if v not in (None, "")})
 
 # ---------------------------------------------------------------- textos por idioma
@@ -170,6 +170,7 @@ def imagenes(cortes, rnd):
 K = 2
 def maquetar(estado):
     """Devuelve (alto_del_recuadro, dibujar) ; dibujar(etapa) -> imagen RGBA 1080x1920 con todo lo visible hasta esa etapa."""
+    if ESTILO.get("diseno", "modelo") == "modelo": return maquetar_modelo(estado)
     e = ESTILO; s = float(e["escala"]); tmp = ImageDraw.Draw(Image.new("RGB", (10, 10)))
     F = lambda n: ImageFont.truetype(VERDANA, int(n * s * K))
     px = lambda v: int(v * K)
@@ -260,6 +261,71 @@ def maquetar(estado):
         return im.resize((1080, 1920), Image.LANCZOS)
     return dibujar, sc
 
+# ---------------------------------------------------------------- diseno «modelo»: texto grande sobre el video, sin recuadro, tipografia elegante blanca con sombra suave y emojis
+CANDARA = [r"C:\Windows\Fonts\Candara.ttf", r"C:\Windows\Fonts\pala.ttf", r"C:\Windows\Fonts\georgia.ttf", VERDANA]
+EMOJI_TTF = r"C:\Windows\Fonts\seguiemj.ttf"
+EMO = re.compile("([\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200D]+)")
+def maquetar_modelo(estado):
+    """Misma interfaz que maquetar(): (dibujar, n). Etapa 0 = ubicacion, titulo y servicio; luego cada «incluye»; luego precio; luego CTA."""
+    from functools import lru_cache
+    e = ESTILO; s = float(e["escala"]); tmp = ImageDraw.Draw(Image.new("RGB", (10, 10))); letras = hexrgb(e["letras"]); oscuro = float(e.get("oscuro", .16))
+    px = lambda v: int(v * K)
+    @lru_cache(maxsize=None)
+    def ft(n):
+        for p in CANDARA:
+            if os.path.exists(p): return ImageFont.truetype(p, int(n * s * K))
+        return ImageFont.load_default()
+    @lru_cache(maxsize=None)
+    def fe(n): return ImageFont.truetype(EMOJI_TTF, int(n * s * K)) if os.path.exists(EMOJI_TTF) else ft(n)
+    def segs_de(txt): return [(p, bool(EMO.fullmatch(p))) for p in EMO.split(txt) if p]
+    def ancho(segs, n): return sum(tmp.textlength(c, font=(fe(n) if em else ft(n))) for c, em in segs)
+    def envolver(t, n, maxw):
+        out, ln = [], ""
+        for w in t.split():
+            c = (ln + " " + w).strip()
+            if tmp.textlength(c, font=ft(n)) <= maxw * K or not ln: ln = c
+            else: out.append(ln); ln = w
+        if ln: out.append(ln)
+        return out
+    ops = []; y = 330
+    if UBIC: ops.append((0, y, segs_de("📍 " + UBIC), 52, letras)); y += 52 * s * 1.15
+    y += 70 * s
+    if TITULO:
+        for n in (156, 134, 114, 98):
+            ls = envolver(TITULO, n, 900)
+            if len(ls) <= 2: break
+        ls = ls[:3]
+        for i, l in enumerate(ls):
+            sg = segs_de(l)
+            if len(ls) == 1 and ancho([("✨", True)] + sg + [("✨", True)], n) < 1000 * K: sg = [("✨", True)] + sg + [("✨", True)]
+            y += n * s * .78; ops.append((0, y, sg, n, letras)); y += n * s * .32
+    y += 34 * s
+    if SERVICIO:
+        for l in envolver(SERVICIO, 84, 900)[:2]: y += 84 * s * .8; ops.append((0, y, segs_de(l), 84, letras)); y += 84 * s * .28
+    y += 40 * s
+    for i, it in enumerate(ITEMS):
+        for l in envolver("· " + it, 54, 880)[:2]: y += 54 * s * .85; ops.append((1 + i, y, segs_de(l), 54, letras[:3] + (235,))); y += 54 * s * .3
+    sp = len(ITEMS) + 1
+    ops.append((sp, max(y + 190 * s, 1380), segs_de("💰 " + PRECIO), 132, letras))
+    ops.append((sp + 1, max(y + 190 * s, 1380) + 150 * s, segs_de("👇 " + CTA + " 👇"), 80, letras))
+    def dibujar(etapa):
+        W_, H_ = px(1080), px(1920); im = Image.new("RGBA", (W_, H_), (0, 0, 0, int(255 * oscuro))); sh = Image.new("RGBA", (W_, H_), (0, 0, 0, 0)); ds = ImageDraw.Draw(sh); vis = [o for o in ops if o[0] <= etapa]
+        def x_ini(segs, n): return px(540) - ancho(segs, n) / 2
+        for _, yy, segs, n, col in vis:                      # 1) sombra suave de todo el texto (una sola pasada de desenfoque)
+            x = x_ini(segs, n)
+            for c, em in segs:
+                if not em: ds.text((x + px(1.5), px(yy) + px(4)), c, font=ft(n), fill=(0, 0, 0, 175), anchor="ls")
+                x += tmp.textlength(c, font=(fe(n) if em else ft(n)))
+        im.alpha_composite(sh.filter(ImageFilter.GaussianBlur(px(7)))); d = ImageDraw.Draw(im)
+        for _, yy, segs, n, col in vis:                      # 2) el texto y los emojis
+            x = x_ini(segs, n)
+            for c, em in segs:
+                if em: d.text((x, px(yy)), c, font=fe(n), embedded_color=True, anchor="ls")
+                else: d.text((x, px(yy)), c, font=ft(n), fill=col, anchor="ls")
+                x += tmp.textlength(c, font=(fe(n) if em else ft(n)))
+        return im.resize((1080, 1920), Image.LANCZOS)
+    return dibujar, len(ITEMS) + 2
+
 # ---------------------------------------------------------------- sonidos suaves (un "pop" por cada elemento que aparece y un "ding" con el CTA)
 def sonidos(tiempos, t_cta):
     SR = 44100; sfx = np.zeros((int((DUR + 1) * SR), 2), np.float32)
@@ -325,7 +391,7 @@ if __name__ == "__main__":
         rnd = random.Random()
         print("1/4 voz y tiempos...", flush=True); voz()
         print("2/4 videos de fondo...", flush=True); cortes = fondo(rnd)
-        print("3/4 imágenes...", flush=True); imagenes(cortes, rnd)
+        if ESTILO.get("diseno", "modelo") != "modelo": print("3/4 imágenes...", flush=True); imagenes(cortes, rnd)    # el diseño «modelo» va solo con texto sobre el video
         print("4/4 montaje...", flush=True); montar()
     elif MODO == "aspecto":
         montar()

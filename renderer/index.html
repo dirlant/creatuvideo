@@ -210,9 +210,10 @@
 
     <section id="v-precios" class="vista">
       <h1><span class="ico-t" data-ico="precio" role="img" aria-label="Anuncios Con Precio" title="Anuncios Con Precio"></span> <span class="tit">Anuncios Con Precio</span></h1>
-      <p class="sub">Video de <b>15 segundos en formato Reels</b> con narración de voz: un recuadro centrado con el título, lo que incluye el servicio, el precio promocional y el llamado a la acción (precio y CTA sobre fondo amarillo).</p>
+      <p class="sub">Video de <b>15 segundos en formato Reels</b> con narración de voz: la ubicación, el título, el servicio, el precio promocional y el llamado a la acción, escritos en grande sobre el video (diseño «modelo»), o dentro de un recuadro con fotos si prefieres ese diseño.</p>
 
-      <div class="cfg"><h3>1 · Idioma y rubro</h3>
+      <div class="cfg"><h3>1 · Diseño, idioma y rubro</h3>
+        <label class="et">Diseño del anuncio</label><select id="pr-diseno"><option value="modelo">Texto grande sobre el video (modelo: ubicación, PROMO, servicio, precio y CTA con emojis)</option><option value="recuadro">Recuadro con 3 fotos, lo que incluye y precio en amarillo</option></select>
         <div class="grid2">
           <div><label class="et">Idioma de la narración</label><select id="pr-idioma"></select></div>
           <div><label class="et">Rubro</label><select id="pr-rubro"></select></div>
@@ -235,7 +236,7 @@
         <div class="cfg" id="caja-pr-videos"><div id="cfg-precios-videos" class="filas"></div></div>
       </div>
 
-      <div class="cfg"><h3>4 · Imágenes</h3>
+      <div class="cfg" id="sec-pr-imagenes"><h3>4 · Imágenes</h3>
         <p class="sub">Las 3 imágenes que van dentro del recuadro.</p>
         <div class="fuente">
           <label class="opcion"><span class="ico-g" data-ico="auto"></span><div><b>Automático</b><span>La app toma las imágenes de los propios videos del fondo.</span></div><input type="radio" name="pr-imagenes" value="auto" /></label>
@@ -244,7 +245,7 @@
         <div class="cfg" id="caja-pr-imagenes"><div id="cfg-precios-imagenes" class="filas"></div></div>
       </div>
 
-      <div class="cfg"><h3>5 · Lo que va en el recuadro</h3>
+      <div class="cfg"><h3>5 · Textos del anuncio</h3>
         <label class="et">Ubicación <span class="chico">(opcional, aparece arriba con un pin)</span></label><input id="pr-ubicacion" maxlength="48" placeholder="Ej.: Santiago, Los Héroes" />
         <label class="et">Título</label><input id="pr-titulo" maxlength="70" placeholder="Ej.: Uñas perfectas por menos" />
         <label class="et">Lo que incluye el servicio <span class="chico">(una cosa por línea, máximo 5)</span></label>
@@ -272,15 +273,16 @@
       </div>
 
       <div id="pr-aspecto" class="cfg oculto"><h3>Modificar el aspecto gráfico</h3>
-        <p class="sub">Cambia colores y tamaño del recuadro y vuelve a montar el video: reutiliza la voz, los videos y las imágenes ya preparados, así que es rápido. Reemplaza el último video generado.</p>
+        <p class="sub">Cambia colores, tamaño de las letras y lo demás, y vuelve a montar el video: reutiliza la voz, los videos y las imágenes ya preparados, así que es rápido. Reemplaza el último video generado.</p>
         <div class="estilo-grid">
-          <div><label class="et">Color del recuadro</label><input type="color" id="es-tarjeta" /></div>
-          <div><label class="et">Amarillo (precio y CTA)</label><input type="color" id="es-amarillo" /></div>
+          <div class="solo-modelo"><label class="et">Oscurecer el fondo: <b id="es-oscuro-v"></b></label><input type="range" id="es-oscuro" min="0" max="60" step="2" /></div>
+          <div class="solo-recuadro"><label class="et">Color del recuadro</label><input type="color" id="es-tarjeta" /></div>
+          <div class="solo-recuadro"><label class="et">Amarillo (precio y CTA)</label><input type="color" id="es-amarillo" /></div>
           <div><label class="et">Color de las letras</label><input type="color" id="es-letras" /></div>
-          <div><label class="et">Color de la etiqueta del rubro</label><input type="color" id="es-chip" /></div>
-          <div><label class="et">Transparencia del recuadro: <b id="es-opacidad-v"></b></label><input type="range" id="es-opacidad" min="30" max="100" step="5" /></div>
+          <div class="solo-recuadro"><label class="et">Color de la etiqueta del rubro</label><input type="color" id="es-chip" /></div>
+          <div class="solo-recuadro"><label class="et">Transparencia del recuadro: <b id="es-opacidad-v"></b></label><input type="range" id="es-opacidad" min="30" max="100" step="5" /></div>
           <div><label class="et">Tamaño de las letras: <b id="es-escala-v"></b></label><input type="range" id="es-escala" min="80" max="115" step="5" /></div>
-          <div><label class="et">Posición del recuadro</label><select id="es-posicion"><option value="centro">Centro</option><option value="arriba">Arriba</option><option value="abajo">Abajo</option></select></div>
+          <div class="solo-recuadro"><label class="et">Posición del recuadro</label><select id="es-posicion"><option value="centro">Centro</option><option value="arriba">Arriba</option><option value="abajo">Abajo</option></select></div>
         </div>
         <div class="barra">
           <button class="p fuerte run-pr" id="b-precios-aspecto">Aplicar aspecto y regenerar el video</button>

@@ -473,7 +473,7 @@ const PR_VOCES = {
   de: [["de-DE-ConradNeural", "Conrad (Alemania, hombre)"], ["de-DE-KatjaNeural", "Katja (Alemania, mujer)"]],
 };
 const PR0 = { idioma: "es", voz: "es-MX-JorgeNeural", rubro: "", servicio: "", ubicacion: "", titulo: "", incluye: "", precio: "", cta: "me", videos: "auto", imagenes: "auto", generado: false };
-const ES0 = { tarjeta: "#1c1030", opacidad: 0.8, amarillo: "#FFD400", letras: "#FFFFFF", chip: "#D61480", escala: 1, posicion: "centro" };
+const ES0 = { tarjeta: "#1c1030", opacidad: 0.8, amarillo: "#FFD400", letras: "#FFFFFF", chip: "#D61480", escala: 1, posicion: "centro", diseno: "modelo", oscuro: 0.28 };
 function prp() { const p = ajustes.presets.precios || (ajustes.presets.precios = {}); for (const k of Object.keys(PR0)) if (p[k] === undefined) p[k] = PR0[k]; return p; }
 function esp() { const p = ajustes.presets.preciosEstilo || (ajustes.presets.preciosEstilo = {}); for (const k of Object.keys(ES0)) if (p[k] === undefined) p[k] = ES0[k]; return p; }
 function llenarSelect(sel, pares, valor) {
@@ -498,6 +498,8 @@ function pintarPrecios() {
   $("#es-opacidad").value = Math.round(e.opacidad * 100); $("#es-opacidad-v").textContent = Math.round(e.opacidad * 100) + " %";
   $("#es-escala").value = Math.round(e.escala * 100); $("#es-escala-v").textContent = Math.round(e.escala * 100) + " %";
   $("#es-posicion").value = e.posicion;
+  $("#pr-diseno").value = e.diseno; $("#es-oscuro").value = Math.round(e.oscuro * 100); $("#es-oscuro-v").textContent = Math.round(e.oscuro * 100) + " %";
+  $("#pr-aspecto").dataset.d = e.diseno; $("#sec-pr-imagenes").classList.toggle("oculto", e.diseno === "modelo");
 }
 function cambioPrecios(fn) { return (ev) => { fn(ev.target.value, ev.target); guardarAuto(); }; }
 $("#pr-idioma").addEventListener("change", cambioPrecios((v) => { const p = prp(); p.idioma = v; p.voz = PR_VOCES[v][0][0]; }));
@@ -512,6 +514,9 @@ for (const k of ["tarjeta", "amarillo", "letras", "chip"]) $("#es-" + k).addEven
 $("#es-opacidad").addEventListener("input", (ev) => { esp().opacidad = Number(ev.target.value) / 100; $("#es-opacidad-v").textContent = ev.target.value + " %"; });
 $("#es-escala").addEventListener("input", (ev) => { esp().escala = Number(ev.target.value) / 100; $("#es-escala-v").textContent = ev.target.value + " %"; });
 for (const id of ["es-opacidad", "es-escala"]) $("#" + id).addEventListener("change", () => guardarAuto());
+$("#pr-diseno").addEventListener("change", (ev) => { esp().diseno = ev.target.value; guardarAuto(); });
+$("#es-oscuro").addEventListener("input", (ev) => { esp().oscuro = Number(ev.target.value) / 100; $("#es-oscuro-v").textContent = ev.target.value + " %"; });
+$("#es-oscuro").addEventListener("change", () => guardarAuto());
 $("#es-posicion").addEventListener("change", (ev) => { esp().posicion = ev.target.value; guardarAuto(); });
 $("#b-precios-restablecer").addEventListener("click", () => { ajustes.presets.preciosEstilo = { ...ES0 }; guardarAuto(); });
 async function correrPrecios(modo) {
