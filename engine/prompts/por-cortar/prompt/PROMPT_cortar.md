@@ -14,3 +14,5 @@ Mirar cuadros reales de cada clip, duración y volumen antes de darlo por listo.
 
 ## Ajustes
 Aplica además todo lo que está en `AJUSTES.md` (reglas que el usuario fue pidiendo).
+
+Si la instrucción trae un bloque «PATRÓN DE INTERRUPCIÓN Y EFECTOS» (lo arma la app con la frecuencia de cambios, los tipos de plano, los efectos cinematográficos, la duración de los clips y el hook), ese bloque manda sobre los valores por defecto de arriba (cambio cada ~4 s, 30–90 s por clip, etc.).

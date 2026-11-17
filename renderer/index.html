@@ -303,8 +303,24 @@
         <button data-abrir="por-cortar/resultado">Abrir resultados</button>
         <button data-nuevo-prompt="por-cortar">Crear un prompt nuevo con Claude</button>
       </div>
+      <div class="cfg" id="cfg-interrupcion"><h3>Patrón de interrupción y efectos</h3>
+        <p class="sub">Elige cada cuánto cambia la escena (patrón de interrupción), qué tipos de plano se alternan y qué efectos cinematográficos se usan. Puedes partir de un estilo ya armado y ajustarlo a tu gusto.</p>
+        <label class="et">Estilo de ritmo</label><div id="cx-presets" class="chips-multi"></div><p class="ayuda" id="cx-presets-d"></p>
+        <div class="grid2">
+          <div><label class="et">Cambio de plano cada: <b id="cx-cada-v"></b></label><input type="range" id="cx-cada" min="1" max="10" step="0.5" /></div>
+          <div><label class="et">Cómo se reparten los cambios</label><select id="cx-ritmo"></select></div>
+        </div>
+        <label class="et">Tipos de plano que se alternan</label><div id="cx-planos" class="chips-multi"></div>
+        <label class="et">Efectos cinematográficos</label><div id="cx-efectos" class="chips-multi"></div><p class="ayuda" id="cx-efectos-d">Toca un efecto para activarlo o quitarlo. Pasa el cursor para ver qué hace.</p>
+        <div class="grid2">
+          <div><label class="et">Intensidad de los efectos</label><select id="cx-int"></select></div>
+          <div><label class="et">Duración de cada clip (segundos): <b id="cx-clip-v"></b></label><div style="display:flex;gap:8px"><input type="number" id="cx-min" min="8" max="120" step="1" style="width:50%" /><input type="number" id="cx-max" min="10" max="180" step="1" style="width:50%" /></div></div>
+        </div>
+        <label class="opcion" style="margin-top:10px"><div><b>Hook de mentor al inicio</b><span>Pone al comienzo el patrón de interrupción de la carpeta por-cortar/hook (por ejemplo «Si yo fuera tu mentor…») con el título encima.</span></div><input type="checkbox" id="cx-hook" /></label>
+        <details style="margin:8px 0"><summary>Ver lo que se enviará a Claude Code</summary><pre id="cx-previa" style="white-space:pre-wrap;font-size:12px"></pre></details>
+      </div>
       <label class="et">Instrucción para Claude Code</label>
-      <textarea id="txt-cortar" rows="6">Corta el video que está en ./por-cortar/entrada: transcríbelo, quita los silencios, elige los mejores clips de 20 a 40 segundos y aplica el patrón de interrupción. Deja los clips terminados en ./por-cortar/resultado y cuéntame cuántos hiciste.</textarea>
+      <textarea id="txt-cortar" rows="4">Corta el video que está en ./por-cortar/entrada: transcríbelo, quita los silencios, elige los mejores clips y aplica el patrón de interrupción y los efectos indicados abajo. Deja los clips terminados en ./por-cortar/resultado y cuéntame cuántos hiciste.</textarea>
       <div class="barra"><button class="p fuerte" id="b-cortar">Cortar con Claude Code</button></div>
     </section>
 

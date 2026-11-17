@@ -438,7 +438,80 @@ $("#b-claude").addEventListener("click", () => {
   const pre = carpetas.length ? "Carpetas que debes usar en este trabajo:\n" + carpetas.map((c) => "- " + c[0] + ": " + c[1]).join("\n") + "\n\n" : "";
   enviarClaude($("#sel-linea").value, pre + texto);
 });
-$("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#txt-cortar").value));
+// ---------------------------------------------------------------- Cortar: patrón de interrupción, tipos de plano y efectos cinematográficos
+const CX_RITMOS = [["fijo", "Fijo: siempre cada X segundos"], ["variable", "Variable: entre X−1 y X+1 segundos"], ["acelerado", "Acelerado: empieza en X s y se acorta hacia el final"], ["contenido", "Por contenido: en cada frase o idea (X es el máximo)"]];
+const CX_PLANOS = [["Primer plano", "close-up del rostro"], ["Plano medio", "de la cintura hacia arriba"], ["Plano general", "cuerpo entero o la escena completa"], ["Plano detalle", "manos, objeto o pizarra de cerca"], ["Plano americano", "de las rodillas hacia arriba"], ["Plano de apoyo", "público, entorno o la sala"], ["B-roll", "imágenes o videos de apoyo sobre la voz"]];
+const CX_EFECTOS = [
+  ["Zoom in suave", "push-in lento de 100 % a 108 % durante el plano, para dar vida a la imagen quieta"],
+  ["Zoom out", "alejamiento lento de 110 % a 100 % durante el plano"],
+  ["Punch-in", "zoom seco de 100 % a 115 % en 0,15 s al empezar el plano, para enfatizar una frase"],
+  ["Paneo rápido", "desplazamiento lateral veloz con desenfoque de movimiento entre dos planos (whip pan)"],
+  ["Flash blanco", "destello blanco de 2 a 3 fotogramas justo en el corte"],
+  ["Glitch RGB", "separación de canales de color y ruido digital de unos 0,2 s en el corte"],
+  ["Sacudida de cámara", "vibración corta (shake) al inicio del plano para dar impacto"],
+  ["Fundido a negro", "caída rápida a negro de 0,2 s entre planos importantes"],
+  ["Desenfoque de transición", "desenfoque que sube y baja alrededor del corte"],
+  ["Cámara lenta", "velocidad al 50–70 % solo en planos de apoyo sin voz importante, o con el audio compensado"],
+  ["Rampa de velocidad", "acelerar y frenar el video dentro de un mismo plano en momentos clave"],
+  ["Congelar cuadro", "imagen congelada de 0,3 s para remarcar una palabra o idea"],
+  ["Look cinematográfico", "gradación de color (sombras frías, luces cálidas), viñeta suave y grano fino en todo el clip"],
+  ["Subtítulos dinámicos", "subtítulos palabra por palabra con la palabra clave resaltada"],
+  ["Sonido whoosh", "sonido breve de transición o impacto en cada cambio de plano"],
+];
+const CX_PRESETS = {
+  suave: { n: "Suave", d: "Cambio cada 6 s, pocos efectos. Para charlas tranquilas o contenido educativo.", cada: 6, ritmo: "fijo", planos: ["Plano medio", "Plano general"], efectos: ["Zoom in suave", "Fundido a negro"], intensidad: "sutil" },
+  equilibrado: { n: "Equilibrado", d: "Cambio cada 4 s con zoom suave y sonido. Es el patrón de siempre.", cada: 4, ritmo: "fijo", planos: ["Plano medio", "Primer plano", "Plano general"], efectos: ["Zoom in suave", "Sonido whoosh"], intensidad: "media" },
+  dinamico: { n: "Dinámico", d: "Cambio cada 3 s, variable, con punch-in, flash y sonido.", cada: 3, ritmo: "variable", planos: ["Primer plano", "Plano medio", "Plano general", "Plano detalle"], efectos: ["Punch-in", "Flash blanco", "Sonido whoosh", "Subtítulos dinámicos"], intensidad: "media" },
+  viral: { n: "Viral / Intenso", d: "Cambio cada 2 s, acelerado, con glitch, sacudida y subtítulos. Para Reels y TikTok de alto ritmo.", cada: 2, ritmo: "acelerado", planos: ["Primer plano", "Plano medio", "Plano detalle", "Plano de apoyo", "B-roll"], efectos: ["Punch-in", "Glitch RGB", "Sacudida de cámara", "Flash blanco", "Rampa de velocidad", "Subtítulos dinámicos", "Sonido whoosh"], intensidad: "fuerte" },
+  cine: { n: "Cinematográfico", d: "Cambio cada 5 s, variable, con paneos, desenfoques, cámara lenta y gradación de color.", cada: 5, ritmo: "variable", planos: ["Plano general", "Plano medio", "Primer plano", "Plano detalle", "Plano americano"], efectos: ["Zoom in suave", "Paneo rápido", "Desenfoque de transición", "Cámara lenta", "Fundido a negro", "Look cinematográfico"], intensidad: "sutil" },
+};
+const CX0 = { preset: "equilibrado", cada: 4, ritmo: "fijo", planos: [...CX_PRESETS.equilibrado.planos], efectos: [...CX_PRESETS.equilibrado.efectos], intensidad: "media", clipMin: 20, clipMax: 40, hook: true };
+function cxp() { const p = ajustes.presets.cortar || (ajustes.presets.cortar = {}); for (const k of Object.keys(CX0)) if (p[k] === undefined) p[k] = Array.isArray(CX0[k]) ? [...CX0[k]] : CX0[k]; return p; }
+const cxNum = (n) => String(n).replace(".", ",");
+function cxEspecificacion() {
+  const p = cxp(), X = p.cada;
+  const ritmo = { fijo: "cambia de plano o de encuadre exactamente cada " + cxNum(X) + " segundos", variable: "cambia de plano en intervalos irregulares, entre " + cxNum(Math.max(1, X - 1)) + " y " + cxNum(X + 1) + " segundos (promedio " + cxNum(X) + " s), para que no se sienta mecánico", acelerado: "empieza cambiando cada " + cxNum(X) + " segundos y va acortando el intervalo hasta cerca de " + cxNum(Math.max(1, X / 2)) + " s hacia el final del clip", contenido: "cambia de plano en cada frase o idea nueva, con un máximo de " + cxNum(X) + " segundos sin cambio" }[p.ritmo];
+  const L = ["PATRÓN DE INTERRUPCIÓN Y EFECTOS (estos valores mandan sobre los predeterminados de prompt/PROMPT_cortar.md):",
+    "- Cambios de escena: " + ritmo + ". Nunca dejes un plano quieto más de " + cxNum(Math.max(X + 1, 2)) + " s.",
+    "- Duración de cada clip: de " + p.clipMin + " a " + Math.max(p.clipMax, p.clipMin) + " segundos."];
+  if (p.planos.length) L.push("- Tipos de plano que debes alternar (no repitas el mismo dos veces seguidas): " + p.planos.map((n) => n.toLowerCase() + " (" + CX_PLANOS.find((x) => x[0] === n)[1] + ")").join("; ") + ".");
+  else L.push("- Tipos de plano: elige tú los más adecuados para cada momento.");
+  if (p.efectos.length) L.push("- Efectos cinematográficos permitidos, con intensidad " + p.intensidad + " (" + { sutil: "discretos, casi imperceptibles", media: "claros pero elegantes", fuerte: "marcados y llamativos" }[p.intensidad] + "): " + p.efectos.map((n) => n + " = " + CX_EFECTOS.find((x) => x[0] === n)[1]).join("; ") + ". Reparte los efectos entre los cambios de plano según lo que se dice (énfasis, remate, transición); no repitas el mismo efecto dos veces seguidas ni uses efectos que no están en esta lista.");
+  else L.push("- Efectos: ninguno; solo cortes limpios entre planos.");
+  L.push("- Hook de mentor al inicio de cada clip: " + (p.hook ? "sí, con el título gancho encima (según prompt/PROMPT_cortar.md)." : "no, empieza directamente con el contenido."));
+  L.push("Implementa los efectos con ffmpeg o con los scripts de scripts/ sin romper lo existente, y antes de dar los clips por listos revisa cuadros reales de cada uno para comprobar que los cambios y efectos se ven bien.");
+  return L.join("\n");
+}
+let cxListo = false;
+function construirCortar() {
+  if (cxListo) return; cxListo = true;
+  const pr = $("#cx-presets");
+  for (const [k, v] of Object.entries(CX_PRESETS)) { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.dataset.v = k; b.textContent = v.n; b.title = v.d; b.addEventListener("click", () => { const p = cxp(), s = CX_PRESETS[k]; Object.assign(p, { preset: k, cada: s.cada, ritmo: s.ritmo, intensidad: s.intensidad, planos: [...s.planos], efectos: [...s.efectos] }); guardarAuto(); }); pr.appendChild(b); }
+  { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.dataset.v = "personalizado"; b.textContent = "Personalizado"; b.title = "Tus propios valores"; b.addEventListener("click", () => { cxp().preset = "personalizado"; guardarAuto(); }); pr.appendChild(b); }
+  const chips = (cont, lista, clave, ayuda) => { for (const [n, d] of lista) { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.dataset.v = n; b.textContent = n; b.title = d; b.addEventListener("click", () => { const p = cxp(), i = p[clave].indexOf(n); if (i >= 0) p[clave].splice(i, 1); else p[clave].push(n); p.preset = "personalizado"; guardarAuto(); }); if (ayuda) b.addEventListener("mouseenter", () => { $(ayuda).textContent = n + ": " + d + "."; }); cont.appendChild(b); } };
+  chips($("#cx-planos"), CX_PLANOS, "planos"); chips($("#cx-efectos"), CX_EFECTOS, "efectos", "#cx-efectos-d");
+  for (const [v, n] of CX_RITMOS) { const o = document.createElement("option"); o.value = v; o.textContent = n; $("#cx-ritmo").appendChild(o); }
+  for (const [v, n] of [["sutil", "Sutil (discretos)"], ["media", "Media (claros pero elegantes)"], ["fuerte", "Fuerte (marcados)"]]) { const o = document.createElement("option"); o.value = v; o.textContent = n; $("#cx-int").appendChild(o); }
+  $("#cx-cada").addEventListener("input", (ev) => { const p = cxp(); p.cada = Number(ev.target.value); p.preset = "personalizado"; $("#cx-cada-v").textContent = cxNum(p.cada) + " s"; $("#cx-previa").textContent = cxEspecificacion(); });
+  $("#cx-cada").addEventListener("change", () => guardarAuto());
+  $("#cx-ritmo").addEventListener("change", (ev) => { const p = cxp(); p.ritmo = ev.target.value; p.preset = "personalizado"; guardarAuto(); });
+  $("#cx-int").addEventListener("change", (ev) => { const p = cxp(); p.intensidad = ev.target.value; p.preset = "personalizado"; guardarAuto(); });
+  $("#cx-hook").addEventListener("change", (ev) => { cxp().hook = ev.target.checked; guardarAuto(); });
+  for (const [id, k] of [["cx-min", "clipMin"], ["cx-max", "clipMax"]]) $("#" + id).addEventListener("change", (ev) => { const v = Math.max(5, Math.min(180, Number(ev.target.value) || CX0[k])); cxp()[k] = v; if (cxp().clipMax < cxp().clipMin) cxp().clipMax = cxp().clipMin; guardarAuto(); });
+}
+function pintarCortar() {
+  construirCortar(); const p = cxp();
+  $$("#cx-presets .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === p.preset));
+  $("#cx-presets-d").textContent = CX_PRESETS[p.preset] ? CX_PRESETS[p.preset].d : "Combina tus propios valores: cada cuánto cambia, qué planos y qué efectos.";
+  $$("#cx-planos .chip").forEach((c) => c.classList.toggle("on", p.planos.includes(c.dataset.v)));
+  $$("#cx-efectos .chip").forEach((c) => c.classList.toggle("on", p.efectos.includes(c.dataset.v)));
+  $("#cx-cada").value = p.cada; $("#cx-cada-v").textContent = cxNum(p.cada) + " s"; $("#cx-ritmo").value = p.ritmo; $("#cx-int").value = p.intensidad; $("#cx-hook").checked = !!p.hook;
+  if (document.activeElement !== $("#cx-min")) $("#cx-min").value = p.clipMin;
+  if (document.activeElement !== $("#cx-max")) $("#cx-max").value = p.clipMax;
+  $("#cx-clip-v").textContent = p.clipMin + " a " + Math.max(p.clipMax, p.clipMin) + " s";
+  $("#cx-previa").textContent = cxEspecificacion();
+}
+$("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#txt-cortar").value.trim() + "\n\n" + cxEspecificacion()));
 
 // ---------------------------------------------------------------- ajustes
 // Las carpetas y opciones se eligen en la misma pantalla de cada tipo de edicion y se guardan solas.
@@ -674,6 +747,7 @@ function pintarSecciones() {
   resumenDianchi();
   pintarPrecios();
   pintarInfografias();
+  pintarCortar();
   $$(".sel-voz").forEach((s) => (s.value = ajustes.presets.voz));
 }
 $$('input[name="fuente-imagenes"]').forEach((r) => r.addEventListener("change", (e) => { ajustes.presets.imagenesCollage = e.target.value === "carpeta"; guardarAuto(); }));
