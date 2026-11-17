@@ -13,6 +13,7 @@ os.makedirs(OUT, exist_ok=True); ip = os.path.join(OUT, "indice.json")
 idx = json.load(open(ip, encoding="utf-8")) if os.path.exists(ip) else []
 r = json.loads(get("https://api.pexels.com/videos/search?" + urllib.parse.urlencode({"query": Q, "per_page": 20, "orientation": "portrait", "size": "medium"})))
 hechos = {i["id"] for i in idx}; k = 0
+EVITAR = [w.strip().lower() for w in (os.environ.get("PEXELS_EVITAR") or "").split(",") if w.strip()]
 import glob
 for otro in glob.glob(os.path.join(os.path.dirname(OUT), "*", "indice.json")):
     hechos |= {i["id"] for i in json.load(open(otro, encoding="utf-8"))}
@@ -21,6 +22,7 @@ for otro in glob.glob(os.path.join(AG, "dianchi", "entrada", "videos", "*", "ind
 for v in r.get("videos", []):
     if k >= N: break
     if v["id"] in hechos or v["duration"] < 5: continue
+    if any(w in (v.get("url") or "").lower() for w in EVITAR): continue      # la URL de Pexels lleva la descripcion del video
     fs = [f for f in v["video_files"] if f.get("height") and f["height"] >= f["width"] and 700 <= f["width"] <= 1100 and f["file_type"] == "video/mp4"]
     if not fs: continue
     f = sorted(fs, key=lambda f: abs(f["width"] - 1080))[0]

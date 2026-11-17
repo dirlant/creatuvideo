@@ -110,20 +110,67 @@ def pool_carpeta(carpeta):
             except Exception: pass
     return out
 
+def buscar_claude():
+    import shutil
+    w = shutil.which("claude")
+    if w: return w
+    h = os.path.expanduser("~"); c = os.path.join(h, ".local", "bin", "claude.exe")
+    if os.path.exists(c): return c
+    for d in sorted(glob.glob(os.path.join(h, ".vscode", "extensions", "anthropic.claude-code*")), reverse=True):
+        for r, _, fs in os.walk(d):
+            if "claude.exe" in fs: return os.path.join(r, "claude.exe")
+    return None
+
+def interpretar_promo():
+    """Claude Code interpreta de que trata la promocion (rubro + servicio + titulo + lo que incluye) y devuelve las busquedas de video propias de ESE tratamiento
+    y las palabras que NO deben aparecer (otros servicios del rubro, p. ej. cabello o unas en un lifting de pestanas). Se guarda en cache."""
+    import hashlib
+    clave = "|".join([RUBRO, SERVICIO, TITULO, " ".join(ITEMS)]).lower() + "v1"
+    cache = os.path.join(OPP, "lectura_promo_%s.json" % hashlib.sha1(clave.encode("utf-8")).hexdigest()[:14])
+    if os.path.exists(cache):
+        try: D = json.load(open(cache, encoding="utf-8")); print("Promoción: ya estaba interpretada.", flush=True); return D
+        except Exception: pass
+    cl = buscar_claude(); D = None
+    if cl:
+        prompt = ('Eres editor de videos de belleza. Una promoción dice: rubro «%s», servicio «%s», título «%s», incluye: «%s». Interpreta de qué trata exactamente este servicio y qué se vería en un video de fondo. '
+                  'Responde SOLO con un JSON válido, sin explicaciones ni bloques de código: {"servicio_en":"nombre del servicio en inglés","consultas":["4 búsquedas en inglés para videos verticales de stock (Pexels) que muestren EXACTAMENTE este tratamiento, de 2 a 5 palabras, de más específica a más general, sin salir del tratamiento"],'
+                  '"evitar":["6 a 12 palabras sueltas en inglés, en minúscula, que aparecen en la descripción de videos de OTROS servicios o rubros y que no deben mezclarse (p. ej. para pestañas: nail, manicure, hair, hairdresser, barber, massage; para uñas: hair, eyelash, lash, brow, massage)"]}. '
+                  'Las palabras de "evitar" NUNCA deben ser palabras del propio servicio.') % (RUBRO, SERVICIO, TITULO, "; ".join(ITEMS))
+        e = dict(env); e.pop("ELECTRON_RUN_AS_NODE", None)
+        print("Interpretando la promoción con Claude Code…", flush=True)
+        try:
+            r = subprocess.run([cl, "-p", prompt, "--output-format", "text"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, env=e, cwd=OPP)
+            m = re.search(r"\{.*\}", (r.stdout or ""), re.S); D = json.loads(m.group(0)) if m else None
+        except Exception: D = None
+    if D and isinstance(D.get("consultas"), list) and D["consultas"]:
+        D["consultas"] = [str(q).strip() for q in D["consultas"] if str(q).strip()][:5]
+        D["evitar"] = [str(w).strip().lower() for w in (D.get("evitar") or []) if str(w).strip() and " " not in str(w).strip()][:14]
+        json.dump(D, open(cache, "w", encoding="utf-8"), ensure_ascii=False, indent=1); return D
+    print("Aviso: no se pudo interpretar la promoción con Claude Code; se buscan videos solo por el rubro.", flush=True)
+    return None
+
 def pool_pexels():
     if not (env.get("PEXELS_API_KEY") or os.path.exists(os.path.join(AG, "_operacion", "pexels.key"))):
         sys.exit("Falta la clave de Pexels (Ajustes) o elige «De una carpeta» en los videos.")
-    qs = next((q for k, q in BUSQUEDAS.items() if k in norm(RUBRO)), []) + GENERALES
-    out = os.path.join(OPP, "recursos", "pexels", norm(RUBRO) or "general"); os.makedirs(out, exist_ok=True)
-    for i, q in enumerate(qs[:3]):
-        r = sh([sys.executable, os.path.join(AG, "scripts", "descargar_videos.py"), out, q, "3", "pr%d" % i])
+    D = interpretar_promo(); base = next((q for k, q in BUSQUEDAS.items() if k in norm(RUBRO)), [])
+    qs = (D["consultas"] if D else base + GENERALES); evitar = (D or {}).get("evitar", [])
+    if D: print("Promoción interpretada: %s | videos de: %s | se evita: %s" % (D.get("servicio_en", SERVICIO), "; ".join(qs), ", ".join(evitar) or "—"), flush=True)
+    out = os.path.join(OPP, "recursos", "pexels", norm(RUBRO) or "general", (norm(SERVICIO) or "general")[:40]); os.makedirs(out, exist_ok=True)
+    e = dict(env); e["PEXELS_EVITAR"] = ",".join(evitar)
+    for i, q in enumerate(qs[:4]):
+        r = sh([sys.executable, os.path.join(AG, "scripts", "descargar_videos.py"), out, q, "3", "pr%d" % i], env=e)
         print("pexels «%s»: %d videos nuevos" % (q, len(r.stdout.strip().splitlines())), flush=True)
+    idx = {}
+    try: idx = {i["archivo"]: i for i in json.load(open(os.path.join(out, "indice.json"), encoding="utf-8"))}
+    except Exception: pass
     res = []
     for f in sorted(glob.glob(os.path.join(out, "*.mp4"))):
+        i = idx.get(os.path.basename(f))
+        if i and (i.get("busqueda") not in qs or any(w in (i.get("url") or "").lower() for w in evitar)): continue     # solo lo de esta promocion
         try: w, h, d = dims(f)
         except Exception: continue
         if d >= 3.2: res.append((f, d))
-    if not res: sys.exit("No se pudieron descargar videos de Pexels. Revisa la clave y la conexión, o usa «De una carpeta».")
+    if not res: sys.exit("No se pudieron descargar videos de Pexels para este servicio. Revisa la clave y la conexión, o usa «De una carpeta».")
     return res
 
 def fondo(rnd):
@@ -287,27 +334,36 @@ def maquetar_modelo(estado):
             else: out.append(ln); ln = w
         if ln: out.append(ln)
         return out
-    ops = []; y = 330
-    if UBIC: ops.append((0, y, segs_de("📍 " + UBIC), 52, letras)); y += 52 * s * 1.15
-    y += 70 * s
-    if TITULO:
-        for n in (156, 134, 114, 98):
-            ls = envolver(TITULO, n, 900)
-            if len(ls) <= 2: break
-        ls = ls[:3]
-        for i, l in enumerate(ls):
-            sg = segs_de(l)
-            if len(ls) == 1 and ancho([("✨", True)] + sg + [("✨", True)], n) < 1000 * K: sg = [("✨", True)] + sg + [("✨", True)]
-            y += n * s * .78; ops.append((0, y, sg, n, letras)); y += n * s * .32
-    y += 34 * s
-    if SERVICIO:
-        for l in envolver(SERVICIO, 84, 900)[:2]: y += 84 * s * .8; ops.append((0, y, segs_de(l), 84, letras)); y += 84 * s * .28
-    y += 40 * s
-    for i, it in enumerate(ITEMS):
-        for l in envolver("· " + it, 54, 880)[:2]: y += 54 * s * .85; ops.append((1 + i, y, segs_de(l), 54, letras[:3] + (235,))); y += 54 * s * .3
-    sp = len(ITEMS) + 1
-    ops.append((sp, max(y + 190 * s, 1380), segs_de("💰 " + PRECIO), 132, letras))
-    ops.append((sp + 1, max(y + 190 * s, 1380) + 150 * s, segs_de("👇 " + CTA + " 👇"), 80, letras))
+    # cuadrado imaginario centrado en el reel: 820 de ancho y 1000 de alto como maximo; si el texto no cabe se reduce
+    CAJA_W, CAJA_H, CENTRO_Y = 820, 1000, 930
+    s0 = s
+    for fac in (1.0, .92, .85, .78, .7, .62, .55):
+        s = s0 * fac; ft.cache_clear(); fe.cache_clear()
+        ops = []; y = 0
+        if UBIC: y += 52 * s; ops.append((0, y, segs_de("📍 " + UBIC), 52, letras)); y += 52 * s * .3
+        y += 60 * s
+        if TITULO:
+            for n in (156, 134, 114, 98, 84):
+                ls = envolver(TITULO, n, CAJA_W)
+                if len(ls) <= 2: break
+            ls = ls[:3]
+            for i, l in enumerate(ls):
+                sg = segs_de(l)
+                if len(ls) == 1 and ancho([("✨", True)] + sg + [("✨", True)], n) < CAJA_W * K: sg = [("✨", True)] + sg + [("✨", True)]
+                y += n * s * .78; ops.append((0, y, sg, n, letras)); y += n * s * .32
+        y += 30 * s
+        if SERVICIO:
+            for l in envolver(SERVICIO, 84, CAJA_W)[:2]: y += 84 * s * .8; ops.append((0, y, segs_de(l), 84, letras)); y += 84 * s * .28
+        y += 30 * s
+        for i, it in enumerate(ITEMS):
+            for l in envolver("· " + it, 54, CAJA_W - 30)[:2]: y += 54 * s * .85; ops.append((1 + i, y, segs_de(l), 54, letras[:3] + (235,))); y += 54 * s * .3
+        sp = len(ITEMS) + 1
+        y += 140 * s; ops.append((sp, y, segs_de("💰 " + PRECIO), 132, letras))
+        y += 120 * s; ops.append((sp + 1, y, segs_de("👇 " + CTA + " 👇"), 80, letras))
+        arriba = ops[0][1] - ops[0][3] * s * .8
+        if y + 20 * s - arriba <= CAJA_H and max(ancho(o[2], o[3]) for o in ops) <= CAJA_W * K * 1.02: break
+    desp = CENTRO_Y - (arriba + y + 20 * s) / 2
+    ops = [(o[0], o[1] + desp) + o[2:] for o in ops]
     def dibujar(etapa):
         W_, H_ = px(1080), px(1920); im = Image.new("RGBA", (W_, H_), (0, 0, 0, int(255 * oscuro))); sh = Image.new("RGBA", (W_, H_), (0, 0, 0, 0)); ds = ImageDraw.Draw(sh); vis = [o for o in ops if o[0] <= etapa]
         def x_ini(segs, n): return px(540) - ancho(segs, n) / 2
