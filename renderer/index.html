@@ -294,7 +294,7 @@
 
     <section id="v-cortar" class="vista">
       <h1><span class="ico-t" data-ico="cortar" role="img" aria-label="Cortar y silencios" title="Cortar y silencios"></span> <span class="tit">Cortar y silencios</span></h1>
-      <p class="sub">Pon el video en la carpeta de entrada. Claude Code lo transcribe, quita silencios, elige los clips y aplica el patrón de interrupción según <code>por-cortar/prompt/PROMPT_cortar.md</code>.</p>
+      <p class="sub">Pon el video en la carpeta de entrada. Claude Code lo transcribe, quita los silencios, elige los clips y aplica solo el patrón de interrupción y los efectos que marques abajo (sin hook de mentor ni título).</p>
       <div class="cfg"><h3>Carpetas de Cortar y silencios</h3>
         <div id="cfg-cortar" class="filas"></div>
       </div>
@@ -316,11 +316,10 @@
           <div><label class="et">Intensidad de los efectos</label><select id="cx-int"></select></div>
           <div><label class="et">Duración de cada clip (segundos): <b id="cx-clip-v"></b></label><div style="display:flex;gap:8px"><input type="number" id="cx-min" min="8" max="120" step="1" style="width:50%" /><input type="number" id="cx-max" min="10" max="180" step="1" style="width:50%" /></div></div>
         </div>
-        <label class="opcion" style="margin-top:10px"><div><b>Hook de mentor al inicio</b><span>Pone al comienzo el patrón de interrupción de la carpeta por-cortar/hook (por ejemplo «Si yo fuera tu mentor…») con el título encima.</span></div><input type="checkbox" id="cx-hook" /></label>
         <details style="margin:8px 0"><summary>Ver lo que se enviará a Claude Code</summary><pre id="cx-previa" style="white-space:pre-wrap;font-size:12px"></pre></details>
       </div>
       <label class="et">Instrucción para Claude Code</label>
-      <textarea id="txt-cortar" rows="4">Corta el video que está en ./por-cortar/entrada: transcríbelo, quita los silencios, elige los mejores clips y aplica el patrón de interrupción y los efectos indicados abajo. Deja los clips terminados en ./por-cortar/resultado y cuéntame cuántos hiciste.</textarea>
+      <textarea id="txt-cortar" rows="4">Corta el video que está en ./por-cortar/entrada: transcríbelo, quita los silencios, elige los mejores clips y aplica solo el patrón de interrupción y los efectos indicados abajo. Deja los clips terminados en ./por-cortar/resultado y cuéntame cuántos hiciste.</textarea>
       <div class="barra"><button class="p fuerte" id="b-cortar">Cortar con Claude Code</button></div>
     </section>
 

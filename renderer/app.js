@@ -465,7 +465,7 @@ const CX_PRESETS = {
   viral: { n: "Viral / Intenso", d: "Cambio cada 2 s, acelerado, con glitch, sacudida y subtítulos. Para Reels y TikTok de alto ritmo.", cada: 2, ritmo: "acelerado", planos: ["Primer plano", "Plano medio", "Plano detalle", "Plano de apoyo", "B-roll"], efectos: ["Punch-in", "Glitch RGB", "Sacudida de cámara", "Flash blanco", "Rampa de velocidad", "Subtítulos dinámicos", "Sonido whoosh"], intensidad: "fuerte" },
   cine: { n: "Cinematográfico", d: "Cambio cada 5 s, variable, con paneos, desenfoques, cámara lenta y gradación de color.", cada: 5, ritmo: "variable", planos: ["Plano general", "Plano medio", "Primer plano", "Plano detalle", "Plano americano"], efectos: ["Zoom in suave", "Paneo rápido", "Desenfoque de transición", "Cámara lenta", "Fundido a negro", "Look cinematográfico"], intensidad: "sutil" },
 };
-const CX0 = { preset: "equilibrado", cada: 4, ritmo: "fijo", planos: [...CX_PRESETS.equilibrado.planos], efectos: [...CX_PRESETS.equilibrado.efectos], intensidad: "media", clipMin: 20, clipMax: 40, hook: true };
+const CX0 = { preset: "equilibrado", cada: 4, ritmo: "fijo", planos: [...CX_PRESETS.equilibrado.planos], efectos: [...CX_PRESETS.equilibrado.efectos], intensidad: "media", clipMin: 20, clipMax: 40 };
 function cxp() { const p = ajustes.presets.cortar || (ajustes.presets.cortar = {}); for (const k of Object.keys(CX0)) if (p[k] === undefined) p[k] = Array.isArray(CX0[k]) ? [...CX0[k]] : CX0[k]; return p; }
 const cxNum = (n) => String(n).replace(".", ",");
 function cxEspecificacion() {
@@ -478,7 +478,7 @@ function cxEspecificacion() {
   else L.push("- Tipos de plano: elige tú los más adecuados para cada momento.");
   if (p.efectos.length) L.push("- Efectos cinematográficos permitidos, con intensidad " + p.intensidad + " (" + { sutil: "discretos, casi imperceptibles", media: "claros pero elegantes", fuerte: "marcados y llamativos" }[p.intensidad] + "): " + p.efectos.map((n) => n + " = " + CX_EFECTOS.find((x) => x[0] === n)[1]).join("; ") + ". Reparte los efectos entre los cambios de plano según lo que se dice (énfasis, remate, transición); no repitas el mismo efecto dos veces seguidas ni uses efectos que no están en esta lista.");
   else L.push("- Efectos: ninguno; solo cortes limpios entre planos.");
-  L.push("- Hook de mentor al inicio de cada clip: " + (p.hook ? "sí, con el título gancho encima (según prompt/PROMPT_cortar.md)." : "no, empieza directamente con el contenido."));
+  L.push("- SIN hook de mentor, SIN título gancho, SIN etiqueta de categoría y SIN hook de por-cortar/hook: aquí solo se cortan los silencios (y muletillas) y se aplica lo elegido arriba. Ignora esos pasos de prompt/PROMPT_cortar.md. El clip empieza directamente con el contenido.");
   L.push("Implementa los efectos con ffmpeg o con los scripts de scripts/ sin romper lo existente, y antes de dar los clips por listos revisa cuadros reales de cada uno para comprobar que los cambios y efectos se ven bien.");
   return L.join("\n");
 }
@@ -496,7 +496,6 @@ function construirCortar() {
   $("#cx-cada").addEventListener("change", () => guardarAuto());
   $("#cx-ritmo").addEventListener("change", (ev) => { const p = cxp(); p.ritmo = ev.target.value; p.preset = "personalizado"; guardarAuto(); });
   $("#cx-int").addEventListener("change", (ev) => { const p = cxp(); p.intensidad = ev.target.value; p.preset = "personalizado"; guardarAuto(); });
-  $("#cx-hook").addEventListener("change", (ev) => { cxp().hook = ev.target.checked; guardarAuto(); });
   for (const [id, k] of [["cx-min", "clipMin"], ["cx-max", "clipMax"]]) $("#" + id).addEventListener("change", (ev) => { const v = Math.max(5, Math.min(180, Number(ev.target.value) || CX0[k])); cxp()[k] = v; if (cxp().clipMax < cxp().clipMin) cxp().clipMax = cxp().clipMin; guardarAuto(); });
 }
 function pintarCortar() {
@@ -505,7 +504,7 @@ function pintarCortar() {
   $("#cx-presets-d").textContent = CX_PRESETS[p.preset] ? CX_PRESETS[p.preset].d : "Combina tus propios valores: cada cuánto cambia, qué planos y qué efectos.";
   $$("#cx-planos .chip").forEach((c) => c.classList.toggle("on", p.planos.includes(c.dataset.v)));
   $$("#cx-efectos .chip").forEach((c) => c.classList.toggle("on", p.efectos.includes(c.dataset.v)));
-  $("#cx-cada").value = p.cada; $("#cx-cada-v").textContent = cxNum(p.cada) + " s"; $("#cx-ritmo").value = p.ritmo; $("#cx-int").value = p.intensidad; $("#cx-hook").checked = !!p.hook;
+  $("#cx-cada").value = p.cada; $("#cx-cada-v").textContent = cxNum(p.cada) + " s"; $("#cx-ritmo").value = p.ritmo; $("#cx-int").value = p.intensidad;
   if (document.activeElement !== $("#cx-min")) $("#cx-min").value = p.clipMin;
   if (document.activeElement !== $("#cx-max")) $("#cx-max").value = p.clipMax;
   $("#cx-clip-v").textContent = p.clipMin + " a " + Math.max(p.clipMax, p.clipMin) + " s";
@@ -717,6 +716,10 @@ $$(".sel-voz").forEach((s) => { for (const [v, n] of VOCES) { const o = document
 async function guardarAuto() {
   ajustes = await window.ctv.saveSettings(ajustes);
   pintarSecciones();
+  repintarBriefs();   // los botones de rubro, temática, etc. guardan sus listas dentro del objeto de ajustes: al cambiar ese objeto hay que volver a enlazarlos o el conteo se queda pegado
+}
+function repintarBriefs() {
+  for (const l of ["dianchi", "diegao"]) conLinea(l, pintarBrief);
 }
 function pintarSecciones() {
   for (const [sec, claves] of Object.entries(SECCIONES)) {
@@ -775,6 +778,7 @@ $("[data-ws]").addEventListener("click", async () => { const p = await window.ct
 $("#b-guardar").addEventListener("click", async () => {
   ajustes.pexelsKey = $("#in-pexels").value.trim(); ajustes.githubToken = $("#in-gh").value.trim(); ajustes.autoUpdate = $("#pr-auto").checked;
   ajustes = await window.ctv.saveSettings(ajustes);
+  repintarBriefs();
   $("#msg-guardar").textContent = "Guardado ✔";
   setTimeout(() => ($("#msg-guardar").textContent = ""), 2500);
 });
