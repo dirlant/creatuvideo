@@ -253,3 +253,10 @@ html, body, button, input, select, textarea, pre, code { font-family: "Lato", "S
 .sb-prev .sb-b { font-weight: 900; font-size: 19.5px; color: #fff; letter-spacing: -0.07em; line-height: 1.02; text-shadow: 0 1px 5px rgba(255,255,255,.14); }
 .sb-prev.video .sb-s, .sb-prev.video .sb-b { text-shadow: 0 1px 6px rgba(0,0,0,.8); }
 .sb-prev.g .sb-s { font-size: 13.2px; } .sb-prev.g .sb-b { font-size: 22.4px; } .sb-prev.p .sb-s { font-size: 9.8px; } .sb-prev.p .sb-b { font-size: 16.6px; }
+
+/* menu lateral: la lista de secciones tiene su propio scroll y el pie (version y botones de actualizar) siempre queda visible */
+.nav { overflow: hidden; min-height: 0; }
+.nav-lista { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 2px; scrollbar-width: thin; scrollbar-color: var(--borde) transparent; }
+.nav-lista::-webkit-scrollbar { width: 6px; } .nav-lista::-webkit-scrollbar-thumb { background: var(--borde); border-radius: 3px; }
+.nav .marca { flex: none; }
+.nav-pie { flex: none; margin-top: 0; border-top: 1px solid var(--borde); padding-top: 8px; }
