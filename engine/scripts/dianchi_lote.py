@@ -10,7 +10,7 @@ import glob, json, os, re, shutil, subprocess, sys, time, unicodedata
 from PIL import Image, ImageDraw, ImageFont
 
 FF = os.path.abspath(sys.argv[1]); MODO = sys.argv[2]; SOLO = sys.argv[3:]
-if MODO in ("generar", "aspecto"):      # Anuncios Con Precio: los instaladores anteriores lanzan este script para esa seccion; se redirige al motor de precios
+if MODO in ("generar", "aspecto", "guion"):      # Anuncios Con Precio: los instaladores anteriores lanzan este script para esa seccion; se redirige al motor de precios
     import json, runpy
     try: _lin = (json.load(open(os.environ.get("CTV_AJUSTES") or os.path.join(os.environ.get("APPDATA", ""), "CreaTuVideo", "settings.json"), encoding="utf-8")).get("presets", {}) or {}).get("lineaActiva")
     except Exception: _lin = None

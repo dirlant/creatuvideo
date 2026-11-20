@@ -54,7 +54,7 @@ function pintarProgreso() {
 }
 window.ctv.onLog((t) => {
   for (const l of String(t).split(/\r?\n/)) { const m = l.match(/^OK (.+(?:infografia|animtexto)_.+\.mp4)\s*$/); if (m) ifVideoListo(m[1]); }
-  const limpias = String(t).split(/\r?\n/).filter((l) => !lineaProgreso(l));
+  const limpias = String(t).split(/\r?\n/).filter((l) => !lineaProgreso(l) && !lineaGuion(l));
   if (limpias.length) escribir(limpias.join("\n"));
 });
 window.ctv.onBusy((b) => {
@@ -716,7 +716,7 @@ $("#b-if-generar").addEventListener("click", async () => {
 });
 
 // ---------------------------------------------------------------- Animación de Texto: el texto lo escribe la persona; mismo motor y mismos estilos que Infografías
-const AT0 = { texto: "", estilos: [], titulo: "", subtitulo: "", duracion: 0, idioma: "", voz: "", formato: "reels" };
+const AT0 = { tema: "", narracionSeg: 30, tono: "Cercano", texto: "", estilos: [], titulo: "", subtitulo: "", duracion: 0, idioma: "", voz: "", formato: "reels" };
 function atp() { const p = ajustes.presets.animtexto || (ajustes.presets.animtexto = {}); for (const k of Object.keys(AT0)) if (p[k] === undefined) p[k] = Array.isArray(AT0[k]) ? [] : AT0[k]; return p; }
 let atConstruido = false;
 function atCuentaTexto() {
@@ -739,13 +739,33 @@ function pintarAnimTexto() {
   }
   $$(".est", v).forEach((l) => { const on = p.estilos.includes(l.dataset.e); l.classList.toggle("sel", on); $("input", l).checked = on; });
   $("#at-cuenta").textContent = p.estilos.length ? p.estilos.length + (p.estilos.length === 1 ? " estilo elegido" : " estilos elegidos") : "Ninguno elegido todavía";
-  for (const [id, k] of [["at-texto", "texto"], ["at-titulo", "titulo"], ["at-subtitulo", "subtitulo"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
+  for (const [id, k] of [["at-tema", "tema"], ["at-texto", "texto"], ["at-titulo", "titulo"], ["at-subtitulo", "subtitulo"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
+  $("#at-nar").value = String([15, 20, 30, 45, 60, 90].includes(Number(p.narracionSeg)) ? p.narracionSeg : 30); $("#at-tono").value = p.tono || "Cercano";
   atCuentaTexto();
   $("#at-formato").value = p.formato; $("#at-duracion").value = String([10, 15, 20, 30].includes(Number(p.duracion)) ? p.duracion : 0); $("#at-idioma").value = p.idioma || "";
   if (!$("#at-voz").options.length) llenarSelect($("#at-voz"), [["", "Automática (según el idioma del texto)"], ["none", "Sin voz (solo animación)"], ...VOCES, ...PR_VOCES.en, ...PR_VOCES.pt, ...PR_VOCES.de], p.voz || "");
   $("#at-voz").value = p.voz || "";
 }
-for (const [id, k] of [["at-texto", "texto"], ["at-titulo", "titulo"], ["at-subtitulo", "subtitulo"]]) {
+$("#at-nar").addEventListener("change", (ev) => { atp().narracionSeg = Number(ev.target.value); guardarAuto(); });
+$("#at-tono").addEventListener("change", (ev) => { atp().tono = ev.target.value; guardarAuto(); });
+function atGuionListo(texto) {
+  const p = atp(); p.texto = String(texto || "").trim(); $("#at-texto").value = p.texto; atCuentaTexto(); guardarAuto();
+  $("#at-estado").textContent = "✔ Texto listo. Revísalo, edítalo si quieres, elige los estilos y pulsa «Generar videos».";
+}
+const lineaGuion = (l) => { const m = l.match(/^CTV_GUION (\{.*\})\s*$/); if (!m) return false; try { atGuionListo(JSON.parse(m[1]).texto); } catch {} return true; };
+$("#b-at-chatgpt").addEventListener("click", async () => {
+  const p = atp(), st = $("#at-estado"); p.tema = $("#at-tema").value.trim();
+  if (!p.tema) { st.textContent = "⚠ Escribe primero la temática a resolver."; return; }
+  if (!(ajustes.openaiKey || "").trim()) { st.textContent = "⚠ Falta la clave de OpenAI: pégala en Ajustes → Clave de OpenAI (ChatGPT)."; return; }
+  st.textContent = "Comprobando que tengas la última versión…";
+  if (!(await exigirUltimaVersion())) { st.textContent = "⚠ Primero hay que actualizar a la última versión."; return; }
+  st.textContent = "Consultando a ChatGPT… (unos segundos)";
+  ajustes.presets.lineaActiva = "animtexto"; await guardarAuto();
+  const r = await window.ctv.run({ linea: "infografias", modo: "guion", slugs: [] });
+  if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
+  if (!r || !r.ok) st.textContent = "⚠ No se pudo redactar el texto; revisa el registro de abajo.";
+});
+for (const [id, k] of [["at-tema", "tema"], ["at-texto", "texto"], ["at-titulo", "titulo"], ["at-subtitulo", "subtitulo"]]) {
   $("#" + id).addEventListener("input", (ev) => { atp()[k] = ev.target.value; if (k === "texto") atCuentaTexto(); });
   $("#" + id).addEventListener("change", () => guardarAuto());
 }
@@ -833,6 +853,7 @@ function pintarAjustes() {
   actualizarContador();
   $("#in-ws").value = ajustes.workspace;
   $("#in-pexels").value = ajustes.pexelsKey || "";
+  $("#in-openai").value = ajustes.openaiKey || ""; $("#in-openai-modelo").value = ajustes.openaiModelo || "";
   const inc = ajustes.incluidas || {};                       // claves que vienen incluidas: ni se muestran ni se piden
   $("#bloque-pexels").classList.toggle("oculto", !!inc.pexels);
   $("#bloque-gh").classList.toggle("oculto", !!inc.github);
@@ -842,6 +863,7 @@ function pintarAjustes() {
 }
 $("[data-ws]").addEventListener("click", async () => { const p = await window.ctv.pickFolder("Carpeta de trabajo"); if (p) { ajustes.workspace = p; $("#in-ws").value = p; } });
 $("#b-guardar").addEventListener("click", async () => {
+  ajustes.openaiKey = $("#in-openai").value.trim(); ajustes.openaiModelo = $("#in-openai-modelo").value.trim();
   ajustes.pexelsKey = $("#in-pexels").value.trim(); ajustes.githubToken = $("#in-gh").value.trim(); ajustes.autoUpdate = $("#pr-auto").checked;
   ajustes = await window.ctv.saveSettings(ajustes);
   repintarBriefs();

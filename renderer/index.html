@@ -329,7 +329,17 @@
       <h1><span class="ico-t" data-ico="animtexto" role="img" aria-label="Animación de Texto" title="Animación de Texto"></span> <span class="tit">Animación de Texto</span></h1>
       <p class="sub">Escribe o pega el texto de tu narración (un guion, consejos, una explicación, una historia). La app <b>lo interpreta con Claude Code</b>, lo divide en escenas y decide cómo animar cada una (paso, comparación «No digas / Mejor di» con tachado, cifra destacada, lista) y con qué transición. Lo <b>narra con voz</b> y lo convierte en un <b>video de texto animado</b> con el diseño que elijas. Puedes marcar varios estilos: se genera un video por cada uno.</p>
 
-      <div class="cfg"><h3>1 · Texto de la narración</h3>
+      <div class="cfg"><h3>1 · Temática y texto de la narración</h3>
+        <p class="sub">Escribe tú el texto, o indica la <b>temática a resolver</b> y la <b>duración de la narración</b> y pídele a <b>ChatGPT</b> que lo redacte (necesita la clave de OpenAI en Ajustes). El texto aparece abajo para que lo revises y lo edites antes de animarlo.</p>
+        <div class="grid2">
+          <div><label class="et">Temática a resolver</label><input id="at-tema" maxlength="160" placeholder="Ej.: Cómo subir los precios sin perder clientas" /></div>
+          <div><label class="et">Duración de la narración</label><select id="at-nar"><option value="15">15 segundos (≈ 38 palabras)</option><option value="20">20 segundos (≈ 50 palabras)</option><option value="30">30 segundos (≈ 75 palabras)</option><option value="45">45 segundos (≈ 112 palabras)</option><option value="60">60 segundos (≈ 150 palabras)</option><option value="90">90 segundos (≈ 225 palabras)</option></select></div>
+        </div>
+        <div class="grid2">
+          <div><label class="et">Tono</label><select id="at-tono"><option>Cercano</option><option>Profesional</option><option>Motivador</option><option>Directo</option><option>Divertido</option><option>Inspirador</option></select></div>
+          <div><button class="p fuerte" id="b-at-chatgpt">Escribir el texto con ChatGPT</button></div>
+        </div>
+        <label class="et">Texto de la narración</label>
         <textarea id="at-texto" rows="9" maxlength="6000" placeholder="Ej.: Si quieres vender más en tu salón, deja de decir «es barato» y mejor di «es una inversión». Primero, revisa tus precios. Segundo, muestra resultados reales. Tercero, pide la reserva…"></textarea>
         <div class="barra"><button id="b-at-archivo">Cargar desde un archivo de texto…</button><button id="b-at-limpiar">Borrar texto</button><span id="at-cuenta-t" class="chico"></span></div>
         <input type="file" id="at-archivo" accept=".txt,.md,text/plain" hidden />
@@ -471,6 +481,14 @@
       <div class="fila">
         <span class="et-f">Carpeta de trabajo</span>
         <input id="in-ws" readonly /><button data-ws="elegir">Elegir</button><button data-abrir="">Abrir</button>
+      </div>
+
+      <div id="bloque-openai">
+        <h2>Clave de OpenAI (ChatGPT)</h2>
+        <label class="et">Para que Animación de Texto redacte el texto con la API de ChatGPT (opcional)</label>
+        <input id="in-openai" type="password" placeholder="sk-… (platform.openai.com/api-keys)" />
+        <label class="et">Modelo de ChatGPT</label>
+        <input id="in-openai-modelo" placeholder="gpt-4o-mini" />
       </div>
 
       <div id="bloque-claves">

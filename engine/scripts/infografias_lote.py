@@ -620,7 +620,45 @@ def render(clave, D, W, H, dur_fija, ruta, auds=None, carpeta=None):
     except BrokenPipeError: pass
     return p.wait() == 0
 
+# ---------------------------------------------------------------- ANIMACION DE TEXTO: redactar la narracion con la API de ChatGPT (OpenAI)
+def escribir_guion():
+    """Modo «guion»: con la tematica y la duracion de la narracion pide el texto a la API de ChatGPT y lo devuelve a la app en una linea «CTV_GUION {json}»."""
+    import urllib.request, urllib.error
+    key = (AJ.get("openaiKey") or os.environ.get("OPENAI_API_KEY") or "").strip()
+    if not key: sys.exit("Falta la clave de OpenAI (ChatGPT). Pégala en Ajustes → Claves de OpenAI.")
+    tema = (P.get("tema") or "").strip()
+    if not tema: sys.exit("Escribe primero la temática a resolver.")
+    try: seg = int(P.get("narracionSeg") or 30)
+    except Exception: seg = 30
+    seg = max(8, min(180, seg)); palabras = int(round(seg * 2.5)); tono = (P.get("tono") or "Cercano").strip()
+    idioma = IDIOMAS.get((P.get("idioma") or "").strip(), "español") if (P.get("idioma") or "").strip() else "español"
+    modelo = (AJ.get("openaiModelo") or "gpt-4o-mini").strip()
+    sistema = ("Eres guionista de videos cortos de texto animado para redes sociales (Reels, TikTok). Escribes la narración que una voz leerá en voz alta mientras el texto se anima en pantalla. "
+               "Respondes SOLO con el texto de la narración, en texto plano: sin título, sin numeración con símbolos, sin emojis, sin comillas alrededor, sin indicaciones de escena.")
+    usuario = ("Temática a resolver: %s\nIdioma: %s\nTono: %s\nLongitud: unas %d palabras (la voz lee unas 2,5 palabras por segundo, así que la narración debe durar unos %d segundos).\n"
+               "Estructura: empieza con un gancho que plantee el problema o despierte curiosidad; desarrolla 2 a 4 ideas claras y concretas (pasos, consejos o, si encaja, una comparación «No digas… / Mejor di…»); incluye una cifra o dato concreto si es natural; "
+               "cierra con una frase corta y un llamado a la acción. Frases cortas y directas, fáciles de leer en voz alta.") % (tema, idioma, tono, palabras, seg)
+    def pedir(extra=""):
+        cuerpo = json.dumps({"model": modelo, "temperature": 0.8, "messages": [{"role": "system", "content": sistema}, {"role": "user", "content": usuario + extra}]}).encode("utf-8")
+        rq = urllib.request.Request("https://api.openai.com/v1/chat/completions", data=cuerpo, headers={"Content-Type": "application/json", "Authorization": "Bearer " + key})
+        try: r = json.loads(urllib.request.urlopen(rq, timeout=120).read().decode("utf-8"))
+        except urllib.error.HTTPError as ex:
+            try: m = json.loads(ex.read().decode("utf-8")).get("error", {}).get("message", "")
+            except Exception: m = ""
+            sys.exit("La API de ChatGPT respondió con error %s: %s" % (ex.code, (m or ex.reason)[:300].replace(key, "…")))
+        except Exception as ex: sys.exit("No se pudo consultar la API de ChatGPT (hace falta internet): %s" % str(ex)[:200].replace(key, "…"))
+        return (r["choices"][0]["message"]["content"] or "").strip().strip('"').strip()
+    print("Consultando a ChatGPT (%s): «%s», %d s (~%d palabras)…" % (modelo, tema, seg, palabras), flush=True)
+    texto = pedir(); n = len(texto.split())
+    if n < palabras * 0.75 or n > palabras * 1.25:            # fuera de la duracion pedida: un reintento corrigiendo la longitud
+        print("El texto salió de %d palabras; se pide ajustarlo a ~%d." % (n, palabras), flush=True)
+        texto = pedir("\nIMPORTANTE: la versión anterior tenía %d palabras. Ahora debe tener %d palabras (entre %d y %d)." % (n, palabras, int(palabras * .9), int(palabras * 1.1))) or texto
+    if not texto: sys.exit("ChatGPT no devolvió texto.")
+    print("Texto listo: %d palabras (~%d s de narración)." % (len(texto.split()), round(len(texto.split()) / 2.5)), flush=True)
+    print("CTV_GUION " + json.dumps({"texto": texto}, ensure_ascii=True), flush=True)
+
 def main():
+    if MODO == "guion": return escribir_guion()
     ruta = (P.get("imagen") or "").strip(); texto = None
     if ATX:
         texto = (P.get("texto") or "").strip(); img = None
