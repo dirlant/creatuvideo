@@ -12,6 +12,8 @@ def _ajustes():
     except Exception: return {}
 AJ = _ajustes(); PRE = AJ.get("presets", {}); DIRS = AJ.get("dirs", {})
 ATX = PRE.get("lineaActiva") == "animtexto"          # «Animación de Texto»: mismo motor, pero el texto lo escribe la persona en vez de salir de una imagen
+if PRE.get("lineaActiva") == "subtitulado":                   # la seccion «Subtitulado» comparte este punto de entrada
+    import runpy; runpy.run_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "subtitulado_lote.py"), run_name="__main__"); sys.exit(0)
 P = PRE.get("animtexto" if ATX else "infografias", {}) or {}
 SALIDA = (DIRS.get("animtextoResultado") or os.path.join(AJ.get("workspace") or AG, "animtexto", "resultado")) if ATX else (DIRS.get("infografiasResultado") or os.path.join(AG, "infografias", "resultado")); os.makedirs(SALIDA, exist_ok=True)
 FORMATOS = {"reels": (1080, 1920), "cuadrado": (1080, 1080), "vertical": (1080, 1350)}

@@ -53,7 +53,7 @@ function pintarProgreso() {
   el.appendChild(f1); el.appendChild(bar); el.appendChild(f2);
 }
 window.ctv.onLog((t) => {
-  for (const l of String(t).split(/\r?\n/)) { const m = l.match(/^OK (.+(?:infografia|animtexto)_.+\.mp4)\s*$/); if (m) ifVideoListo(m[1]); }
+  for (const l of String(t).split(/\r?\n/)) { const m = l.match(/^OK (.+(?:infografia|animtexto|subtitulado)_.+\.mp4)\s*$/); if (m) ifVideoListo(m[1]); }
   const limpias = String(t).split(/\r?\n/).filter((l) => !lineaProgreso(l) && !lineaGuion(l));
   if (limpias.length) escribir(limpias.join("\n"));
 });
@@ -86,6 +86,7 @@ const ICO = {
   cortar: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg>',
   claude: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>',
   ajustes: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>',
+  subtitulado: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 14h4M13 14h4M7 17h2M11 17h6"/></svg>',
   animtexto: '<svg viewBox="0 0 24 24"><path d="M4 6V4h12v2M10 4v12M7 16h6"/><path d="M16 12h4M18 12v8M16 20h4"/><path d="m19 4 .5 1.2L20.7 5.7l-1.2.5L19 7.4l-.5-1.2-1.2-.5 1.2-.5z"/></svg>',
   infografia: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 17v-4M12 17V8M17 17v-6"/><path d="m15 5.5.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></svg>',
   precio: '<svg viewBox="0 0 24 24"><path d="M3 10v4a1 1 0 0 0 1 1h3l11 5V4L7 9H4a1 1 0 0 0-1 1z"/><path d="M7 15l1.4 4.2a1 1 0 0 0 1 .8h1a1 1 0 0 0 1-1.2L10.5 16.5M21 9.5v5"/></svg>',
@@ -132,7 +133,7 @@ $$("[data-run]").forEach((b) => b.addEventListener("click", async () => {
   const r = await window.ctv.run({ linea, modo, slugs });
   if (r && r.error) escribir("⚠ " + r.error);
 }));
-const DIR_RESULTADOS = { "dianchi/resultado": "dianchiResultado", "diegao/resultado": "diegaoResultado", "precios/resultado": "preciosResultado", "infografias/resultado": "infografiasResultado", "animtexto/resultado": "animtextoResultado", "por-cortar/resultado": "cortarResultado" };
+const DIR_RESULTADOS = { "dianchi/resultado": "dianchiResultado", "diegao/resultado": "diegaoResultado", "precios/resultado": "preciosResultado", "infografias/resultado": "infografiasResultado", "animtexto/resultado": "animtextoResultado", "subtitulado/resultado": "subtituladoResultado", "por-cortar/resultado": "cortarResultado" };
 // "Abrir resultados" abre la carpeta que el usuario eligio (si no eligio ninguna, la predeterminada dentro de la carpeta de trabajo)
 $$("[data-abrir]").forEach((b) => b.addEventListener("click", () => window.ctv.openPath((ajustes && ajustes.dirs && ajustes.dirs[DIR_RESULTADOS[b.dataset.abrir]]) || b.dataset.abrir || (ajustes && ajustes.workspace) || "")));
 
@@ -426,8 +427,19 @@ $("#b-generar-todo-d").addEventListener("click", () => generarTodo("diegao"));
 
 // ---------------------------------------------------------------- Claude Code
 $$(".chip").forEach((c) => c.addEventListener("click", () => { $("#txt-claude").value = c.dataset.p; $("#txt-claude").focus(); }));
+// Para que Claude no repita guiones: al pedir guiones/lotes de Dianchi o Diegao se le entrega la lista de los que YA existen
+async function historialGuiones(linea) {
+  if (linea !== "diegao" && linea !== "dianchi") return "";
+  try {
+    const r = await window.ctv.listar(linea), it = (r && r.items) || []; if (!it.length) return "";
+    return "\n\nGUIONES QUE YA EXISTEN (" + it.length + "). NO los repitas ni escribas guiones parecidos (mismo tema, mismo gancho o las mismas ideas con otras palabras): cada guion nuevo debe tratar un problema distinto y llevar un gancho distinto.\n"
+      + it.slice(-80).map((i) => "- " + i.slug + " · " + i.rubro + " · «" + i.titulo + "»" + (i.gancho ? " · gancho: " + i.gancho : "")).join("\n")
+      + (linea === "diegao" ? "\n\nAl terminar, ejecuta «diegao_lote.py <ffmpeg> verificar»: compara todos los guiones y marca los repetidos; corrige cada uno que marque. Al generar, la app se detiene si algún guion nuevo se parece a otro." : "\n");
+  } catch { return ""; }
+}
 async function enviarClaude(linea, texto) {
   if (!texto.trim()) return escribir("Escribe una instrucción primero.");
+  if (/guion|lote/i.test(texto) && !/^(Quiero PERSONALIZAR|Modifica el RESULTADO|Quiero un PROMPT NUEVO)/.test(texto.trim())) texto += await historialGuiones(linea);
   const cs = await window.ctv.claudeStatus();
   if (cs.instalado && !cs.sesion) { ir("claude"); actualizarCuenta(); return escribir("⚠ Primero inicia sesión en Claude con tu cuenta (botón «Iniciar sesión» arriba)."); }
   const r = await window.ctv.openClaude({ linea, instruccion: texto });
@@ -518,7 +530,7 @@ $("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#tx
 const NOMBRES_DIRS = {
   dianchiResultado: "Resultados de Dianchi", imagenes: "Carpeta de imágenes", relleno: "Videos de relleno",
   diegaoResultado: "Resultados de Diegao", diegaoFuente: "Videos fuente (evento)", diegaoImagenes: "Carpeta de imágenes (Diegao)",
-  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Anuncios Con Precio", infografiasResultado: "Resultados de Infografías Animadas", animtextoResultado: "Resultados de Animación de Texto",
+  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Anuncios Con Precio", infografiasResultado: "Resultados de Infografías Animadas", animtextoResultado: "Resultados de Animación de Texto", subtituladoResultado: "Resultados de Subtitulado",
   claudeVideos: "Carpeta de videos", claudeImagenes: "Carpeta de imágenes", claudeSalida: "Carpeta de salida",
   cortarEntrada: "Video a cortar (entrada)", cortarResultado: "Resultados de los cortes",
 };
@@ -534,6 +546,7 @@ const SECCIONES = {
   "precios-resultados": ["preciosResultado"],
   "infografias-resultados": ["infografiasResultado"],
   "animtexto-resultados": ["animtextoResultado"],
+  "subtitulado-resultados": ["subtituladoResultado"],
   claude: ["claudeVideos", "claudeImagenes", "claudeSalida"],
   cortar: ["cortarEntrada", "cortarResultado"],
 };
@@ -687,7 +700,7 @@ function ifVideoListo(ruta) {
   const d = document.createElement("div"); d.className = "if-res";
   d.innerHTML = '<video controls loop preload="metadata"></video><div><b></b><a class="boton-a" download>Descargar video</a></div>';
   $("video", d).src = url; $("b", d).textContent = nombre; const a = $("a", d); a.href = url; a.download = nombre;
-  const px = nombre.startsWith("animtexto_") ? "at" : "if";
+  const px = nombre.startsWith("animtexto_") ? "at" : nombre.includes("_subtitulado_") ? "sb" : "if";
   $("#" + px + "-lista").prepend(d); $("#" + px + "-resultados").classList.remove("oculto");
 }
 for (const [id, k] of [["if-titulo", "titulo"], ["if-subtitulo", "subtitulo"]]) {
@@ -752,7 +765,7 @@ function atGuionListo(texto) {
   const p = atp(); p.texto = String(texto || "").trim(); $("#at-texto").value = p.texto; atCuentaTexto(); guardarAuto();
   $("#at-estado").textContent = "✔ Texto listo. Revísalo, edítalo si quieres, elige los estilos y pulsa «Generar videos».";
 }
-const lineaGuion = (l) => { const m = l.match(/^CTV_GUION (\{.*\})\s*$/); if (!m) return false; try { atGuionListo(JSON.parse(m[1]).texto); } catch {} return true; };
+const lineaGuion = (l) => { const m = l.match(/^CTV_GUION (\{.*\})\s*$/); if (!m) return false; try { const tx = JSON.parse(m[1]).texto; if (ajustes && ajustes.presets && ajustes.presets.lineaActiva === "subtitulado") sbGuionListo(tx); else atGuionListo(tx); } catch {} return true; };
 $("#b-at-chatgpt").addEventListener("click", async () => {
   const p = atp(), st = $("#at-estado"); p.tema = $("#at-tema").value.trim();
   if (!p.tema) { st.textContent = "⚠ Escribe primero la temática a resolver."; return; }
@@ -797,6 +810,82 @@ $("#b-at-generar").addEventListener("click", async () => {
   st.textContent = r && r.ok ? "✔ Listo. Tus videos aparecen abajo para verlos y descargarlos." : "⚠ No se pudo terminar; revisa el registro de abajo.";
 });
 
+// ---------------------------------------------------------------- Subtitulado: narración (propia o de ChatGPT) + videos, texto animado palabra por palabra en el centro (Lato)
+const SB0 = { videos: [], texto: "", tema: "", narracionSeg: 30, tono: "Cercano", idioma: "es", voz: "", fondo: "video", oscuro: 45, sonido: "quitar", tamano: "m", claves: true };
+function sbp() { const p = ajustes.presets.subtitulado || (ajustes.presets.subtitulado = {}); for (const k of Object.keys(SB0)) if (p[k] === undefined) p[k] = Array.isArray(SB0[k]) ? [] : SB0[k]; return p; }
+function sbCuentaTexto() {
+  const t = ($("#sb-texto").value || "").trim(), pal = t ? t.split(/\s+/).length : 0, seg = Math.round(pal / 2.5);
+  $("#sb-cuenta-t").textContent = pal ? pal + " palabras · narración de unos " + (seg >= 60 ? Math.floor(seg / 60) + " min " + (seg % 60) + " s" : seg + " s") : "";
+}
+function pintarSubtitulado() {
+  if (!ajustes || !$("#sb-videos")) return;
+  const p = sbp(), cont = $("#sb-videos"); cont.innerHTML = "";
+  p.videos.forEach((v, i) => {
+    const d = document.createElement("div"); d.className = "sb-video"; d.innerHTML = "<span></span><button type='button'>Quitar</button>";
+    $("span", d).textContent = (i + 1) + ". " + v.split(/[\\/]/).pop(); $("span", d).title = v;
+    $("button", d).addEventListener("click", () => { sbp().videos.splice(i, 1); guardarAuto(); }); cont.appendChild(d);
+  });
+  $("#sb-cuenta-v").textContent = p.fondo === "negro" ? "Con «pantalla negra» no se usan los videos." : p.videos.length ? p.videos.length + (p.videos.length === 1 ? " video" : " videos") : "Ningún video: se creará uno sobre pantalla negra.";
+  for (const [id, k] of [["sb-tema", "tema"], ["sb-texto", "texto"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
+  sbCuentaTexto();
+  $("#sb-nar").value = String([15, 20, 30, 45, 60, 90].includes(Number(p.narracionSeg)) ? p.narracionSeg : 30); $("#sb-tono").value = p.tono || "Cercano"; $("#sb-idioma").value = p.idioma || "es";
+  if (!$("#sb-voz").options.length) llenarSelect($("#sb-voz"), [["", "Automática (según el idioma)"], ...VOCES, ...PR_VOCES.en, ...PR_VOCES.pt, ...PR_VOCES.de], p.voz || "");
+  $("#sb-voz").value = p.voz || ""; $("#sb-fondo").value = p.fondo; $("#sb-sonido").value = p.sonido; $("#sb-tamano").value = p.tamano; $("#sb-claves").checked = p.claves !== false;
+  if (document.activeElement !== $("#sb-oscuro")) $("#sb-oscuro").value = p.oscuro; $("#sb-oscuro-v").textContent = p.oscuro + " %"; $("#sb-c-oscuro").classList.toggle("oculto", p.fondo === "negro");
+  const pv = $("#sb-prev"); pv.classList.toggle("video", p.fondo !== "negro"); pv.classList.toggle("g", p.tamano === "g"); pv.classList.toggle("p", p.tamano === "p");
+  const sp = $$(".sb-txt span", pv); sp[0].className = "sb-s"; sp[1].className = sp[2].className = p.claves !== false ? "sb-b" : "sb-s";
+}
+$("#b-sb-agregar").addEventListener("click", async () => {
+  const r = await window.ctv.pickFile("Elegir un video"); if (!r) return;
+  const p = sbp(); if (!p.videos.includes(r)) p.videos.push(r); await guardarAuto();
+});
+$("#b-sb-quitar-todos").addEventListener("click", () => { sbp().videos = []; guardarAuto(); });
+$("#sb-nar").addEventListener("change", (ev) => { sbp().narracionSeg = Number(ev.target.value); guardarAuto(); });
+for (const [id, k] of [["sb-tono", "tono"], ["sb-idioma", "idioma"], ["sb-voz", "voz"], ["sb-fondo", "fondo"], ["sb-sonido", "sonido"], ["sb-tamano", "tamano"]]) $("#" + id).addEventListener("change", (ev) => { sbp()[k] = ev.target.value; guardarAuto(); });
+$("#sb-claves").addEventListener("change", (ev) => { sbp().claves = ev.target.checked; guardarAuto(); });
+$("#sb-oscuro").addEventListener("input", (ev) => { sbp().oscuro = Number(ev.target.value); $("#sb-oscuro-v").textContent = ev.target.value + " %"; });
+$("#sb-oscuro").addEventListener("change", () => guardarAuto());
+for (const [id, k] of [["sb-tema", "tema"], ["sb-texto", "texto"]]) {
+  $("#" + id).addEventListener("input", (ev) => { sbp()[k] = ev.target.value; if (k === "texto") sbCuentaTexto(); });
+  $("#" + id).addEventListener("change", () => guardarAuto());
+}
+function sbGuionListo(texto) {
+  const p = sbp(); p.texto = String(texto || "").trim(); $("#sb-texto").value = p.texto; sbCuentaTexto(); guardarAuto();
+  $("#sb-estado").textContent = "✔ Texto listo. Revísalo, edítalo si quieres y pulsa «Generar videos subtitulados».";
+}
+$("#b-sb-archivo").addEventListener("click", () => $("#sb-archivo").click());
+$("#sb-archivo").addEventListener("change", async (ev) => {
+  const f = ev.target.files && ev.target.files[0]; ev.target.value = ""; if (!f) return;
+  const txt = (await f.text()).replace(/^\uFEFF/, "").trim(); sbp().texto = txt.slice(0, 6000); $("#sb-estado").textContent = txt.length > 6000 ? "⚠ El archivo es largo: se usarán los primeros 6000 caracteres." : ""; await guardarAuto();
+});
+$("#b-sb-limpiar").addEventListener("click", () => { sbp().texto = ""; $("#sb-texto").value = ""; sbCuentaTexto(); guardarAuto(); });
+$("#b-sb-chatgpt").addEventListener("click", async () => {
+  const p = sbp(), st = $("#sb-estado"); p.tema = $("#sb-tema").value.trim();
+  if (!p.tema) { st.textContent = "⚠ Escribe primero la temática a resolver."; return; }
+  if (!(ajustes.openaiKey || "").trim()) { st.textContent = "⚠ Falta la clave de OpenAI: pégala en Ajustes → Clave de OpenAI (ChatGPT)."; return; }
+  st.textContent = "Comprobando que tengas la última versión…";
+  if (!(await exigirUltimaVersion())) { st.textContent = "⚠ Primero hay que actualizar a la última versión."; return; }
+  st.textContent = "Consultando a ChatGPT… (unos segundos)";
+  ajustes.presets.lineaActiva = "subtitulado"; await guardarAuto();
+  const r = await window.ctv.run({ linea: "infografias", modo: "guion", slugs: [] });
+  if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
+  if (!r || !r.ok) st.textContent = "⚠ No se pudo redactar el texto; revisa el registro de abajo.";
+});
+$("#b-sb-generar").addEventListener("click", async () => {
+  const p = sbp(), st = $("#sb-estado"); p.texto = $("#sb-texto").value;
+  if (p.texto.trim().length < 15) { st.textContent = "⚠ Escribe primero la narración (o pídesela a ChatGPT)."; return; }
+  st.textContent = "Comprobando que tengas la última versión…";
+  if (!(await exigirUltimaVersion())) { st.textContent = "⚠ Primero hay que actualizar a la última versión."; return; }
+  const n = p.fondo === "negro" || !p.videos.length ? 1 : p.videos.length;
+  st.textContent = "Generando " + n + (n === 1 ? " video" : " videos") + "… se genera la voz y se anima el texto (menos de 1 minuto por video, según su duración)";
+  ajustes.presets.lineaActiva = "subtitulado"; await guardarAuto();
+  const antes = $("#sb-lista").children.length;
+  const r = await window.ctv.run({ linea: "infografias", modo: "generar", slugs: [] });
+  if (r && r.ok && $("#sb-lista").children.length === antes) { st.textContent = "⚠ Terminó pero no se creó ningún video. Revisa el registro de abajo."; return; }
+  if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
+  st.textContent = r && r.ok ? "✔ Listo. Tus videos aparecen abajo para verlos y descargarlos." : "⚠ No se pudo terminar; revisa el registro de abajo.";
+});
+
 $$(".sel-voz").forEach((s) => { for (const [v, n] of VOCES) { const o = document.createElement("option"); o.value = v; o.textContent = n; s.appendChild(o); } });
 async function guardarAuto() {
   ajustes = await window.ctv.saveSettings(ajustes);
@@ -836,6 +925,7 @@ function pintarSecciones() {
   pintarPrecios();
   pintarInfografias();
   pintarAnimTexto();
+  pintarSubtitulado();
   pintarCortar();
   $$(".sel-voz").forEach((s) => (s.value = ajustes.presets.voz));
 }

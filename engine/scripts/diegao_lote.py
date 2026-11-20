@@ -205,6 +205,51 @@ def render(v):
     log = open(os.path.join(CFGD, v["slug"] + ".log"), "w", encoding="utf-8")
     return subprocess.Popen([sys.executable, os.path.join(AG, "scripts", "generar_dianchi.py"), FF, cp], stdout=log, stderr=subprocess.STDOUT, env=env), log
 
+# ---------------------------------------------------------------- NO REPETIR GUIONES: historial de lo ya generado + deteccion de guiones parecidos
+HECHOS_F = os.path.join(OPG, "hechos.json")
+def _carpeta_resultado():
+    return _DIRS.get("diegaoResultado") or os.path.join(AG, "diegao", "resultado")
+def hechos_leer():
+    """{slug: {fecha, titulo}} de los guiones ya convertidos en video. La primera vez, si ya hay videos en la carpeta de resultados, los guiones existentes se dan por hechos (para no rehacerlos)."""
+    try: return json.load(open(HECHOS_F, encoding="utf-8"))
+    except Exception: pass
+    base = {}
+    if glob.glob(os.path.join(_carpeta_resultado(), "*.mp4")):
+        import datetime; hoy = datetime.date.today().isoformat()
+        base = {v["slug"]: {"fecha": hoy, "titulo": " ".join(v["titulo"]).replace("*", ""), "origen": "ya existian"} for v in V}
+        json.dump(base, open(HECHOS_F, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    return base
+def hechos_marcar(v):
+    import datetime
+    h = hechos_leer(); h[v["slug"]] = {"fecha": datetime.date.today().isoformat(), "titulo": " ".join(v["titulo"]).replace("*", "")}
+    json.dump(h, open(HECHOS_F, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+_STOP = set("para pero como cada esto esta estas estos solo mas muy sus tus tiene tienen hace hacen donde cuando porque aunque tambien entre sobre desde hasta una unos unas del los las que con por sin muchas duenas duena salon clientas clienta tu su".split())
+def _toks(s): return {w for w in re.findall(r"[a-z]{4,}", unicodedata.normalize("NFD", (s or "").lower()).encode("ascii", "ignore").decode()) if w not in _STOP}
+def _jac(a, b): return len(a & b) / max(1, len(a | b))
+def parecido(a, b):
+    """Parecido entre dos guiones (0 a 1): el mayor entre el del texto del guion, el del gancho y el del titulo."""
+    g = _jac(_toks(a["guion"]), _toks(b["guion"])); h = _jac(_toks(a["gancho"]), _toks(b["gancho"])); t = _jac(_toks(" ".join(a["titulo"])), _toks(" ".join(b["titulo"])))
+    return max(g, h * 0.9, t * 0.9), g, h, t
+UMBRAL = 0.5
+def verificar_repetidos(nuevos, todos):
+    """Compara cada guion nuevo con TODOS los demas de la lista (los ya generados y los de este mismo lote). Si hay repetidos, avisa y detiene."""
+    malos = []; vistos = set()
+    for v in nuevos:
+        for o in todos:
+            if o is v: continue
+            k = frozenset((v["slug"], o["slug"]))
+            if k in vistos: continue
+            vistos.add(k)
+            if o["slug"] == v["slug"]: malos.append((v["slug"], o["slug"], 1.0, "mismo slug")); continue
+            s, g, h, t = parecido(v, o)
+            if s >= UMBRAL: malos.append((v["slug"], o["slug"], s, "guion %d%% · gancho %d%% · título %d%%" % (g * 100, h * 100, t * 100)))
+    if malos:
+        print("GUIONES REPETIDOS O MUY PARECIDOS:", flush=True)
+        for a, b, s, d in malos: print("  · «%s» se parece a «%s» (%d%%: %s)" % (a, b, s * 100, d), flush=True)
+        sys.exit("Hay %d guion(es) repetidos o casi iguales a otros. Reescribe esos guiones con otro tema, otro gancho y otro ángulo (o quítalos de la lista) y vuelve a generar." % len(malos))
+    print("Guiones: %d nuevos, ninguno repetido." % len(nuevos), flush=True)
+
 def _lote_actual():                  # slugs del lote que la app pidio crear (diegao/prompt/lote_actual.txt, uno por linea)
     f = os.path.join(AG, "diegao", "prompt", "lote_actual.txt")
     try: return [l.strip() for l in open(f, encoding="utf-8") if l.strip() and not l.startswith("#")]
@@ -212,10 +257,19 @@ def _lote_actual():                  # slugs del lote que la app pidio crear (di
 
 if __name__ == "__main__":
     _LOTE = [] if SOLO or MODO == "listar" else _lote_actual()
-    vs = [v for v in V if (v["slug"] in SOLO if SOLO else (v["slug"] in _LOTE if _LOTE else True))]
+    if MODO in ("preparar", "render") and not SOLO:
+        _H = hechos_leer()                 # solo se generan los guiones NUEVOS: un guion ya convertido en video no se vuelve a hacer
+        vs = [v for v in V if (v["slug"] in _LOTE if _LOTE else True) and v["slug"] not in _H]
+        if not vs: sys.exit("No hay guiones nuevos para generar: los %d guiones de la lista ya se convirtieron en video. Pídele a Claude Code guiones nuevos (se le entrega el historial para que no repita) y vuelve a generar. Para rehacer uno en concreto, elígelo en «Paso a paso»." % len(V))
+        print("Guiones nuevos por generar: %d (ya hechos: %d)" % (len(vs), len([1 for v in V if v["slug"] in _H])), flush=True)
+    else:
+        vs = [v for v in V if (v["slug"] in SOLO if SOLO else (v["slug"] in _LOTE if _LOTE else True))]
     if MODO == "listar":
-        print(json.dumps([{"slug": v["slug"], "rubro": v["rubro"], "titulo": " ".join(v["titulo"]).replace("*", "")} for v in V], ensure_ascii=False))
+        print(json.dumps([{"slug": v["slug"], "rubro": v["rubro"], "titulo": " ".join(v["titulo"]).replace("*", ""), "gancho": v["gancho"], "guion": v["guion"].replace("*", "")[:170]} for v in V], ensure_ascii=False))
+    elif MODO == "verificar":
+        verificar_repetidos(V, V)
     elif MODO == "preparar":
+        verificar_repetidos(vs, V)        # antes de gastar tiempo: ¿algun guion nuevo repite a otro?
         rnd = random.Random(2611); pl = [] if VIDEOS_PEXELS else pool(); usados = set(); print("videos:", "Pexels (automatico)" if VIDEOS_PEXELS else "carpeta, %d clips verticales" % len(pl), flush=True)
         for _i, v in enumerate(vs, 1):
             print("CTV_PROGRESO preparar %d %d %s" % (_i, len(vs), v["slug"]), flush=True)   # la app lo muestra como progreso
@@ -228,3 +282,4 @@ if __name__ == "__main__":
             time.sleep(10)
             for a in list(act):
                 if a[1].poll() is not None: a[2].close(); act.remove(a); print("listo", a[0]["slug"], a[1].returncode, flush=True)
+                if a[1].returncode == 0: hechos_marcar(a[0])
