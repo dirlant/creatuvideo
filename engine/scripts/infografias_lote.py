@@ -11,8 +11,9 @@ def _ajustes():
     try: return json.load(open(os.environ.get("CTV_AJUSTES") or os.path.join(os.environ.get("APPDATA", ""), "CreaTuVideo", "settings.json"), encoding="utf-8"))
     except Exception: return {}
 AJ = _ajustes(); PRE = AJ.get("presets", {}); DIRS = AJ.get("dirs", {})
-P = PRE.get("infografias", {}) or {}
-SALIDA = DIRS.get("infografiasResultado") or os.path.join(AG, "infografias", "resultado"); os.makedirs(SALIDA, exist_ok=True)
+ATX = PRE.get("lineaActiva") == "animtexto"          # «Animación de Texto»: mismo motor, pero el texto lo escribe la persona en vez de salir de una imagen
+P = PRE.get("animtexto" if ATX else "infografias", {}) or {}
+SALIDA = (DIRS.get("animtextoResultado") or os.path.join(AJ.get("workspace") or AG, "animtexto", "resultado")) if ATX else (DIRS.get("infografiasResultado") or os.path.join(AG, "infografias", "resultado")); os.makedirs(SALIDA, exist_ok=True)
 FORMATOS = {"reels": (1080, 1920), "cuadrado": (1080, 1080), "vertical": (1080, 1350)}
 FPS = 30
 
@@ -125,18 +126,19 @@ def buscar_claude():
             if "claude.exe" in fs: return os.path.join(r, "claude.exe")
     return None
 
-def interpretar(img, idioma):
+def interpretar(img, idioma, texto=None):
     import hashlib, re as _re
     op = os.path.join(AG, "infografias", "_operacion", "lectura"); os.makedirs(op, exist_ok=True)
-    h = hashlib.sha1(img.tobytes()[:2000000] + idioma.encode() + b"v4").hexdigest()[:16]; cache = os.path.join(op, "lectura_%s.json" % h)
+    h = hashlib.sha1((texto.encode("utf-8") + b"t1" if texto is not None else img.tobytes()[:2000000]) + idioma.encode() + b"v4").hexdigest()[:16]; cache = os.path.join(op, "lectura_%s.json" % h)
     if os.path.exists(cache):
         try: print("Texto de la imagen: ya estaba leído, se reutiliza.", flush=True); return json.load(open(cache, encoding="utf-8"))
         except Exception: pass
     cl_ = buscar_claude()
     if not cl_: sys.exit("No se encontró Claude Code, que es el que lee el texto de la imagen. Instálalo e inicia sesión (Ajustes → Claude Code).")
-    big = img if max(img.size) <= 1800 else contain(img, 1800, 1800); big.save(os.path.join(op, "imagen_entrada.png"))
-    prompt = ('Usa la herramienta Read para ver la imagen ./imagen_entrada.png. Es una infografía o un diseño con texto. Lee TODO el texto y reorganízalo para una animación de texto de varias escenas. '
-              'Escribe el texto en %s (traduce si hace falta; conserva cifras, nombres propios y marcas). Responde SOLO con un JSON válido, sin explicaciones ni bloques de código, con esta forma exacta: '
+    if texto is None: big = img if max(img.size) <= 1800 else contain(img, 1800, 1800); big.save(os.path.join(op, "imagen_entrada.png"))
+    cabeza = ('Usa la herramienta Read para ver la imagen ./imagen_entrada.png. Es una infografía o un diseño con texto. Lee TODO el texto y reorganízalo para una animación de texto de varias escenas. ' if texto is None else
+              'Este es el texto que la persona quiere narrar y animar en un video de texto (puede ser un guion, una lista de consejos, una explicación o una historia):\n<<<\n' + texto + '\n>>>\nDivídelo en escenas para una animación de texto, conservando sus palabras y su orden (puedes acortar una frase muy larga, pero no inventes ideas ni cambies el sentido). Copia las cifras, nombres y datos exactamente como están escritos, y deja "subtitulo" vacío si el texto no trae una bajada propia. Donde abajo se habla de «la imagen» entiende «este texto». ')
+    prompt = cabeza + ('Escribe el texto en %s (traduce si hace falta; conserva cifras, nombres propios y marcas). Responde SOLO con un JSON válido, sin explicaciones ni bloques de código, con esta forma exacta: '
               '{"idioma":"código de 2 letras del idioma del texto que escribes (es, en, pt, de, fr, it…)","titulo":"título principal, corto","subtitulo":"bajada o texto de apoyo, o vacío",'
               '"puntos":[{"tipo":"paso|contraste|dato|lista","transicion":"zoom|deslizar|subir|giro|fade","encabezado":"idea corta de 1 a 6 palabras, sin numeración","texto":"explicación breve, o vacío","a":"","b":"","etq_a":"","etq_b":"","tachar":true,"dato":"","items":[]}],'
               '"cierre":"frase final o llamado a la acción si existe, o vacío"}. '
@@ -149,8 +151,9 @@ def interpretar(img, idioma):
               'Para cada punto elige también una "transicion" según el sentido: "zoom" para algo importante o de impacto, "deslizar" para pasos o secuencias, "subir" para consejos o crecimiento, "giro" para cambios o contrastes, "fade" para algo calmado; varíalas. '
               'Reglas: máximo 7 puntos, uno por cada bloque, paso o dato de la imagen en el orden en que se leen; no inventes nada que no esté en la imagen; no pongas números de paso en los encabezados; deja vacíos los campos que no correspondan al tipo; '
               'si la imagen es solo una foto sin texto, describe en 3 a 5 puntos cortos lo que muestra.') % IDIOMAS.get(idioma, IDIOMAS[""])
+    if texto is not None: prompt = prompt.replace("máximo 7 puntos", "máximo 10 puntos")
     e = dict(os.environ); e.pop("ELECTRON_RUN_AS_NODE", None); e["PYTHONIOENCODING"] = "utf-8"
-    print("Leyendo el texto de la imagen con Claude Code… (puede tardar unos segundos)", flush=True)
+    print("Leyendo el texto de la imagen con Claude Code… (puede tardar unos segundos)" if texto is None else "Interpretando tu texto con Claude Code… (puede tardar unos segundos)", flush=True)
     try: r = subprocess.run([cl_, "-p", prompt, "--allowedTools", "Read", "--output-format", "text"], cwd=op, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, env=e)
     except Exception as ex: sys.exit("No se pudo ejecutar Claude Code: %s" % ex)
     sal = (r.stdout or "").strip(); m = _re.search(r"\{.*\}", sal, _re.S)
@@ -168,7 +171,7 @@ def interpretar(img, idioma):
         if tp not in ("paso", "contraste", "dato", "lista"): tp = "paso"
         tr = S_(p.get("transicion")).lower(); tr = tr if tr in cic else cic[i % len(cic)]; tach = p.get("tachar"); tach = True if tach is None else bool(tach)
         return {"tipo": tp, "transicion": tr, "encabezado": S_(p.get("encabezado")), "texto": S_(p.get("texto")), "a": a, "b": b, "etq_a": S_(p.get("etq_a")) or ed_[0], "etq_b": S_(p.get("etq_b")) or ed_[1], "tachar": tach, "dato": dato, "items": items}
-    ps = [p for p in (D.get("puntos") or []) if isinstance(p, dict) and (p.get("encabezado") or p.get("texto") or (p.get("a") and p.get("b")) or p.get("dato") or p.get("items"))][:7]
+    ps = [p for p in (D.get("puntos") or []) if isinstance(p, dict) and (p.get("encabezado") or p.get("texto") or (p.get("a") and p.get("b")) or p.get("dato") or p.get("items"))][:(10 if texto is not None else 7)]
     D = {"idioma": cod, "titulo": S_(D.get("titulo")), "subtitulo": S_(D.get("subtitulo")), "cierre": S_(D.get("cierre")), "puntos": [punto(i, p) for i, p in enumerate(ps)]}
     json.dump(D, open(cache, "w", encoding="utf-8"), ensure_ascii=False); return D
 
@@ -618,8 +621,12 @@ def render(clave, D, W, H, dur_fija, ruta, auds=None, carpeta=None):
     return p.wait() == 0
 
 def main():
-    ruta = (P.get("imagen") or "").strip()
-    if P.get("imagenB64"):                                   # la app guarda la imagen dentro de los ajustes
+    ruta = (P.get("imagen") or "").strip(); texto = None
+    if ATX:
+        texto = (P.get("texto") or "").strip(); img = None
+        if len(texto) < 15: sys.exit("Escribe el texto que quieres animar (al menos una frase).")
+        texto = texto[:6000]
+    elif P.get("imagenB64"):                                   # la app guarda la imagen dentro de los ajustes
         import base64, io
         img = Image.open(io.BytesIO(base64.b64decode(P["imagenB64"].split(",", 1)[-1])))
     elif ruta and os.path.exists(ruta): img = Image.open(ruta)
@@ -630,7 +637,8 @@ def main():
     try: dur_fija = float(P.get("duracion") or 0)
     except Exception: dur_fija = 0
     dur_fija = cl(dur_fija, 6, 40) if dur_fija else 0
-    img = ImageOps.exif_transpose(img).convert("RGB"); D = interpretar(img, P.get("idioma") or "")
+    if img is not None: img = ImageOps.exif_transpose(img).convert("RGB")
+    D = interpretar(img, P.get("idioma") or "", texto)
     if (P.get("titulo") or "").strip(): D["titulo"] = P["titulo"].strip()
     if (P.get("subtitulo") or "").strip(): D["subtitulo"] = P["subtitulo"].strip()
     print("Título: %s | %d puntos | cierre: %s" % (D["titulo"], len(D["puntos"]), "sí" if D["cierre"] else "no"), flush=True)
@@ -640,7 +648,7 @@ def main():
         voz = voz or VOCES_AUTO.get(D["idioma"], VOCES_AUTO["es"]); print("Generando la narración con la voz %s…" % voz, flush=True); auds = sintetizar(guiones(D), voz, carpeta)
     sello = time.strftime("%Y%m%d-%H%M%S"); ok = 0
     for i, e in enumerate(estilos, 1):
-        out = os.path.join(SALIDA, "infografia_%s_%s.mp4" % (e, sello)); print("[%d/%d] Estilo %s ..." % (i, len(estilos), e), flush=True)
+        out = os.path.join(SALIDA, ("animtexto_%s_%s.mp4" if ATX else "infografia_%s_%s.mp4") % (e, sello)); print("[%d/%d] Estilo %s ..." % (i, len(estilos), e), flush=True)
         try:
             if render(e, D, W, H, dur_fija, out, auds, carpeta): ok += 1; print("OK " + out, flush=True)
             else: print("ERROR: ffmpeg no pudo crear " + out, flush=True)

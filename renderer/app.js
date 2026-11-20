@@ -53,7 +53,7 @@ function pintarProgreso() {
   el.appendChild(f1); el.appendChild(bar); el.appendChild(f2);
 }
 window.ctv.onLog((t) => {
-  for (const l of String(t).split(/\r?\n/)) { const m = l.match(/^OK (.+infografia_.+\.mp4)\s*$/); if (m) ifVideoListo(m[1]); }
+  for (const l of String(t).split(/\r?\n/)) { const m = l.match(/^OK (.+(?:infografia|animtexto)_.+\.mp4)\s*$/); if (m) ifVideoListo(m[1]); }
   const limpias = String(t).split(/\r?\n/).filter((l) => !lineaProgreso(l));
   if (limpias.length) escribir(limpias.join("\n"));
 });
@@ -86,6 +86,7 @@ const ICO = {
   cortar: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg>',
   claude: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>',
   ajustes: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>',
+  animtexto: '<svg viewBox="0 0 24 24"><path d="M4 6V4h12v2M10 4v12M7 16h6"/><path d="M16 12h4M18 12v8M16 20h4"/><path d="m19 4 .5 1.2L20.7 5.7l-1.2.5L19 7.4l-.5-1.2-1.2-.5 1.2-.5z"/></svg>',
   infografia: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 17v-4M12 17V8M17 17v-6"/><path d="m15 5.5.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></svg>',
   precio: '<svg viewBox="0 0 24 24"><path d="M3 10v4a1 1 0 0 0 1 1h3l11 5V4L7 9H4a1 1 0 0 0-1 1z"/><path d="M7 15l1.4 4.2a1 1 0 0 0 1 .8h1a1 1 0 0 0 1-1.2L10.5 16.5M21 9.5v5"/></svg>',
   diegao: '<svg viewBox="0 0 24 24"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11.2V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.8M22 9v6"/></svg>',
@@ -131,7 +132,7 @@ $$("[data-run]").forEach((b) => b.addEventListener("click", async () => {
   const r = await window.ctv.run({ linea, modo, slugs });
   if (r && r.error) escribir("⚠ " + r.error);
 }));
-const DIR_RESULTADOS = { "dianchi/resultado": "dianchiResultado", "diegao/resultado": "diegaoResultado", "precios/resultado": "preciosResultado", "infografias/resultado": "infografiasResultado", "por-cortar/resultado": "cortarResultado" };
+const DIR_RESULTADOS = { "dianchi/resultado": "dianchiResultado", "diegao/resultado": "diegaoResultado", "precios/resultado": "preciosResultado", "infografias/resultado": "infografiasResultado", "animtexto/resultado": "animtextoResultado", "por-cortar/resultado": "cortarResultado" };
 // "Abrir resultados" abre la carpeta que el usuario eligio (si no eligio ninguna, la predeterminada dentro de la carpeta de trabajo)
 $$("[data-abrir]").forEach((b) => b.addEventListener("click", () => window.ctv.openPath((ajustes && ajustes.dirs && ajustes.dirs[DIR_RESULTADOS[b.dataset.abrir]]) || b.dataset.abrir || (ajustes && ajustes.workspace) || "")));
 
@@ -517,7 +518,7 @@ $("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#tx
 const NOMBRES_DIRS = {
   dianchiResultado: "Resultados de Dianchi", imagenes: "Carpeta de imágenes", relleno: "Videos de relleno",
   diegaoResultado: "Resultados de Diegao", diegaoFuente: "Videos fuente (evento)", diegaoImagenes: "Carpeta de imágenes (Diegao)",
-  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Anuncios Con Precio", infografiasResultado: "Resultados de Infografías Animadas",
+  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Anuncios Con Precio", infografiasResultado: "Resultados de Infografías Animadas", animtextoResultado: "Resultados de Animación de Texto",
   claudeVideos: "Carpeta de videos", claudeImagenes: "Carpeta de imágenes", claudeSalida: "Carpeta de salida",
   cortarEntrada: "Video a cortar (entrada)", cortarResultado: "Resultados de los cortes",
 };
@@ -532,6 +533,7 @@ const SECCIONES = {
   "precios-imagenes": ["preciosImagenes"],
   "precios-resultados": ["preciosResultado"],
   "infografias-resultados": ["infografiasResultado"],
+  "animtexto-resultados": ["animtextoResultado"],
   claude: ["claudeVideos", "claudeImagenes", "claudeSalida"],
   cortar: ["cortarEntrada", "cortarResultado"],
 };
@@ -685,7 +687,8 @@ function ifVideoListo(ruta) {
   const d = document.createElement("div"); d.className = "if-res";
   d.innerHTML = '<video controls loop preload="metadata"></video><div><b></b><a class="boton-a" download>Descargar video</a></div>';
   $("video", d).src = url; $("b", d).textContent = nombre; const a = $("a", d); a.href = url; a.download = nombre;
-  $("#if-lista").prepend(d); $("#if-resultados").classList.remove("oculto");
+  const px = nombre.startsWith("animtexto_") ? "at" : "if";
+  $("#" + px + "-lista").prepend(d); $("#" + px + "-resultados").classList.remove("oculto");
 }
 for (const [id, k] of [["if-titulo", "titulo"], ["if-subtitulo", "subtitulo"]]) {
   $("#" + id).addEventListener("input", (ev) => { ifp()[k] = ev.target.value; });
@@ -708,6 +711,68 @@ $("#b-if-generar").addEventListener("click", async () => {
   ajustes.presets.lineaActiva = "infografias"; await guardarAuto();
   const r = await window.ctv.run({ linea: "infografias", modo: "generar", slugs: [] });
   if (r && r.ok && !ifListos.length && !$("#if-lista").children.length) { st.textContent = "⚠ Terminó pero no se creó ningún video. Revisa el registro de abajo."; return; }
+  if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
+  st.textContent = r && r.ok ? "✔ Listo. Tus videos aparecen abajo para verlos y descargarlos." : "⚠ No se pudo terminar; revisa el registro de abajo.";
+});
+
+// ---------------------------------------------------------------- Animación de Texto: el texto lo escribe la persona; mismo motor y mismos estilos que Infografías
+const AT0 = { texto: "", estilos: [], titulo: "", subtitulo: "", duracion: 0, idioma: "", voz: "", formato: "reels" };
+function atp() { const p = ajustes.presets.animtexto || (ajustes.presets.animtexto = {}); for (const k of Object.keys(AT0)) if (p[k] === undefined) p[k] = Array.isArray(AT0[k]) ? [] : AT0[k]; return p; }
+let atConstruido = false;
+function atCuentaTexto() {
+  const t = ($("#at-texto").value || "").trim(), pal = t ? t.split(/\s+/).length : 0, seg = Math.round(pal / 2.5);
+  $("#at-cuenta-t").textContent = pal ? pal + " palabras · narración de unos " + (seg >= 60 ? Math.floor(seg / 60) + " min " + (seg % 60) + " s" : seg + " s") : "";
+}
+function pintarAnimTexto() {
+  if (!ajustes || !$("#at-est-v")) return;
+  const p = atp(), v = $("#v-animtexto");
+  v.style.setProperty("--img", 'url("' + IF_DEMO + '")');
+  if (!atConstruido) {
+    atConstruido = true;
+    for (const [clave, nombre, desc, g] of ESTILOS) {
+      const l = document.createElement("label"); l.className = "est"; l.dataset.e = clave;
+      l.innerHTML = '<div class="pv pv-' + clave + '"><i class="pv-t"></i><div class="pv-c"></div><i class="pv-s"></i></div><b></b><span class="d"></span><span class="ok">✓</span><input type="checkbox" />';
+      $("b", l).textContent = nombre; $(".d", l).textContent = desc;
+      $("input", l).addEventListener("change", (ev) => { const q = atp(), s = new Set(q.estilos); if (ev.target.checked) s.add(clave); else s.delete(clave); q.estilos = ESTILOS.map((e) => e[0]).filter((k) => s.has(k)); guardarAuto(); });
+      $(g === "v" ? "#at-est-v" : "#at-est-f").appendChild(l);
+    }
+  }
+  $$(".est", v).forEach((l) => { const on = p.estilos.includes(l.dataset.e); l.classList.toggle("sel", on); $("input", l).checked = on; });
+  $("#at-cuenta").textContent = p.estilos.length ? p.estilos.length + (p.estilos.length === 1 ? " estilo elegido" : " estilos elegidos") : "Ninguno elegido todavía";
+  for (const [id, k] of [["at-texto", "texto"], ["at-titulo", "titulo"], ["at-subtitulo", "subtitulo"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = p[k];
+  atCuentaTexto();
+  $("#at-formato").value = p.formato; $("#at-duracion").value = String([10, 15, 20, 30].includes(Number(p.duracion)) ? p.duracion : 0); $("#at-idioma").value = p.idioma || "";
+  if (!$("#at-voz").options.length) llenarSelect($("#at-voz"), [["", "Automática (según el idioma del texto)"], ["none", "Sin voz (solo animación)"], ...VOCES, ...PR_VOCES.en, ...PR_VOCES.pt, ...PR_VOCES.de], p.voz || "");
+  $("#at-voz").value = p.voz || "";
+}
+for (const [id, k] of [["at-texto", "texto"], ["at-titulo", "titulo"], ["at-subtitulo", "subtitulo"]]) {
+  $("#" + id).addEventListener("input", (ev) => { atp()[k] = ev.target.value; if (k === "texto") atCuentaTexto(); });
+  $("#" + id).addEventListener("change", () => guardarAuto());
+}
+$("#b-at-archivo").addEventListener("click", () => $("#at-archivo").click());
+$("#at-archivo").addEventListener("change", async (ev) => {
+  const f = ev.target.files && ev.target.files[0]; ev.target.value = ""; if (!f) return;
+  const txt = (await f.text()).replace(/^\uFEFF/, "").trim(); atp().texto = txt.slice(0, 6000); $("#at-estado").textContent = txt.length > 6000 ? "⚠ El archivo es largo: se usarán los primeros 6000 caracteres." : ""; await guardarAuto();
+});
+$("#b-at-limpiar").addEventListener("click", () => { atp().texto = ""; $("#at-texto").value = ""; atCuentaTexto(); guardarAuto(); });
+$("#at-formato").addEventListener("change", (ev) => { atp().formato = ev.target.value; guardarAuto(); });
+$("#at-voz").addEventListener("change", (ev) => { atp().voz = ev.target.value; guardarAuto(); });
+$("#at-idioma").addEventListener("change", (ev) => { atp().idioma = ev.target.value; guardarAuto(); });
+$("#at-duracion").addEventListener("change", (ev) => { atp().duracion = Number(ev.target.value); guardarAuto(); });
+$("#b-at-todos").addEventListener("click", () => { atp().estilos = ESTILOS.map((e) => e[0]); guardarAuto(); });
+$("#b-at-ninguno").addEventListener("click", () => { atp().estilos = []; guardarAuto(); });
+$("#b-at-generar").addEventListener("click", async () => {
+  const p = atp(), st = $("#at-estado");
+  p.texto = $("#at-texto").value;
+  if (p.texto.trim().length < 15) { st.textContent = "⚠ Escribe primero el texto que quieres animar."; return; }
+  if (!p.estilos.length) { st.textContent = "⚠ Elige al menos un estilo de diseño."; return; }
+  st.textContent = "Comprobando que tengas la última versión…";
+  if (!(await exigirUltimaVersion())) { st.textContent = "⚠ Primero hay que actualizar a la última versión."; return; }
+  st.textContent = "Generando " + p.estilos.length + (p.estilos.length === 1 ? " video" : " videos") + "… primero Claude Code interpreta tu texto (unos segundos), luego se genera la voz y se anima cada estilo (alrededor de 1 minuto cada uno)";
+  ajustes.presets.lineaActiva = "animtexto"; await guardarAuto();
+  const antes = $("#at-lista").children.length;
+  const r = await window.ctv.run({ linea: "infografias", modo: "generar", slugs: [] });
+  if (r && r.ok && $("#at-lista").children.length === antes) { st.textContent = "⚠ Terminó pero no se creó ningún video. Revisa el registro de abajo."; return; }
   if (r && r.error) { st.textContent = "⚠ " + r.error; return; }
   st.textContent = r && r.ok ? "✔ Listo. Tus videos aparecen abajo para verlos y descargarlos." : "⚠ No se pudo terminar; revisa el registro de abajo.";
 });
@@ -750,6 +815,7 @@ function pintarSecciones() {
   resumenDianchi();
   pintarPrecios();
   pintarInfografias();
+  pintarAnimTexto();
   pintarCortar();
   $$(".sel-voz").forEach((s) => (s.value = ajustes.presets.voz));
 }
