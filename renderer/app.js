@@ -221,14 +221,15 @@ function brief() {                               // siempre el MISMO objeto, com
 let tGuardarBrief = null;
 function guardarBrief() { clearTimeout(tGuardarBrief); tGuardarBrief = setTimeout(() => window.ctv.saveSettings(ajustes), 500); }
 const problemasEf = (b) => (b.problemasAuto ? [] : b.problemas);
-const totalVideos = () => { const b = brief(); let n = (Number(b.variaciones) || 1) * (b.problemasAuto ? 1 : b.problemas.length); for (const [k] of DIMS) { if (!b[k].length) return 0; n *= b[k].length; } return n; };
+const temaOpcional = (b) => !b.problemasAuto && b.problemas.length > 0 && !b.tematicas.length;      // sin temática elegida pero con problemas propios: se cuentan igual (la temática la deduce la IA del problema)
+const totalVideos = () => { const b = brief(); let n = (Number(b.variaciones) || 1) * (b.problemasAuto ? 1 : b.problemas.length); for (const [k] of DIMS) { if (!b[k].length) { if (k === "tematicas" && temaOpcional(b)) continue; return 0; } n *= b[k].length; } return n; };
 function desgloseBrief() {
   const b = brief(), partes = DIMS.filter(([k]) => b[k].length > 1).map(([k, s, p]) => b[k].length + " " + p);
   if (!b.problemasAuto && b.problemas.length > 1) partes.push(b.problemas.length + " problemas");
   if (Number(b.variaciones) > 1) partes.push(b.variaciones + " variaciones");
   return partes.length ? partes.join(" × ") : "una sola combinación";
 }
-const FALTA = () => { const b = brief(), f = DIMS.filter(([k]) => !b[k].length).map(([k, s]) => s); if (!b.problemasAuto && !b.problemas.length) f.push("temática o problema (o activa Automático)"); return f.length ? "Elige al menos un valor en: " + f.join(", ") + "." : ""; };
+const FALTA = () => { const b = brief(), f = DIMS.filter(([k]) => !b[k].length && !(k === "tematicas" && temaOpcional(b))).map(([k, s]) => s); if (!b.problemasAuto && !b.problemas.length) f.push("temática o problema (o activa Automático)"); return f.length ? "Elige al menos un valor en: " + f.join(", ") + "." : ""; };
 
 function actualizarContador() {
   if (gen && !gen.fin) return;
@@ -283,7 +284,7 @@ function pintarBrief() {
   cont.appendChild(fr);
   cont.appendChild(campoMulti(4, "Formato (uno o varios)", OPC.formatos.map((x) => x[0]), b.formatos, cambio));
   const tm = chipsMulti(TEMAS().map((t) => t[0]), b.tematicas, cambio);
-  const ft = campo(6, "Temática (una o varias)", "", tm.cont, true);
+  const ft = campo(6, "Temática (una o varias)", "Opcional si agregas tus propios problemas más abajo: en ese caso la temática se deduce de cada problema.", tm.cont, true);
   for (const [txt, fn] of [["Todas", tm.todos], ["Ninguna", tm.ninguno]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", ft).appendChild(m); }
   cont.appendChild(ft);
   const pb = document.createElement("div"); pb.className = "problemas";
@@ -324,7 +325,7 @@ function textoBrief() {
   const defs = (lista, sel) => sel.map((s) => "  · " + s + " → " + busca(lista, s)[1]).join("\n");
   // una entrada por cada combinacion de las dimensiones elegidas
   let combos = [[]];
-  const listas = [b.rubros, b.tematicas, b.formatos, b.ganchos, b.ctas];
+  const listas = [b.rubros, b.tematicas.length ? b.tematicas : [""], b.formatos, b.ganchos, b.ctas];
   if (!b.problemasAuto) listas.push(b.problemas);
   for (const l of listas) combos = combos.flatMap((c) => l.map((x) => [...c, x]));
   const lineas = [];
@@ -415,7 +416,7 @@ for (const L of ["dianchi", "diegao"]) {
 function pedidoDiegao() {
   return conLinea("diegao", () => {
     const b = brief(), busca = (lista, nombre) => lista.find((x) => x[0] === nombre) || [nombre, ""];
-    const listas = [b.rubros, b.tematicas, b.formatos, b.ganchos, b.ctas]; if (!b.problemasAuto) listas.push(b.problemas);
+    const listas = [b.rubros, b.tematicas.length ? b.tematicas : [""], b.formatos, b.ganchos, b.ctas]; if (!b.problemasAuto) listas.push(b.problemas);
     let combos = [[]]; for (const l of listas) combos = combos.flatMap((c) => l.map((x) => [...c, x]));
     const out = [];
     for (const c of combos) for (let v = 1; v <= (Number(b.variaciones) || 1); v++) {
@@ -982,6 +983,8 @@ function pintarAjustes() {
   $("#pr-auto").checked = ajustes.autoUpdate !== false;
 }
 $("[data-ws]").addEventListener("click", async () => { const p = await window.ctv.pickFolder("Carpeta de trabajo"); if (p) { ajustes.workspace = p; $("#in-ws").value = p; } });
+// la clave de OpenAI y el modelo se guardan al pegarlos (sin tener que acordarse de pulsar «Guardar ajustes»)
+for (const [id, k] of [["in-openai", "openaiKey"], ["in-openai-modelo", "openaiModelo"]]) $("#" + id).addEventListener("change", async (ev) => { ajustes[k] = ev.target.value.trim(); ajustes = await window.ctv.saveSettings(ajustes); });
 $("#b-guardar").addEventListener("click", async () => {
   ajustes.openaiKey = $("#in-openai").value.trim(); ajustes.openaiModelo = $("#in-openai-modelo").value.trim();
   ajustes.pexelsKey = $("#in-pexels").value.trim(); ajustes.githubToken = $("#in-gh").value.trim(); ajustes.autoUpdate = $("#pr-auto").checked;

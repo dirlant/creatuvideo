@@ -274,67 +274,69 @@ def _ejemplo(v):
     """Un guion existente en el formato JSON que se le pide a ChatGPT (palabras ancla sin numero de repeticion)."""
     return {"slug": v["slug"], "rubro": v["rubro"], "titulo": v["titulo"], "gancho": v["gancho"], "guion": v["guion"], "buenas": [a for a, n in v["buenas"]], "malas": [a for a, n in v["malas"]],
             "objecion": {"texto": v["burbuja"][2], "ancla": v["burbuja"][0], "hasta": v["burbuja"][3]}, "pasos": [{"ancla": a, "texto": t} for a, n, t in v["pasos"]], "pasos_hasta": v["pasos_hasta"][0]}
+def norm_acentos(s): return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode()
 def _slug(s):
     s = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFD", (s or "").lower()).encode("ascii", "ignore").decode()).strip("-")
     return s[:38].strip("-") or "guion"
 def _convertir(d, existentes, max_palabras):
-    """Valida lo que devolvio ChatGPT y lo pasa al formato del motor. Devuelve (v, []) o (None, [errores])."""
+    """Valida lo que devolvio ChatGPT y lo pasa al formato del motor. ChatGPT escribe el guion por PARTES (intro con la objecion, frases de los pasos, cierre) y
+    la app calcula sola las palabras ancla (donde aparece la objecion, donde empieza cada paso, donde terminan): asi no depende de que el modelo las acierte.
+    Devuelve (v, []) o (None, [errores])."""
     err = []
-    try:
-        gancho = re.sub(r"\s+", " ", str(d.get("gancho", ""))).strip(); guion = re.sub(r"\s+", " ", str(d.get("guion", ""))).strip()
-        titulo = [re.sub(r"\s+", " ", str(x)).strip() for x in (d.get("titulo") or []) if str(x).strip()]
-        rubro = re.sub(r"[^A-Za-zÁÉÍÓÚÑÜáéíóúñü ]", "", str(d.get("rubro", ""))).strip().upper()[:18]
-        ob = d.get("objecion") or {}; pasos_in = [p for p in (d.get("pasos") or []) if isinstance(p, dict)]
-    except Exception as ex: return None, ["formato inválido: %s" % ex]
-    if not gancho or not guion: return None, ["falta el gancho o el guion"]
+    S_ = lambda x: re.sub(r"\s+", " ", str(x or "")).strip()
+    gancho = S_(d.get("gancho")); intro = S_(d.get("intro")).replace("*", ""); cierre = S_(d.get("cierre")).replace("*", "")
+    pasos_in = [p for p in (d.get("pasos") or []) if isinstance(p, dict) and S_(p.get("frase"))]
+    if not gancho or not intro: return None, ["faltan el gancho o la intro"]
     if "?" in gancho or "¿" in gancho: err.append("el gancho no puede llevar signos de pregunta: debe ser una afirmación")
+    if not 3 <= len(pasos_in) <= 4: err.append("debe haber 3 o 4 pasos, cada uno con su frase")
+    if re.search(r"s[ií]gueme", intro + " " + cierre + " " + " ".join(S_(p.get("frase")) for p in pasos_in), re.I): err.append("no escribas el «Sígueme» final: la app lo agrega sola")
+    # el guion se arma: intro + frase de cada paso + cierre (se anotan las posiciones de cada parte)
+    partes = [intro] + [S_(p["frase"]).replace("*", "") for p in pasos_in[:4]] + ([cierre] if cierre else [])
+    for k, p in enumerate(partes[:-1] if cierre else partes):
+        if not re.search(r"[.!?]$", p): partes[k] = p + "."
+    if cierre and not re.search(r"[.!?]$", partes[-1]): partes[-1] += "."
+    titulo = [S_(x) for x in (d.get("titulo") or []) if S_(x)]
     if not 2 <= len(titulo) <= 3: err.append("el título debe tener 2 o 3 líneas")
-    elif not any(re.search(r"\*[^*]+\*", x) for x in titulo): err.append("el título debe llevar una palabra clave entre *asteriscos*")
-    if re.search(r"s[ií]gueme", guion, re.I): err.append("no escribas el «Sígueme» final: la app lo agrega sola")
-    limpio = guion.replace("*", ""); toks_g = [norm(w) for w in (gancho.replace("*", "") + " " + limpio).split()]; n_g = len(gancho.replace("*", "").split())
-    total = len(toks_g)
-    if total > max_palabras: err.append("tiene %d palabras entre gancho y guion y el máximo es %d: acórtalo" % (total, max_palabras))
-    if total < max_palabras * 0.55: err.append("es muy corto (%d palabras): debe acercarse a %d" % (total, max_palabras))
-    def pos(pal):
-        w = norm(re.sub(r"^\W+|\W+$", "", str(pal)))
-        for i in range(n_g, len(toks_g)):
-            if toks_g[i] == w and w: return i, toks_g[:i + 1].count(w)
-        return None, None
-    def ancla(pal, nombre):
-        i, n = pos(pal)
-        if i is None: err.append("la palabra «%s» (%s) no aparece en el guion; debe ser una palabra exacta del guion (no del gancho)" % (pal, nombre))
-        return i, n
-    bi, bn = ancla(ob.get("ancla", ""), "objeción.ancla"); bh, bhn = ancla(ob.get("hasta", ""), "objeción.hasta")
-    texto_ob = re.sub(r"[“”\"«»]", "", str(ob.get("texto", ""))).strip().upper()
-    if not texto_ob or len(texto_ob) > 32: err.append("objeción.texto debe tener entre 1 y 32 caracteres (la frase corta de queja, en mayúsculas)")
-    if bi is not None and bh is not None and bh <= bi: err.append("objeción.hasta debe ir DESPUÉS de objeción.ancla en el guion")
-    if not 3 <= len(pasos_in) <= 4: err.append("debe haber 3 o 4 pasos")
-    pasos = []; ult = bh if bh is not None else -1
+    elif not any(re.search(r"\*[^*]+\*", x) for x in titulo):                       # reparacion: la ultima palabra del titulo pasa a ser la clave
+        ult = titulo[-1].split(); ult[-1] = "*" + norm_acentos(ult[-1]).lower() + "*"; titulo[-1] = " ".join(ult)
+    toks_g = [norm(w) for w in gancho.replace("*", "").split()]; n_g = len(toks_g); palabras_p = []; rangos = []
+    for p in partes:
+        w = p.split(); rangos.append((n_g + len(palabras_p), n_g + len(palabras_p) + len(w) - 1)); palabras_p += w
+    toks = toks_g + [norm(w) for w in palabras_p]; total = len(toks)
+    tope = min(68, int(max_palabras * 1.25))
+    if total > tope: err.append("tiene %d palabras entre gancho y guion y el máximo es %d: acórtalo (intro más corta y frases de pasos breves)" % (total, tope))
+    if total < max_palabras * 0.5: err.append("es muy corto (%d palabras): debe acercarse a %d" % (total, max_palabras))
+    ob_txt = re.sub(r"[“”\"«»]", "", S_(d.get("objecion"))).upper()
+    if not ob_txt: err.append("falta «objecion»: la queja típica de la dueña en 2 a 5 palabras (por ejemplo NO TENGO TIEMPO)")
+    elif len(ob_txt) > 32: ob_txt = " ".join(ob_txt.split()[:5])[:32].strip()
+    def n_de(i): return toks[:i + 1].count(toks[i])
+    if err: return None, err
+    # ancla de la objecion: la palabra mas significativa de la primera frase de la intro; termina al final de la intro
+    ini_i, fin_i = rangos[0]; pal_i = palabras_p[:fin_i - n_g + 1]; cand = [(len(norm(w)), j) for j, w in enumerate(pal_i[:max(4, len(pal_i) // 2)]) if len(norm(w)) >= 5 and norm(w) not in _STOP]
+    j_anc = max(cand)[1] if cand else min(1, len(pal_i) - 1); ob_anc = n_g + j_anc; ob_hasta = fin_i
+    if ob_hasta <= ob_anc: ob_anc = max(n_g, ob_hasta - 1)
+    pasos = []
     for k, p in enumerate(pasos_in[:4], 1):
-        i, n = ancla(p.get("ancla", ""), "paso %d" % k); t = re.sub(r"\s+", " ", str(p.get("texto", ""))).strip().upper()
-        t = re.sub(r"^\d+\s*[·.\-)]*\s*", "", t); t = "%d · %s" % (k, t)
-        if len(t) > 26: err.append("el texto del paso %d («%s») es muy largo: máximo 24 caracteres" % (k, t))
-        if i is not None:
-            if i <= ult: err.append("el paso %d debe empezar DESPUÉS del anterior y de objeción.hasta" % k)
-            ult = max(ult, i)
-        if i is not None: pasos.append((str(p.get("ancla", "")).strip(" .,;:!"), n, t))
-    ph, phn = ancla(d.get("pasos_hasta", ""), "pasos_hasta")
-    if ph is not None and ph < ult: err.append("pasos_hasta debe ir después del inicio del último paso")
+        i0 = rangos[k][0]; etq = S_(p.get("texto")).upper(); etq = re.sub(r"^\d+\s*[·.\-)]*\s*", "", etq)
+        while len(etq) > 22 and " " in etq: etq = etq.rsplit(" ", 1)[0]                       # etiqueta de la pildora: maximo ~24 caracteres con el numero
+        if not etq: etq = " ".join(palabras_p[i0 - n_g:i0 - n_g + 3]).upper()
+        pasos.append((palabras_p[i0 - n_g].strip(" .,;:!"), n_de(i0), "%d · %s" % (k, etq[:22])))
+    k_ult = len(pasos); ph = rangos[k_ult][1]                                                  # los pasos terminan al final de la frase del ultimo paso
+    def pal_en(i): return re.sub(r"^\W+|\W+$", "", palabras_p[i - n_g])
     sfx = []
     for tipo, lista in (("buenas", d.get("buenas") or []), ("malas", d.get("malas") or [])):
-        cnt = 0
         for w in lista[:3]:
-            i, n = ancla(w, tipo)
-            if i is not None: sfx.append((tipo, str(w).strip(" .,;:!"), n, i)); cnt += 1
-        if tipo == "buenas" and cnt < 1: err.append("indica al menos 1 palabra positiva en «buenas»")
-    sfx.sort(key=lambda x: x[3])
-    for a, b in zip(sfx, sfx[1:]):
-        if b[3] - a[3] < 4: err.append("los sonidos de «%s» y «%s» están demasiado cerca; elige palabras más separadas" % (a[1], b[1]))
-    if err: return None, err
+            wn = norm(re.sub(r"^\W+|\W+$", "", str(w)))
+            i = next((q for q in range(n_g, total) if toks[q] == wn), None) if wn else None
+            if i is not None and i < total - 1: sfx.append((tipo, pal_en(i), n_de(i), i))
+    sfx.sort(key=lambda x: x[3]); lim = []
+    for s_ in sfx:
+        if not lim or s_[3] - lim[-1][3] >= 4: lim.append(s_)
     slug = _slug(d.get("slug") or " ".join(titulo)); base = slug; k = 2
     while slug in existentes: slug = "%s-%d" % (base, k); k += 1
-    v = dict(slug=slug, buenas=[(w, n) for t, w, n, i in sfx if t == "buenas"], malas=[(w, n) for t, w, n, i in sfx if t == "malas"], rubro=rubro or "EMPRENDIMIENTO", titulo=titulo,
-             gancho=gancho, guion=guion, burbuja=(str(ob["ancla"]).strip(" .,;:!"), bn, "“%s”" % texto_ob, str(ob["hasta"]).strip(" .,;:!")), pasos=pasos, pasos_hasta=(str(d["pasos_hasta"]).strip(" .,;:!"), phn))
+    rubro = re.sub(r"[^A-Za-zÁÉÍÓÚÑÜáéíóúñü ]", "", S_(d.get("rubro"))).strip().upper()[:18] or "EMPRENDIMIENTO"
+    v = dict(slug=slug, buenas=[(w, n) for t_, w, n, i in lim if t_ == "buenas"], malas=[(w, n) for t_, w, n, i in lim if t_ == "malas"], rubro=rubro, titulo=titulo, gancho=gancho,
+             guion=" ".join(partes), burbuja=(pal_en(ob_anc), n_de(ob_anc), "“%s”" % ob_txt, pal_en(ob_hasta)), pasos=pasos, pasos_hasta=(pal_en(ph), n_de(ph)))
     return v, []
 
 def generar_guiones():
@@ -348,20 +350,22 @@ def generar_guiones():
     modelo = (_AJ.get("openaiModelo") or "gpt-4o-mini").strip()
     leer = lambda f, n: (open(os.path.join(AG, "diegao", "prompt", f), encoding="utf-8").read()[:n] if os.path.exists(os.path.join(AG, "diegao", "prompt", f)) else "")
     reglas = leer("diegao_mentor.md", 9000); ajustes = leer("AJUSTES.md", 9000)
-    ejemplos = json.dumps([_ejemplo(V[0]), _ejemplo(V[1])], ensure_ascii=False, indent=1) if len(V) >= 2 else "[]"
+    ejemplo = json.dumps({"slug": "administracion", "rubro": "ADMINISTRACIÓN", "titulo": ["ADMINISTRAR NO ES", "BUROCRACIA, ES", "*control*"], "gancho": "Si no administras tu salón, tu salón te administra a ti.",
+        "intro": "Muchas dueñas dicen que no tienen tiempo para administrar, que ellas solo quieren atender. Pero cada cobro sin anotar y cada gasto sin revisar te quita tranquilidad.", "objecion": "NO TENGO TIEMPO",
+        "pasos": [{"frase": "Anota cada día lo que entra y lo que sale.", "texto": "ANOTA TODO"}, {"frase": "Separa tu sueldo del dinero del negocio.", "texto": "SEPARA TU SUELDO"}, {"frase": "Y dedica una hora fija a la semana para revisar todo.", "texto": "REVISA CADA SEMANA"}],
+        "cierre": "Administrar es poder decidir con información.", "buenas": ["tranquilidad"], "malas": ["gasto"]}, ensure_ascii=False, indent=1)
     sistema = ("Eres la guionista de Diegao, mentora de negocios de belleza. Escribes guiones de videos cortos para DUEÑAS de salón, siguiendo estas reglas del prompt de Diegao:\n\n" + reglas
                + "\n\nAJUSTES ACUMULADOS (se aplican siempre):\n" + ajustes
                + "\n\nFORMATO DE SALIDA (obligatorio). Responde SOLO con un objeto JSON, sin texto antes ni después, con estas claves:\n"
                '{"slug":"nombre-corto-en-minusculas","rubro":"UNA PALABRA DEL TEMA EN MAYÚSCULAS","titulo":["LÍNEA 1","LÍNEA 2","*palabra* clave"],"gancho":"afirmación contundente sin signos de pregunta",'
-               '"guion":"narración de corrido, con 2 o 3 palabras importantes entre *asteriscos*","buenas":["palabra positiva del guion"],"malas":["palabra negativa del guion"],'
-               '"objecion":{"texto":"“FRASE CORTA DE QUEJA”","ancla":"palabra del guion donde aparece","hasta":"palabra del guion donde desaparece"},'
-               '"pasos":[{"ancla":"primera palabra de la frase del paso","texto":"TEXTO CORTO DEL PASO"}],"pasos_hasta":"palabra del guion donde terminan los pasos"}\n'
-               "Reglas del formato: (1) «gancho» es la primera frase que dice la voz y NO se repite dentro de «guion»; «guion» es el resto de la narración y NO incluye el «Sígueme» final (la app lo agrega). "
-               "(2) Todas las palabras de «ancla», «hasta», «buenas», «malas» y los «ancla» de los pasos deben ser UNA sola palabra, copiada EXACTAMENTE del campo «guion» (no del gancho). "
-               "(3) Orden dentro del guion: objecion.ancla, luego objecion.hasta, luego el ancla del paso 1, paso 2, paso 3 (y 4), y al final pasos_hasta. La objeción es la queja típica de la dueña (“NO TENGO TIEMPO”) que el guion nombra al principio; los pasos (3 o 4) son la solución. "
-               "(4) «titulo»: 2 o 3 líneas en MAYÚSCULAS, 40 a 50 caracteres en total, con UNA palabra clave entre *asteriscos* en minúscula y sin tildes ni ñ, sin repetir el gancho. "
-               "(5) «texto» de cada paso: máximo 24 caracteres, en mayúsculas (la app le pone el número). (6) «buenas»: 1 o 2 palabras positivas y «malas»: 1 o 2 negativas de verdad en su contexto, separadas entre sí. "
-               "(7) Sin cifras ni resultados inventados, sin símbolos decorativos, sin descripciones visuales, español neutro y de tú.\n\nEJEMPLOS DE GUIONES YA HECHOS (imita el nivel de concreción y el formato, NO el tema):\n" + ejemplos)
+               '"intro":"1 o 2 frases que plantean el problema y nombran la queja típica de la dueña","objecion":"NO TENGO TIEMPO",'
+               '"pasos":[{"frase":"frase completa y breve del paso 1, que empieza con un verbo en imperativo","texto":"ETIQUETA CORTA"}],"cierre":"una frase final breve y contundente",'
+               '"buenas":["palabra positiva"],"malas":["palabra negativa"]}\n'
+               "Reglas del formato: (1) «gancho» es la primera frase que dice la voz; no se repite en ninguna otra parte. (2) La narración completa será: gancho + intro + las frases de los pasos (en orden) + cierre, y después la app agrega sola el «Sígueme para más ideas para tu negocio»: NO lo escribas tú. "
+               "(3) «objecion»: la queja de la dueña en 2 a 5 palabras, en mayúsculas, que la «intro» menciona. (4) Entre 3 y 4 pasos concretos; la «etiqueta» de cada paso va en mayúsculas y tiene MÁXIMO 20 caracteres (sin número). "
+               "(5) «titulo»: 2 o 3 líneas en MAYÚSCULAS, 40 a 50 caracteres en total, con UNA palabra clave entre *asteriscos* en minúscula y sin tildes ni ñ, sin repetir el gancho. "
+               "(6) «buenas» y «malas»: 1 o 2 palabras sueltas, copiadas tal cual de tus frases (positivas y negativas de verdad en su contexto). (7) Sin cifras ni resultados inventados, sin símbolos decorativos, sin descripciones visuales, español neutro y de tú. "
+               "(8) Escribe frases CORTAS: respeta el máximo de palabras que se indica en el pedido, contando gancho + intro + pasos + cierre.\n\nEJEMPLO DE UN GUION YA HECHO (imita el nivel de concreción y el formato, NO el tema):\n" + ejemplo)
     nuevos = []; usados = {v["slug"] for v in V}; hechos_json = []
     try: hechos_json = json.load(open(GN_F, encoding="utf-8"))
     except Exception: pass
@@ -380,10 +384,10 @@ def generar_guiones():
     print("Escribiendo %d guion(es) con ChatGPT (%s) y el prompt de Diegao…" % (len(pedido), modelo), flush=True)
     for i, it in enumerate(pedido, 1):
         dur = max(10, min(30, int(it.get("duracion") or 25))); max_pal = int(dur * 2.5) - 7          # 7 palabras ocupa el «Sígueme para más ideas para tu negocio»
-        print("CTV_PROGRESO guiones %d %d %s" % (i, len(pedido), _slug(it.get("tematica") or "guion")), flush=True)
+        print("CTV_PROGRESO guiones %d %d %s" % (i, len(pedido), _slug(it.get("tematica") or it.get("problema") or "guion")), flush=True)
         prob = (it.get("problema") or "").strip()
-        usuario = ("Escribe UN guion nuevo con estos datos del pedido:\n- Tipo de negocio de la dueña: %s\n- Temática (dolor): %s → %s\n- Formato: %s → %s\n- Tipo de gancho: %s → %s\n- Objetivo de la frase final antes del «Sígueme»: %s → %s\n"
-                   % (it.get("rubro", ""), it.get("tematica", ""), it.get("tematica_def", ""), it.get("formato", ""), it.get("formato_def", ""), it.get("gancho", ""), it.get("gancho_def", ""), it.get("accion", ""), it.get("accion_def", "")))
+        usuario = ("Escribe UN guion nuevo con estos datos del pedido:\n- Tipo de negocio de la dueña: %s\n- Temática (dolor): %s%s\n- Formato: %s → %s\n- Tipo de gancho: %s → %s\n- Objetivo de la frase final antes del «Sígueme»: %s → %s\n"
+                   % (it.get("rubro", ""), (it.get("tematica") or "la que corresponda al problema indicado abajo (tú la deduces: finanzas, administración, estrategia, fidelización, atención, protocolos, estructura, espiritualidad o mentalidad)"), (" → " + it["tematica_def"]) if it.get("tematica_def") else "", it.get("formato", ""), it.get("formato_def", ""), it.get("gancho", ""), it.get("gancho_def", ""), it.get("accion", ""), it.get("accion_def", "")))
         usuario += ("- Problema a resolver (OBLIGATORIO, el guion trata exactamente de esto): %s\n" % prob) if prob else "- Problema a resolver: elige tú uno concreto y real de esa temática, distinto de los guiones ya hechos\n"
         if int(it.get("variaciones") or 1) > 1: usuario += "- Es la variación %s de %s sobre lo mismo: usa un ángulo y un gancho distintos a los otros.\n" % (it.get("variacion", 1), it.get("variaciones"))
         usuario += ("- Longitud: entre gancho y guion un MÁXIMO de %d palabras (el video dura %d segundos con el «Sígueme» final) y no menos de %d.\n\nGUIONES QUE YA EXISTEN (no repitas tema, gancho ni ideas):\n%s"
