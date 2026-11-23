@@ -25,7 +25,7 @@ const logEl = $("#log");
 function escribir(t) { logEl.textContent += t + "\n"; if (logEl.textContent.length > 120000) logEl.textContent = logEl.textContent.slice(-80000); logEl.scrollTop = logEl.scrollHeight; }
 // progreso de la generacion: el motor imprime "CTV_PROGRESO <modo> <i> <n> <slug>" al empezar cada video
 let gen = null;
-const FASES_TXT = { preparar: "Preparando voz, tiempos y cortes", verificar: "Verificando tiempos", descargar: "Descargando imágenes y clips", hoja: "Preparando hoja de contacto", render: "Creando los videos" };
+const FASES_TXT = { guiones: "Escribiendo los guiones con ChatGPT", preparar: "Preparando voz, tiempos y cortes", verificar: "Verificando tiempos", descargar: "Descargando imágenes y clips", hoja: "Preparando hoja de contacto", render: "Creando los videos" };
 function lineaProgreso(l) {
   const m = l.match(/^CTV_PROGRESO (\w+) (\d+) (\d+) (\S+)/); if (!m) return false;
   if (!gen) gen = { plan: 1, render: 0 };
@@ -390,7 +390,7 @@ function resumenWiz(L) {
   const carpeta = (x) => x || "dentro de la carpeta de trabajo";
   const dis = (p[KD(L)] || "").trim();
   const total = conLinea(L, totalVideos), desg = conLinea(L, desgloseBrief);
-  const guiones = ["Guiones", (total ? total + " video" + (total === 1 ? "" : "s") + " según el formulario (" + desg + ")" : "los del último lote creado con Claude") + " · voz " + voz];
+  const guiones = ["Guiones", (total ? total + " video" + (total === 1 ? "" : "s") + " según el formulario (" + desg + ")" : "los del último lote creado con Claude") + (L === "diegao" && total && (ajustes.openaiKey || "").trim() ? " · se escriben con ChatGPT y el prompt de Diegao" : "") + " · voz " + voz];
   const diseno = ["Diseño", dis ? dis.slice(0, 140) + (dis.length > 140 ? "…" : "") : "el de siempre (sin cambios; puedes escribir correcciones en el paso " + 6 + ")"];
   const filas = L === "diegao"
     ? [guiones, ["Imágenes", p.imagenesCollageDiegao ? "de la carpeta " + (d.diegaoImagenes || "(sin elegir: elige una en el paso 3)") : "automático (fotogramas de los videos)"],
@@ -411,9 +411,39 @@ for (const L of ["dianchi", "diegao"]) {
   $$("#pasos-" + L + " li").forEach((li) => li.addEventListener("click", () => irPasoWiz(L, Number(li.dataset.p))));
 }
 // "Generar todo": Dianchi = verificar -> descargar -> render; Diegao = preparar -> render
+// Diegao: cada combinación del formulario (rubro × temática × formato × gancho × acción × problema) se convierte en un guion escrito por la API de ChatGPT con el prompt de Diegao
+function pedidoDiegao() {
+  return conLinea("diegao", () => {
+    const b = brief(), busca = (lista, nombre) => lista.find((x) => x[0] === nombre) || [nombre, ""];
+    const listas = [b.rubros, b.tematicas, b.formatos, b.ganchos, b.ctas]; if (!b.problemasAuto) listas.push(b.problemas);
+    let combos = [[]]; for (const l of listas) combos = combos.flatMap((c) => l.map((x) => [...c, x]));
+    const out = [];
+    for (const c of combos) for (let v = 1; v <= (Number(b.variaciones) || 1); v++) {
+      out.push({ rubro: c[0], tematica: c[1], tematica_def: busca(TEMAS(), c[1])[1], formato: c[2], formato_def: busca(OPC.formatos, c[2])[1], gancho: c[3], gancho_def: busca(OPC.ganchos, c[3])[1],
+        accion: c[4], accion_def: busca(OPC.ctas, c[4])[1], problema: b.problemasAuto ? "" : c[5], variacion: v, variaciones: Number(b.variaciones) || 1, duracion: b.duracion });
+    }
+    return out;
+  });
+}
+async function prepararPedidoDiegao() {
+  if (!conLinea("diegao", totalVideos)) { escribir("⚠ " + (conLinea("diegao", FALTA) || "Elige al menos un valor en cada opción del paso 1.")); return false; }
+  if (!(ajustes.openaiKey || "").trim()) { escribir("⚠ Falta la clave de OpenAI (ChatGPT): pégala en Ajustes → Clave de OpenAI para que se escriban los guiones."); return false; }
+  ajustes.presets.diegaoPedido = pedidoDiegao(); await guardarAuto(); return true;
+}
+$("#b-guiones-d").addEventListener("click", async () => {
+  if (!(await exigirUltimaVersion())) return;
+  if (!(await prepararPedidoDiegao())) return;
+  escribir("Escribiendo " + ajustes.presets.diegaoPedido.length + " guion(es) con ChatGPT…");
+  const r = await window.ctv.run({ linea: "diegao", modo: "guiones", slugs: [] });
+  escribir(r && r.ok ? "✔ Guiones escritos. Ahora pulsa «Preparar» y «Generar videos», o «Generar videos (…)» arriba." : "⚠ No se pudieron escribir los guiones" + (r && r.error ? ": " + r.error : ". Revisa el registro."));
+});
 async function generarTodo(L) {
   if (!(await exigirUltimaVersion())) return;
-  const fases = L === "diegao" ? ["preparar", "render"] : ["verificar", "descargar", "render"];
+  let fases = L === "diegao" ? ["preparar", "render"] : ["verificar", "descargar", "render"];
+  if (L === "diegao") {
+    if ((ajustes.openaiKey || "").trim()) { if (!(await prepararPedidoDiegao())) return; fases = ["guiones", "preparar", "render"]; }
+    else escribir("Aviso: sin clave de OpenAI no se escriben guiones nuevos; se usan los del último lote creado con Claude (los ya generados no se repiten).");
+  }
   gen = { plan: fases.length, fases, render: 0 };
   for (const modo of fases) {
     const r = await window.ctv.run({ linea: L, modo, slugs: [] });   // sin slugs: el motor usa el ultimo lote creado con Claude

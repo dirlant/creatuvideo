@@ -144,7 +144,9 @@ def claves(tokens, idxs):
 
 # ---------------------------------------------------------------- 4) dibujo: Lato, letras juntas, brillo suave
 def fuente(grande, px):
-    for p in ([os.path.join(AG, "assets", "fonts", "Lato-Black.ttf")] if grande else [os.path.join(AG, "assets", "fonts", "Lato-Regular.ttf")]) + [r"C:\Windows\Fonts\seguibl.ttf" if grande else r"C:\Windows\Fonts\segoeui.ttf", r"C:\Windows\Fonts\arialbd.ttf" if grande else r"C:\Windows\Fonts\arial.ttf"]:
+    nombre = "Lato-Black.ttf" if grande else "Lato-Regular.ttf"          # en el espacio de trabajo las fuentes de la app quedan en _operacion/_work/fonts
+    carpetas = [os.path.join(AG, "_operacion", "_work", "fonts"), os.path.join(AG, "assets", "fonts"), os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "fonts")]
+    for p in [os.path.join(c, nombre) for c in carpetas] + [r"C:\Windows\Fonts\seguibl.ttf" if grande else r"C:\Windows\Fonts\segoeui.ttf", r"C:\Windows\Fonts\arialbd.ttf" if grande else r"C:\Windows\Fonts\arial.ttf"]:
         if os.path.exists(p): return ImageFont.truetype(p, max(8, int(round(px))))
     return ImageFont.load_default()
 class Estilo:
