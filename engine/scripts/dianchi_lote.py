@@ -110,6 +110,68 @@ RUBROS = [
    bubble=("notan", "“¿SERÁ MI SHAMPOO?”", "Primero"), marcar=("calma", "rutina")),
 ]
 
+# ---------------------------------------------------------------- guiones creados por la app con la API de ChatGPT (dianchi/prompt/guiones_nuevos.json)
+GN_F = os.path.join(AG, "dianchi", "prompt", "guiones_nuevos.json")
+def _r_de_json(d):
+    tp = lambda x: tuple(x) if isinstance(x, list) else x
+    return R(d["slug"], d["rubro"], list(d["titulo"]), d["gancho"], d["guion"], d["cta"], [(tp(e[0]), e[1], e[2]) for e in d["escenas"]], (tp(d["collage"][0]), d["collage"][1], d["collage"][2]),
+             A=[(tp(x[0]), x[1]) for x in d["A"]] if d.get("A") else None, hastaA=tp(d.get("hastaA")), bubble=(tp(d["bubble"][0]), d["bubble"][1], d["bubble"][2]) if d.get("bubble") else None, marcar=tuple(d.get("marcar") or ()), cta_tipo=d.get("cta_tipo") or "guardar")
+def _json_de_r(r):
+    return {"slug": r["slug"], "rubro": r["rubro"], "titulo": r["titulo"], "gancho": r["gancho"], "guion": r["guion"], "cta": r["cta"], "escenas": [list(e) for e in r["escenas"]], "collage": list(r["collage"]),
+            "A": [list(x) for x in (r["A"] or [])], "hastaA": r["hastaA"], "bubble": list(r["bubble"]) if r["bubble"] else None, "marcar": list(r["marcar"]), "cta_tipo": r["cta_tipo"]}
+def _cargar_extra():
+    try: arr = json.load(open(GN_F, encoding="utf-8"))
+    except Exception: return []
+    out = []
+    for d in arr:
+        try: out.append(_r_de_json(d))
+        except Exception: pass
+    return out
+_ya = {r["slug"] for r in RUBROS}
+RUBROS.extend([x for x in _cargar_extra() if x["slug"] not in _ya])
+
+# ---------------------------------------------------------------- NO REPETIR GUIONES: historial de lo ya generado + deteccion de guiones parecidos
+HECHOS_F = os.path.join(OPD, "hechos.json")
+def hechos_leer():
+    """{slug: {fecha, titulo}} de los guiones ya convertidos en video. La primera vez, si ya hay videos en la carpeta de resultados, los guiones existentes se dan por hechos."""
+    try: return json.load(open(HECHOS_F, encoding="utf-8"))
+    except Exception: pass
+    base = {}
+    try: carpeta = (json.load(open(os.environ.get("CTV_AJUSTES") or os.path.join(os.environ.get("APPDATA", ""), "CreaTuVideo", "settings.json"), encoding="utf-8")).get("dirs") or {}).get("dianchiResultado")
+    except Exception: carpeta = None
+    if glob.glob(os.path.join(carpeta or os.path.join(AG, "dianchi", "resultado"), "*.mp4")):
+        import datetime; hoy = datetime.date.today().isoformat()
+        base = {r["slug"]: {"fecha": hoy, "titulo": " ".join(r["titulo"]).replace("*", ""), "origen": "ya existian"} for r in RUBROS}
+        json.dump(base, open(HECHOS_F, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    return base
+def hechos_marcar(r):
+    import datetime
+    h = hechos_leer(); h[r["slug"]] = {"fecha": datetime.date.today().isoformat(), "titulo": " ".join(r["titulo"]).replace("*", "")}
+    json.dump(h, open(HECHOS_F, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+_STOP = set("para pero como cada esto esta estas estos solo mas muy sus tus tiene tienen hace hacen donde cuando porque aunque tambien entre sobre desde hasta una unos unas del los las que con por sin muchas clientas clienta tu su".split())
+def _toks(s): return {w for w in re.findall(r"[a-z]{4,}", unicodedata.normalize("NFD", (s or "").lower()).encode("ascii", "ignore").decode()) if w not in _STOP}
+def _jac(a, b): return len(a & b) / max(1, len(a | b))
+def parecido(a, b):
+    g = _jac(_toks(a["guion"]), _toks(b["guion"])); h = _jac(_toks(a["gancho"]), _toks(b["gancho"])); t_ = _jac(_toks(" ".join(a["titulo"])), _toks(" ".join(b["titulo"])))
+    return max(g, h * 0.9, t_ * 0.9), g, h, t_
+UMBRAL = 0.5
+def verificar_repetidos(nuevos, todos):
+    malos = []; vistos = set()
+    for v in nuevos:
+        for o in todos:
+            if o is v: continue
+            k = frozenset((v["slug"], o["slug"]))
+            if k in vistos: continue
+            vistos.add(k)
+            if o["slug"] == v["slug"]: malos.append((v["slug"], o["slug"], 1.0, "mismo slug")); continue
+            s, g, h, t_ = parecido(v, o)
+            if s >= UMBRAL: malos.append((v["slug"], o["slug"], s, "guion %d%% · gancho %d%% · título %d%%" % (g * 100, h * 100, t_ * 100)))
+    if malos:
+        print("GUIONES REPETIDOS O MUY PARECIDOS:", flush=True)
+        for a, b, s, d in malos: print("  · «%s» se parece a «%s» (%d%%: %s)" % (a, b, s * 100, d), flush=True)
+        sys.exit("Hay %d guion(es) repetidos o casi iguales a otros. Reescribe esos guiones con otro tema, otro gancho y otro ángulo (o quítalos de la lista) y vuelve a generar." % len(malos))
+    print("Guiones: %d nuevos, ninguno repetido." % len(nuevos), flush=True)
+
 def marcado(guion, claves):
     for k in claves: guion = re.sub(r"\b(%s)\b" % re.escape(k), r"*\1*", guion, count=1)
     return guion
@@ -152,8 +214,177 @@ def _lote_actual():                  # slugs del lote que la app pidio crear (di
     f = os.path.join(AG, "dianchi", "prompt", "lote_actual.txt")
     try: return [l.strip() for l in open(f, encoding="utf-8") if l.strip() and not l.startswith("#")]
     except OSError: return []
+# ---------------------------------------------------------------- ESCRIBIR LOS GUIONES con la API de ChatGPT y el prompt de Dianchi (modo «guiones»)
+def _slug(s):
+    s = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFD", (s or "").lower()).encode("ascii", "ignore").decode()).strip("-")
+    return s[:38].strip("-") or "guion"
+def norm_acentos(s): return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode()
+def _convertir(d, it, existentes, max_total):
+    """Valida lo que devolvio ChatGPT y lo pasa al formato del motor (R). ChatGPT escribe el guion por PARTES (cada parte = una escena con su busqueda de video en ingles) y
+    la app calcula sola las palabras ancla: donde cambia cada escena, donde empiezan los pasos, donde aparece el globo y el collage. Devuelve (R, []) o (None, [errores])."""
+    err = []
+    S_ = lambda x: re.sub(r"\s+", " ", str(x or "")).strip()
+    gancho = S_(d.get("gancho")); cta = S_(d.get("cta")); partes = [p for p in (d.get("partes") or []) if isinstance(p, dict) and S_(p.get("texto"))]
+    if not gancho or not partes: return None, ["faltan el gancho o las partes del guion"]
+    if "?" in gancho or "¿" in gancho: err.append("el gancho no puede llevar signos de pregunta")
+    if not 6 <= len(partes) <= 11: err.append("el guion debe tener entre 6 y 11 partes (cada una es una escena de unas 8 a 12 palabras)")
+    ancla_cta = CTAS.get(it.get("cta_tipo") or "guardar", CTAS["guardar"])["ancla"]
+    if not cta or norm(cta.split()[0]) != norm(ancla_cta): err.append("el «cta» debe empezar con la palabra «%s»" % ancla_cta)
+    if not re.search(r"[.!]$", cta): cta += "."
+    textos = []
+    for p in partes:
+        x = S_(p["texto"]).replace("*", "")
+        if not re.search(r"[.!?,;:]$", x): x += ","
+        textos.append(x)
+    textos[-1] = re.sub(r"[,;:]$", ".", textos[-1])
+    titulo = [S_(x) for x in (d.get("titulo") or []) if S_(x)]
+    if not 2 <= len(titulo) <= 3: err.append("el título debe tener 2 o 3 líneas")
+    elif not any(re.search(r"\*[^*]+\*", x) for x in titulo):
+        ult = titulo[-1].split(); ult[-1] = "*" + norm_acentos(ult[-1]).lower() + "*"; titulo[-1] = " ".join(ult)
+    en = lambda q: len(re.findall(r"[A-Za-z]{3,}", str(q or ""))) >= 2 and not re.search(r"[áéíóúñ]", str(q or "").lower())
+    q_g, q_c, q_k = S_(d.get("busqueda_gancho")), S_(d.get("busqueda_cta")), S_(d.get("busqueda_collage"))
+    qs = [S_(p.get("busqueda")) for p in partes]
+    if not all(en(q) for q in [q_g, q_c, q_k] + qs): err.append("todas las búsquedas de video (busqueda_gancho, busqueda de cada parte, busqueda_cta, busqueda_collage) deben estar en inglés y tener 2 a 5 palabras")
+    pasos_i = [i for i, p in enumerate(partes) if S_(p.get("paso"))]
+    if not 3 <= len(pasos_i) <= 4: err.append("debe haber 3 o 4 partes con «paso» (la etiqueta corta del paso)")
+    try: o = int(d.get("parte_objecion")) - 1
+    except Exception: o = -1
+    if not 0 <= o < len(partes): err.append("«parte_objecion» debe ser el número (desde 1) de la parte que nombra la objeción de la clienta")
+    elif pasos_i and o >= pasos_i[0]: err.append("la parte de la objeción debe ir ANTES del primer paso")
+    ob = re.sub(r"[“”\"«»]", "", S_(d.get("objecion"))).upper()
+    if not ob: err.append("falta «objecion»: la frase de la clienta (por ejemplo SE VERÁ ACARTONADO)")
+    toks = [norm(w) for w in gancho.replace("*", "").split()]; n_g = len(toks); ini = []; palabras = []
+    for x in textos:
+        w = x.split(); ini.append(n_g + len(palabras)); palabras += w
+    n_p = len(palabras); toks += [norm(w) for w in palabras]; ini.append(n_g + n_p); cta_w = cta.split(); toks += [norm(w) for w in cta_w]; total = len(toks)
+    tope = min(105, int(max_total * 1.2))
+    if total > tope: err.append("tiene %d palabras en total (gancho + partes + cta) y el máximo es %d: acorta las partes" % (total, tope))
+    if total < max_total * 0.55: err.append("es muy corto (%d palabras): debe acercarse a %d" % (total, max_total))
+    if err: return None, err
+    todas = gancho.replace("*", "").split() + palabras + cta_w
+    pal = lambda i: re.sub(r"^\W+|\W+$", "", todas[i])
+    n_de = lambda i: toks[:i + 1].count(toks[i])
+    def unica(i0, i1):
+        for i in range(i0, i1 + 1):
+            if norm(pal(i)) and toks.count(toks[i]) == 1: return pal(i)
+        return pal(i0)
+    escenas = [(None, 1, q_g)] + [((pal(ini[k]), n_de(ini[k])), 1, qs[k]) for k in range(len(partes))] + [((pal(n_g + n_p), n_de(n_g + n_p)), 1, q_c)]
+    # pasos (pildoras): primera palabra de cada parte-paso; terminan al empezar la parte siguiente al ultimo paso
+    A = []
+    for k, i in enumerate(pasos_i[:4]):
+        etq = S_(partes[i].get("paso")).upper(); etq = re.sub(r"^\d+\s*[·.\-)]*\s*", "", etq)
+        while len(etq) > 24 and " " in etq: etq = etq.rsplit(" ", 1)[0]
+        A.append(((pal(ini[i]), n_de(ini[i])), etq[:24]))
+    ult = pasos_i[:4][-1]
+    hastaA = unica(ini[ult + 1], ini[ult + 2] - 1) if ult + 1 < len(partes) else unica(ini[ult], ini[ult + 1] - 1)
+    # globo con la objecion: palabra mas significativa de su parte; termina al empezar la parte siguiente
+    i0, i1 = ini[o], ini[o + 1] - 1; cand = [(len(norm(pal(i))), -i) for i in range(i0, i1 + 1) if len(norm(pal(i))) >= 5 and norm(pal(i)) not in _STOP]
+    ia = -max(cand)[1] if cand else i0
+    bubble = ((pal(ia), n_de(ia)), "“%s”" % ob[:30], unica(ini[o + 1], ini[o + 2] - 1) if o + 2 <= len(partes) else pal(ini[o + 1]))
+    # collage: en la parte que sigue a los pasos (o la ultima antes del cierre)
+    c = min(len(partes) - 1, ult + 2 if ult + 2 < len(partes) else ult + 1); ic = ini[c]; ic = next((i for i in range(ini[c], ini[c + 1]) if len(norm(pal(i))) >= 5), ic)
+    collage = ((pal(ic), n_de(ic)), 1, q_k)
+    guion = " ".join(textos); marc = []
+    for w in (d.get("marcar") or [])[:3]:
+        w = re.sub(r"^\W+|\W+$", "", str(w))
+        m = re.search(r"\b%s\b" % re.escape(w), guion, re.I) if w else None
+        if m and m.group(0) not in marc: marc.append(m.group(0))
+    slug = _slug(d.get("slug") or (it.get("rubro", "") + " " + " ".join(titulo))); base = slug; k = 2
+    while slug in existentes: slug = "%s-%d" % (base, k); k += 1
+    rubro = str(it.get("rubro", "")).upper()
+    r = R(slug, rubro, titulo, gancho, guion, cta, escenas, collage, A=A, hastaA=hastaA, bubble=bubble, marcar=tuple(marc[:2]), cta_tipo=it.get("cta_tipo") or "guardar")
+    return r, []
+
+def generar_guiones():
+    """Modo «guiones»: por cada combinacion pedida en la app (presets.dianchiPedido) escribe un guion con la API de ChatGPT siguiendo el prompt de Dianchi y lo que el usuario eligio
+    (rubro, temática, formato, gancho, acción, problema). Comprueba que sea valido y que no repita a otro; lo guarda en guiones_nuevos.json y deja el lote en lote_actual.txt."""
+    import urllib.request, urllib.error
+    try: aj = json.load(open(os.environ.get("CTV_AJUSTES") or os.path.join(os.environ.get("APPDATA", ""), "CreaTuVideo", "settings.json"), encoding="utf-8"))
+    except Exception: aj = {}
+    pedido = (aj.get("presets") or {}).get("dianchiPedido") or []
+    if not pedido: sys.exit("No hay nada que escribir: elige al menos un valor en cada opción del paso 1.")
+    key = (aj.get("openaiKey") or os.environ.get("OPENAI_API_KEY") or "").strip()
+    if not key: sys.exit("Falta la clave de OpenAI (ChatGPT): pégala en Ajustes → Clave de OpenAI.")
+    modelo = (aj.get("openaiModelo") or "gpt-4o-mini").strip()
+    leer = lambda f, n: (open(os.path.join(AG, "dianchi", "prompt", f), encoding="utf-8").read()[:n] if os.path.exists(os.path.join(AG, "dianchi", "prompt", f)) else "")
+    reglas = leer("dianchi_rubros.md", 9000); ajustes = leer("AJUSTES.md", 9000)
+    ejemplo = json.dumps({"slug": "cabello-keratina", "titulo": ["EL ALISADO SE CUIDA", "ANTES Y DESPUÉS DE", "LA *keratina*"],
+        "gancho": "Si crees que un alisado con keratina deja el cabello sin vida, depende de cómo se aplica y se cuida.", "busqueda_gancho": "hair straightening salon keratin",
+        "partes": [{"texto": "Muchas clientas temen que se vea pesado o acartonado.", "busqueda": "woman touching damaged hair", "paso": ""},
+                   {"texto": "Por eso primero lavamos con un shampoo clarificante,", "busqueda": "hairdresser washing hair client salon", "paso": "LAVAMOS A FONDO"},
+                   {"texto": "después aplicamos el producto por mechones sin tocar la raíz", "busqueda": "hairdresser applying hair treatment brush", "paso": "POR MECHONES"},
+                   {"texto": "y por último sellamos con plancha a la temperatura adecuada.", "busqueda": "hair flat iron straightening", "paso": "SELLAMOS CON PLANCHA"},
+                   {"texto": "Luego te enseñamos a cuidarlo en casa.", "busqueda": "woman shiny straight hair", "paso": ""},
+                   {"texto": "Si estás embarazada o tu cuero cabelludo es sensible, cuéntanoslo antes.", "busqueda": "hairdresser talking client salon", "paso": ""}],
+        "objecion": "SE VERÁ ACARTONADO", "parte_objecion": 1, "cta": "Guarda este audio para recordarlo antes de tu alisado.", "busqueda_cta": "woman smooth hair smiling", "busqueda_collage": "straight shiny hair close up",
+        "marcar": ["clarificante", "temperatura"]}, ensure_ascii=False, indent=1)
+    sistema = ("Eres especialista en contenido para negocios de belleza y escribes guiones de videos cortos (Reels) para CLIENTAS FINALES, con voz en off, siguiendo estas reglas del prompt de Dianchi:\n\n" + reglas
+               + "\n\nAJUSTES ACUMULADOS (se aplican siempre):\n" + ajustes
+               + "\n\nFORMATO DE SALIDA (obligatorio). Responde SOLO con un objeto JSON, sin texto antes ni después, con estas claves:\n"
+               '{"slug":"servicio-tema-en-minusculas","titulo":["LÍNEA 1","LÍNEA 2","LA *palabra*"],"gancho":"frase de apertura (afirmación, sin signos de pregunta, máximo 16 palabras)","busqueda_gancho":"english pexels search",'
+               '"partes":[{"texto":"frase corta del guion","busqueda":"english pexels search","paso":"ETIQUETA CORTA o vacío"}],"objecion":"FRASE DE LA CLIENTA EN MAYÚSCULAS","parte_objecion":1,'
+               '"cta":"frase final que empieza con la palabra de la acción","busqueda_cta":"english pexels search","busqueda_collage":"english pexels search","marcar":["palabra","palabra"]}\n'
+               "Reglas del formato: (1) La narración completa será: gancho + las partes en orden + cta. NO repitas el gancho dentro de las partes. (2) Cada parte es UNA escena del video: una frase corta de 8 a 12 palabras que se corta bien (termina en coma o punto) y su «busqueda» es una búsqueda de video de stock en INGLÉS de 2 a 5 palabras que muestre exactamente lo que dice esa parte. "
+               "(3) Estructura: 1 o 2 partes que plantean el miedo u objeción de la clienta (la «parte_objecion» es el número, desde 1, de la parte que lo nombra), luego 3 o 4 partes que son los PASOS del servicio (cada una con su «paso»: etiqueta en mayúsculas de MÁXIMO 22 caracteres; las demás partes llevan «paso» vacío), "
+               "luego 1 o 2 partes de cuidado o cautela real (avisar alergias, embarazo, condición médica, piel sensible… cuando el servicio lo requiera). (4) «objecion»: la frase de la clienta en 2 a 5 palabras, en mayúsculas, que esa parte menciona. "
+               "(5) «titulo»: 2 o 3 líneas en MAYÚSCULAS con UNA palabra clave entre *asteriscos* en minúscula y sin tildes ni ñ, sin repetir el gancho. (6) «cta»: debe empezar EXACTAMENTE con la palabra de la acción indicada en el pedido y cerrar con algo concreto del servicio. "
+               "(7) «marcar»: 2 palabras técnicas o importantes copiadas tal cual de las partes. (8) Sin cifras ni resultados inventados, sin símbolos decorativos, sin descripciones visuales, español neutro y de tú; no llames «natural» a un servicio con químicos. "
+               "(9) Respeta el máximo de palabras del pedido, contando gancho + partes + cta.\n\nEJEMPLO DE UN GUION YA HECHO (imita el nivel de concreción y el formato, NO el tema):\n" + ejemplo)
+    usados = {r["slug"] for r in RUBROS}; nuevos = []; guardados = []
+    try: guardados = json.load(open(GN_F, encoding="utf-8"))
+    except Exception: pass
+    historial = lambda: "\n".join("- %s · «%s» · gancho: %s" % (r["slug"], " ".join(r["titulo"]).replace("*", ""), r["gancho"]) for r in RUBROS[-70:])
+    def pedir(mensajes):
+        cuerpo = json.dumps({"model": modelo, "temperature": 0.9, "max_tokens": 2200, "response_format": {"type": "json_object"}, "messages": mensajes}).encode("utf-8")
+        rq = urllib.request.Request("https://api.openai.com/v1/chat/completions", data=cuerpo, headers={"Content-Type": "application/json", "Authorization": "Bearer " + key})
+        try: r = json.loads(urllib.request.urlopen(rq, timeout=150).read().decode("utf-8"))
+        except urllib.error.HTTPError as ex:
+            try: m = json.loads(ex.read().decode("utf-8")).get("error", {}).get("message", "")
+            except Exception: m = ""
+            sys.exit("La API de ChatGPT respondió con error %s: %s" % (ex.code, (m or ex.reason)[:300].replace(key, "…")))
+        except Exception as ex: sys.exit("No se pudo consultar la API de ChatGPT (hace falta internet): %s" % str(ex)[:200].replace(key, "…"))
+        return r["choices"][0]["message"]["content"] or ""
+    print("Escribiendo %d guion(es) con ChatGPT (%s) y el prompt de Dianchi…" % (len(pedido), modelo), flush=True)
+    for i, it in enumerate(pedido, 1):
+        dur = max(10, min(30, int(it.get("duracion") or 25))); max_total = int(dur * 3.0)          # voz 1.3x: unas 3 palabras por segundo
+        print("CTV_PROGRESO guiones %d %d %s" % (i, len(pedido), _slug((it.get("rubro") or "") + " " + (it.get("tematica") or it.get("problema") or "guion"))), flush=True)
+        prob = (it.get("problema") or "").strip(); tipo = it.get("cta_tipo") or "guardar"
+        usuario = ("Escribe UN guion nuevo con estos datos del pedido:\n- Rubro / servicio: %s\n- Temática: %s%s\n- Formato: %s → %s\n- Tipo de gancho: %s → %s\n- Acción final: %s → %s (la frase «cta» empieza con la palabra «%s»)\n"
+                   % (it.get("rubro", ""), it.get("tematica", ""), (" → " + it["tematica_def"]) if it.get("tematica_def") else "", it.get("formato", ""), it.get("formato_def", ""), it.get("gancho", ""), it.get("gancho_def", ""), it.get("accion", ""), it.get("accion_def", ""), CTAS.get(tipo, CTAS["guardar"])["ancla"]))
+        usuario += ("- Problema / miedo a resolver (OBLIGATORIO, el guion trata exactamente de esto): %s\n" % prob) if prob else "- Problema o miedo a resolver: elige tú uno concreto y real de esa temática y servicio, distinto de los guiones ya hechos\n"
+        if int(it.get("variaciones") or 1) > 1: usuario += "- Es la variación %s de %s sobre lo mismo: usa un ángulo y un gancho distintos a los otros.\n" % (it.get("variacion", 1), it.get("variaciones"))
+        usuario += ("- Longitud: gancho + partes + cta en total, un MÁXIMO de %d palabras (el video dura %d segundos) y no menos de %d.\n\nGUIONES QUE YA EXISTEN (no repitas tema, gancho ni ideas):\n%s" % (max_total, dur, int(max_total * 0.65), historial()))
+        msgs = [{"role": "system", "content": sistema}, {"role": "user", "content": usuario}]; r = None; errs = []
+        for intento in range(3):
+            txt = pedir(msgs)
+            try: d = json.loads(txt)
+            except Exception: d = None
+            if not isinstance(d, dict): errs = ["la respuesta no fue un JSON válido"]; r = None
+            else:
+                r, errs = _convertir(d, it, usados, max_total)
+                if r is not None:
+                    otro = max(RUBROS, key=lambda o: parecido(r, o)[0]) if RUBROS else None
+                    if otro is not None and parecido(r, otro)[0] >= UMBRAL:
+                        errs = ["se parece demasiado (%d%%) al guion ya existente «%s»: cambia el tema, el gancho y las ideas" % (parecido(r, otro)[0] * 100, otro["slug"])]; r = None
+            if r is not None: break
+            print("  intento %d: %s" % (intento + 1, "; ".join(errs)[:300]), flush=True)
+            msgs += [{"role": "assistant", "content": txt}, {"role": "user", "content": "Corrige estos problemas y responde de nuevo SOLO con el JSON completo:\n- " + "\n- ".join(errs)}]
+        if r is None: print("  ✗ no se pudo crear el guion %d de %d (%s): se omite." % (i, len(pedido), "; ".join(errs)[:200]), flush=True); continue
+        usados.add(r["slug"]); RUBROS.append(r); nuevos.append(r); guardados.append(_json_de_r(r))
+        os.makedirs(os.path.dirname(GN_F), exist_ok=True); json.dump(guardados, open(GN_F, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        print("  ✓ %s · «%s» · %d palabras" % (r["slug"], " ".join(r["titulo"]).replace("*", ""), len((r["gancho"] + " " + r["guion"] + " " + r["cta"]).replace("*", "").split())), flush=True)
+    if not nuevos: sys.exit("No se pudo crear ningún guion nuevo. Revisa el registro.")
+    open(os.path.join(AG, "dianchi", "prompt", "lote_actual.txt"), "w", encoding="utf-8").write("\n".join(r["slug"] for r in nuevos) + "\n")
+    print("Guiones nuevos creados: %d de %d (listos para verificar, descargar y generar)." % (len(nuevos), len(pedido)), flush=True)
+
 _LOTE = [] if SOLO or MODO == "listar" else _lote_actual()
-SEL = [r for r in RUBROS if (r["slug"] in SOLO if SOLO else (r["slug"] in _LOTE if _LOTE else True))]
+if MODO in ("verificar", "descargar", "hoja", "render") and not SOLO:
+    _H = hechos_leer()                 # solo se generan los guiones NUEVOS: un guion ya convertido en video no se vuelve a hacer
+    SEL = [r for r in RUBROS if (r["slug"] in _LOTE if _LOTE else True) and r["slug"] not in _H]
+    if not SEL: sys.exit("No hay guiones nuevos para generar: los %d guiones de la lista ya se convirtieron en video. Escribe guiones nuevos (botón «Escribir guiones (ChatGPT)», con tu clave de OpenAI en Ajustes) y vuelve a generar. Para rehacer uno en concreto, elígelo en «Paso a paso»." % len(RUBROS))
+    print("Guiones nuevos por generar: %d (ya hechos: %d)" % (len(SEL), len([1 for r in RUBROS if r["slug"] in _H])), flush=True)
+else:
+    SEL = [r for r in RUBROS if (r["slug"] in SOLO if SOLO else (r["slug"] in _LOTE if _LOTE else True))]
 def prog(i, Rr):                     # la app muestra "N de M" con esta linea (no es para leer)
     print("CTV_PROGRESO %s %d %d %s" % (MODO, i, len(SEL), Rr["slug"]), flush=True)
 
@@ -171,9 +402,13 @@ def cfg_final(Rr):
     return c
 
 if MODO == "listar":
-    print(json.dumps([{"slug": r["slug"], "rubro": r["rubro"], "titulo": " ".join(r["titulo"]).replace("*", "")} for r in RUBROS], ensure_ascii=False))
+    print(json.dumps([{"slug": r["slug"], "rubro": r["rubro"], "titulo": " ".join(r["titulo"]).replace("*", ""), "gancho": r["gancho"], "guion": r["guion"].replace("*", "")[:170]} for r in RUBROS], ensure_ascii=False))
+
+elif MODO == "guiones":
+    generar_guiones()
 
 elif MODO == "verificar":
+    if not SOLO: verificar_repetidos(SEL, RUBROS)
     for _i, Rr in enumerate(SEL, 1):
         prog(_i, Rr)
         pal = len(marcado(Rr["guion"], ()).split()); print("== %s | guion %d palabras" % (Rr["slug"], pal), flush=True)
@@ -271,6 +506,7 @@ elif MODO == "render":
         print("== %s" % Rr["slug"], flush=True)
         r = sh([sys.executable, os.path.join(AG, "scripts", "generar_dianchi.py"), FF, p], cwd=AG, env=dict(env, PATH=os.path.dirname(FF) + os.pathsep + env["PATH"]))
         print((r.stdout.strip().splitlines() or [""])[-1] if r.returncode == 0 else r.stderr[-600:], flush=True)
+        if r.returncode == 0: hechos_marcar(Rr)
 
 # ---- collage con las imagenes propias de la persona (dianchi/entrada/imagenes), si se activo en la app
 if MODO == "descargar" and os.environ.get("CTV_IMAGENES_COLLAGE") == "1":

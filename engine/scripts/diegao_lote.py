@@ -84,7 +84,7 @@ V = [
 GN_F = os.path.join(AG, "diegao", "prompt", "guiones_nuevos.json")
 def _v_de_json(d):
     return dict(slug=d["slug"], buenas=[tuple(x) for x in d.get("buenas", [])], malas=[tuple(x) for x in d.get("malas", [])], rubro=d["rubro"], titulo=list(d["titulo"]),
-                gancho=d["gancho"], guion=d["guion"], burbuja=tuple(d["burbuja"]), pasos=[tuple(x) for x in d["pasos"]], pasos_hasta=tuple(d["pasos_hasta"]))
+                gancho=d["gancho"], guion=d["guion"], burbuja=tuple(d["burbuja"]), pasos=[tuple(x) for x in d["pasos"]], pasos_hasta=tuple(d["pasos_hasta"]), busquedas=list(d.get("busquedas") or []))
 def _cargar_extra():
     try: arr = json.load(open(GN_F, encoding="utf-8"))
     except Exception: return []
@@ -126,12 +126,20 @@ def pool_pexels(v):
     if not (os.environ.get("PEXELS_API_KEY") or os.path.exists(os.path.join(AG, "_operacion", "pexels.key"))):
         sys.exit("Falta la clave de Pexels (Ajustes) o elige 'De una carpeta' en el paso 4 de Diegao.")
     base = norm(v["slug"] + " " + v.get("rubro", ""))
-    qs = next((q for k, q in BUSQUEDAS.items() if k in base), []) + GENERALES
+    qs = []
+    for q in list(v.get("busquedas") or []) + next((q for k, q in BUSQUEDAS.items() if k in base), []) + GENERALES:
+        if q not in qs: qs.append(q)
     out = os.path.join(REC, "pexels", v["slug"]); os.makedirs(out, exist_ok=True)
-    for i, q in enumerate(qs[:4]):
-        n = 4 if i < 2 else 3
-        r = sh([sys.executable, os.path.join(AG, "scripts", "descargar_videos.py"), out, q, str(n), v["slug"][:12] + "%d" % i])
-        print("pexels", v["slug"], "«" + q + "»", len(r.stdout.strip().splitlines()), "videos", flush=True)
+    def bajar(extra_env=None):
+        e = dict(env); e.update(extra_env or {})
+        for i, q in enumerate(qs[:5]):
+            n = 4 if i < 2 else 3
+            r = sh([sys.executable, os.path.join(AG, "scripts", "descargar_videos.py"), out, q, str(n), v["slug"][:12] + "%d" % i], env=e)
+            nuevos = len(r.stdout.strip().splitlines())
+            print("pexels", v["slug"], "«" + q + "»", nuevos, "videos" + ((" · " + (r.stderr.strip().splitlines() or [""])[-1][:160]) if r.returncode != 0 and r.stderr.strip() else ""), flush=True)
+    bajar()
+    if not glob.glob(os.path.join(out, "*.mp4")):
+        print("Pexels no tenia clips nuevos para estas búsquedas: se reutilizan clips que ya usaron otros videos.", flush=True); bajar({"PEXELS_REUSAR": "1"})
     res = []
     for f in sorted(glob.glob(os.path.join(out, "*.mp4"))):
         try: w, h, d = dims(f)
@@ -269,7 +277,7 @@ def verificar_repetidos(nuevos, todos):
 # ---------------------------------------------------------------- ESCRIBIR LOS GUIONES con la API de ChatGPT y el prompt de Diegao (modo «guiones»)
 def _json_de(v):
     return {"slug": v["slug"], "rubro": v["rubro"], "titulo": v["titulo"], "gancho": v["gancho"], "guion": v["guion"], "buenas": [list(x) for x in v["buenas"]], "malas": [list(x) for x in v["malas"]],
-            "burbuja": list(v["burbuja"]), "pasos": [list(x) for x in v["pasos"]], "pasos_hasta": list(v["pasos_hasta"])}
+            "burbuja": list(v["burbuja"]), "pasos": [list(x) for x in v["pasos"]], "pasos_hasta": list(v["pasos_hasta"]), "busquedas": list(v.get("busquedas") or [])}
 def _ejemplo(v):
     """Un guion existente en el formato JSON que se le pide a ChatGPT (palabras ancla sin numero de repeticion)."""
     return {"slug": v["slug"], "rubro": v["rubro"], "titulo": v["titulo"], "gancho": v["gancho"], "guion": v["guion"], "buenas": [a for a, n in v["buenas"]], "malas": [a for a, n in v["malas"]],
@@ -336,6 +344,7 @@ def _convertir(d, existentes, max_palabras):
     while slug in existentes: slug = "%s-%d" % (base, k); k += 1
     rubro = re.sub(r"[^A-Za-zÁÉÍÓÚÑÜáéíóúñü ]", "", S_(d.get("rubro"))).strip().upper()[:18] or "EMPRENDIMIENTO"
     v = dict(slug=slug, buenas=[(w, n) for t_, w, n, i in lim if t_ == "buenas"], malas=[(w, n) for t_, w, n, i in lim if t_ == "malas"], rubro=rubro, titulo=titulo, gancho=gancho,
+             busquedas=[q for q in (S_(x) for x in (d.get("busquedas") or [])[:5]) if len(re.findall(r"[A-Za-z]{3,}", q)) >= 2 and not re.search(r"[áéíóúñ]", q.lower())][:4],
              guion=" ".join(partes), burbuja=(pal_en(ob_anc), n_de(ob_anc), "“%s”" % ob_txt, pal_en(ob_hasta)), pasos=pasos, pasos_hasta=(pal_en(ph), n_de(ph)))
     return v, []
 
@@ -360,12 +369,13 @@ def generar_guiones():
                '{"slug":"nombre-corto-en-minusculas","rubro":"UNA PALABRA DEL TEMA EN MAYÚSCULAS","titulo":["LÍNEA 1","LÍNEA 2","*palabra* clave"],"gancho":"afirmación contundente sin signos de pregunta",'
                '"intro":"1 o 2 frases que plantean el problema y nombran la queja típica de la dueña","objecion":"NO TENGO TIEMPO",'
                '"pasos":[{"frase":"frase completa y breve del paso 1, que empieza con un verbo en imperativo","texto":"ETIQUETA CORTA"}],"cierre":"una frase final breve y contundente",'
-               '"buenas":["palabra positiva"],"malas":["palabra negativa"]}\n'
+               '"buenas":["palabra positiva"],"malas":["palabra negativa"],"busquedas":["english stock video search","english stock video search","english stock video search"]}\n'
                "Reglas del formato: (1) «gancho» es la primera frase que dice la voz; no se repite en ninguna otra parte. (2) La narración completa será: gancho + intro + las frases de los pasos (en orden) + cierre, y después la app agrega sola el «Sígueme para más ideas para tu negocio»: NO lo escribas tú. "
                "(3) «objecion»: la queja de la dueña en 2 a 5 palabras, en mayúsculas, que la «intro» menciona. (4) Entre 3 y 4 pasos concretos; la «etiqueta» de cada paso va en mayúsculas y tiene MÁXIMO 20 caracteres (sin número). "
                "(5) «titulo»: 2 o 3 líneas en MAYÚSCULAS, 40 a 50 caracteres en total, con UNA palabra clave entre *asteriscos* en minúscula y sin tildes ni ñ, sin repetir el gancho. "
                "(6) «buenas» y «malas»: 1 o 2 palabras sueltas, copiadas tal cual de tus frases (positivas y negativas de verdad en su contexto). (7) Sin cifras ni resultados inventados, sin símbolos decorativos, sin descripciones visuales, español neutro y de tú. "
-               "(8) Escribe frases CORTAS: respeta el máximo de palabras que se indica en el pedido, contando gancho + intro + pasos + cierre.\n\nEJEMPLO DE UN GUION YA HECHO (imita el nivel de concreción y el formato, NO el tema):\n" + ejemplo)
+               "(8) «busquedas»: 3 búsquedas en INGLÉS (2 a 5 palabras cada una) de videos de stock verticales que muestren, con imágenes distintas entre sí, la situación de este guion (por ejemplo una dueña de salón trabajando, revisando cuentas, atendiendo a una clienta); nada genérico ni repetido. "
+               "(9) Escribe frases CORTAS: respeta el máximo de palabras que se indica en el pedido, contando gancho + intro + pasos + cierre.\n\nEJEMPLO DE UN GUION YA HECHO (imita el nivel de concreción y el formato, NO el tema):\n" + ejemplo)
     nuevos = []; usados = {v["slug"] for v in V}; hechos_json = []
     try: hechos_json = json.load(open(GN_F, encoding="utf-8"))
     except Exception: pass
