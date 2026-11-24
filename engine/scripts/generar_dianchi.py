@@ -117,7 +117,7 @@ if os.environ.get("SOLO_TIEMPOS"):      # modo verificacion: tabla de escenas y 
             iv.append((nombre, ts_[0] - 0.1, fin_ + 0.1))
     for c in C.get("collages", []):
         t0c = max(tiempo(c["ancla"], c.get("n", 1)) - 0.15, 0); iv.append(("collage", t0c, t0c + c.get("dur", 2.4) + 0.1))
-    if C.get("cierre"): iv.append(("cierre", tiempo(C["cierre"]["ancla"]) - 0.1, TOT))
+    if C.get("cierre"): iv.append(("cierre", tiempo(C["cierre"]["ancla"], C["cierre"].get("n", 1)) - 0.1, TOT))
     print("TIEMPOS %s: voz %.1fs | escenas: %s" % (SLUG, vd, " ".join("%.1f" % x for x in t0s)))
     print("  animaciones: " + " | ".join("%s %.1f-%.1f" % x for x in iv))
     for a in range(len(iv)):

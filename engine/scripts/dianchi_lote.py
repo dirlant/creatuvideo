@@ -114,11 +114,13 @@ RUBROS = [
 GN_F = os.path.join(AG, "dianchi", "prompt", "guiones_nuevos.json")
 def _r_de_json(d):
     tp = lambda x: tuple(x) if isinstance(x, list) else x
-    return R(d["slug"], d["rubro"], list(d["titulo"]), d["gancho"], d["guion"], d["cta"], [(tp(e[0]), e[1], e[2]) for e in d["escenas"]], (tp(d["collage"][0]), d["collage"][1], d["collage"][2]),
+    r = R(d["slug"], d["rubro"], list(d["titulo"]), d["gancho"], d["guion"], d["cta"], [(tp(e[0]), e[1], e[2]) for e in d["escenas"]], (tp(d["collage"][0]), d["collage"][1], d["collage"][2]),
              A=[(tp(x[0]), x[1]) for x in d["A"]] if d.get("A") else None, hastaA=tp(d.get("hastaA")), bubble=(tp(d["bubble"][0]), d["bubble"][1], d["bubble"][2]) if d.get("bubble") else None, marcar=tuple(d.get("marcar") or ()), cta_tipo=d.get("cta_tipo") or "guardar")
+    if d.get("cta_custom"): r["cta_custom"] = True
+    return r
 def _json_de_r(r):
     return {"slug": r["slug"], "rubro": r["rubro"], "titulo": r["titulo"], "gancho": r["gancho"], "guion": r["guion"], "cta": r["cta"], "escenas": [list(e) for e in r["escenas"]], "collage": list(r["collage"]),
-            "A": [list(x) for x in (r["A"] or [])], "hastaA": r["hastaA"], "bubble": list(r["bubble"]) if r["bubble"] else None, "marcar": list(r["marcar"]), "cta_tipo": r["cta_tipo"]}
+            "A": [list(x) for x in (r["A"] or [])], "hastaA": r["hastaA"], "bubble": list(r["bubble"]) if r["bubble"] else None, "marcar": list(r["marcar"]), "cta_tipo": r["cta_tipo"], "cta_custom": bool(r.get("cta_custom"))}
 def _cargar_extra():
     try: arr = json.load(open(GN_F, encoding="utf-8"))
     except Exception: return []
@@ -183,19 +185,31 @@ def _solo_subtitulos():
     try: return ((json.load(open(os.environ.get("CTV_AJUSTES") or os.path.join(os.environ.get("APPDATA", ""), "CreaTuVideo", "settings.json"), encoding="utf-8")).get("presets") or {}).get("estiloVideo") or "subtitulos") == "subtitulos"
     except Exception: return True
 
+def cta_info(Rr):
+    """Datos de la accion final del video: la del tipo elegido (CTAS) o una frase PERSONALIZADA que escribio la persona (Rr["cta_custom"])."""
+    if Rr.get("cta_custom"):
+        import textwrap
+        txt = re.sub(r"\s+", " ", Rr["cta"]).strip(); pal = txt.split(); ancla = re.sub(r"^\W+|\W+$", "", pal[0]) if pal else "Sígueme"
+        return dict(ancla=ancla, cinta=textwrap.wrap(txt.rstrip("."), 30)[:2], cierre="|".join(textwrap.wrap(txt.rstrip(".").upper(), 20)[:3]), icono="sig")
+    return CTAS.get(Rr.get("cta_tipo") or "guardar", CTAS["guardar"])
+def n_cta(Rr):
+    """Que aparicion (n-esima) de la palabra de la accion es la del cierre: las que ya hay en el gancho y el guion + 1."""
+    previo = [norm(w) for w in (Rr["gancho"] + " " + Rr["guion"]).replace("*", "").split()]
+    return previo.count(norm(cta_info(Rr)["ancla"])) + 1
+
 def config(Rr, clips_dir, fotos):
     esc = []
     for i, (a, n, q) in enumerate(Rr["escenas"]):
         e = {"clip": "s%02d.mp4" % i}                       # se reemplaza por el archivo real al descargar
         if a is not None:
             w, nn = an(a)
-            if w == "Guarda": w = CTAS[Rr.get("cta_tipo") or "guardar"]["ancla"]      # la ultima escena se ancla en la palabra de la accion elegida
+            if w == "Guarda": w = cta_info(Rr)["ancla"]      # la ultima escena se ancla en la palabra de la accion elegida
             e["ancla"] = w; e["n"] = nn
         esc.append(e)
-    cfg = {"slug": Rr["slug"], "rubro": Rr["rubro"], "titulo": Rr["titulo"], "gancho": Rr["gancho"], "guion": marcado(Rr["guion"], Rr["marcar"]), "cta": Rr["cta"], "cinta": CTAS[Rr.get("cta_tipo") or "guardar"]["cinta"],
+    cfg = {"slug": Rr["slug"], "rubro": Rr["rubro"], "titulo": Rr["titulo"], "gancho": Rr["gancho"], "guion": marcado(Rr["guion"], Rr["marcar"]), "cta": Rr["cta"], "cinta": cta_info(Rr)["cinta"],
            "clips_dir": clips_dir, "salida": "dianchi/resultado", "operacion": "dianchi/_operacion", "efectos": os.environ.get("CTV_EFECTOS", "1") != "0", "voz": os.environ.get("CTV_VOZ", "es-MX-JorgeNeural"), "titulo_top": 420, "escenas": esc,
-           "sfx": [{"tipo": "sparkle", "ancla": an(Rr["collage"][0])[0], "n": an(Rr["collage"][0])[1], "desfase": 0.1}, {"tipo": "ding", "ancla": CTAS[Rr.get("cta_tipo") or "guardar"]["ancla"]}],
-           "pildoras_top": 380, "pildoras_paso": 108, "cierre": {"ancla": CTAS[Rr.get("cta_tipo") or "guardar"]["ancla"], "texto": CTAS[Rr.get("cta_tipo") or "guardar"]["cierre"], "icono": CTAS[Rr.get("cta_tipo") or "guardar"]["icono"]}}
+           "sfx": [{"tipo": "sparkle", "ancla": an(Rr["collage"][0])[0], "n": an(Rr["collage"][0])[1], "desfase": 0.1}, {"tipo": "ding", "ancla": cta_info(Rr)["ancla"], "n": n_cta(Rr)}],
+           "pildoras_top": 380, "pildoras_paso": 108, "cierre": {"ancla": cta_info(Rr)["ancla"], "n": n_cta(Rr), "texto": cta_info(Rr)["cierre"], "icono": cta_info(Rr)["icono"]}}
     w, n = an(Rr["collage"][0]); cfg["collages"] = [{"ancla": w, "n": n, "centro": fotos + "/col-1.png", "izq": fotos + "/col-2.png", "der": fotos + "/col-3.png", "dur": 2.4}]
     if Rr["A"]: cfg["pildoras"] = [item(a, t) for a, t in Rr["A"]]; cfg["pildoras_hasta"] = an(Rr["hastaA"])[0]
     if Rr["B"]: cfg["pildoras2"] = [item(a, t) for a, t in Rr["B"]]; cfg["pildoras2_hasta"] = an(Rr["hastaB"])[0]
@@ -262,12 +276,12 @@ def _convertir(d, it, existentes, max_total):
     la app calcula sola las palabras ancla: donde cambia cada escena, donde empiezan los pasos, donde aparece el globo y el collage. Devuelve (R, []) o (None, [errores])."""
     err = []
     S_ = lambda x: re.sub(r"\s+", " ", str(x or "")).strip()
-    gancho = S_(d.get("gancho")); cta = S_(d.get("cta")); partes = [p for p in (d.get("partes") or []) if isinstance(p, dict) and S_(p.get("texto"))]
+    cta_custom = S_(it.get("cta_custom")); gancho = S_(d.get("gancho")); cta = cta_custom or S_(d.get("cta")); partes = [p for p in (d.get("partes") or []) if isinstance(p, dict) and S_(p.get("texto"))]
     if not gancho or not partes: return None, ["faltan el gancho o las partes del guion"]
     if "?" in gancho or "¿" in gancho: err.append("el gancho no puede llevar signos de pregunta")
-    if not 6 <= len(partes) <= 11: err.append("el guion debe tener entre 6 y 11 partes (cada una es una escena de unas 8 a 12 palabras)")
+    if not 5 <= len(partes) <= 12: err.append("el guion debe tener entre 5 y 12 partes (cada una es una escena de unas 8 a 12 palabras)")
     ancla_cta = CTAS.get(it.get("cta_tipo") or "guardar", CTAS["guardar"])["ancla"]
-    if not cta or norm(cta.split()[0]) != norm(ancla_cta): err.append("el «cta» debe empezar con la palabra «%s»" % ancla_cta)
+    if not cta_custom and (not cta or norm(cta.split()[0]) != norm(ancla_cta)): err.append("el «cta» debe empezar con la palabra «%s»" % ancla_cta)
     if not re.search(r"[.!]$", cta): cta += "."
     textos = []
     for p in partes:
@@ -284,20 +298,25 @@ def _convertir(d, it, existentes, max_total):
     qs = [S_(p.get("busqueda")) for p in partes]
     if not all(en(q) for q in [q_g, q_c, q_k] + qs): err.append("todas las búsquedas de video (busqueda_gancho, busqueda de cada parte, busqueda_cta, busqueda_collage) deben estar en inglés y tener 2 a 5 palabras")
     pasos_i = [i for i, p in enumerate(partes) if S_(p.get("paso"))]
-    if not 3 <= len(pasos_i) <= 4: err.append("debe haber 3 o 4 partes con «paso» (la etiqueta corta del paso)")
     try: o = int(d.get("parte_objecion")) - 1
-    except Exception: o = -1
-    if not 0 <= o < len(partes): err.append("«parte_objecion» debe ser el número (desde 1) de la parte que nombra la objeción de la clienta")
-    elif pasos_i and o >= pasos_i[0]: err.append("la parte de la objeción debe ir ANTES del primer paso")
+    except Exception: o = 0
+    if not 0 <= o < len(partes) - 2: o = 0                                      # reparacion: la objecion va en la primera parte
+    pasos_i = [i for i in pasos_i if i > o and i < len(partes)][:4]
+    if len(pasos_i) < 3:                                                       # reparacion: se eligen 3 partes repartidas despues de la objecion como pasos
+        resto = [i for i in range(o + 1, len(partes) - 1)] or [len(partes) - 2]
+        paso = max(1, len(resto) // 3); elegidos = sorted(set((resto[::paso] + resto)[:3]))
+        for i in elegidos:
+            if i not in pasos_i: partes[i] = dict(partes[i], paso=" ".join(S_(partes[i]["texto"]).replace("*", "").split()[:3]).upper().strip(",.;:"))
+        pasos_i = sorted(set(pasos_i) | set(elegidos))[:4]
     ob = re.sub(r"[“”\"«»]", "", S_(d.get("objecion"))).upper()
-    if not ob: err.append("falta «objecion»: la frase de la clienta (por ejemplo SE VERÁ ACARTONADO)")
+    if not ob: ob = " ".join(S_(partes[o]["texto"]).replace("*", "").split()[:4]).upper().strip(",.;:")      # reparacion: sin frase de objecion se usa el inicio de su parte
     toks = [norm(w) for w in gancho.replace("*", "").split()]; n_g = len(toks); ini = []; palabras = []
     for x in textos:
         w = x.split(); ini.append(n_g + len(palabras)); palabras += w
     n_p = len(palabras); toks += [norm(w) for w in palabras]; ini.append(n_g + n_p); cta_w = cta.split(); toks += [norm(w) for w in cta_w]; total = len(toks)
-    tope = min(105, int(max_total * 1.2))
+    tope = min(112, int(max_total * 1.3))
     if total > tope: err.append("tiene %d palabras en total (gancho + partes + cta) y el máximo es %d: acorta las partes" % (total, tope))
-    if total < max_total * 0.55: err.append("es muy corto (%d palabras): debe acercarse a %d" % (total, max_total))
+    if total < max_total * 0.45: err.append("es muy corto (%d palabras): debe acercarse a %d" % (total, max_total))
     if err: return None, err
     todas = gancho.replace("*", "").split() + palabras + cta_w
     pal = lambda i: re.sub(r"^\W+|\W+$", "", todas[i])
@@ -331,6 +350,7 @@ def _convertir(d, it, existentes, max_total):
     while slug in existentes: slug = "%s-%d" % (base, k); k += 1
     rubro = str(it.get("rubro", "")).upper()
     r = R(slug, rubro, titulo, gancho, guion, cta, escenas, collage, A=A, hastaA=hastaA, bubble=bubble, marcar=tuple(marc[:2]), cta_tipo=it.get("cta_tipo") or "guardar")
+    if cta_custom: r["cta_custom"] = True
     return r, []
 
 def generar_guiones():
@@ -389,6 +409,7 @@ def generar_guiones():
         prob = (it.get("problema") or "").strip(); tipo = it.get("cta_tipo") or "guardar"
         usuario = ("Escribe UN guion nuevo con estos datos del pedido:\n- Rubro / servicio: %s\n- Temática: %s%s\n- Formato: %s → %s\n- Tipo de gancho: %s → %s\n- Acción final: %s → %s (la frase «cta» empieza con la palabra «%s»)\n"
                    % (it.get("rubro", ""), it.get("tematica", ""), (" → " + it["tematica_def"]) if it.get("tematica_def") else "", it.get("formato", ""), it.get("formato_def", ""), it.get("gancho", ""), it.get("gancho_def", ""), it.get("accion", ""), it.get("accion_def", ""), CTAS.get(tipo, CTAS["guardar"])["ancla"]))
+        if it.get("cta_custom"): usuario += "- La frase final «cta» es PERSONALIZADA y la pone la app tal cual: «%s». Escribe el último paso o la última parte de modo que lleve naturalmente a ella; no la repitas ni la reescribas.\n" % it["cta_custom"]
         usuario += ("- Problema / miedo a resolver (OBLIGATORIO, el guion trata exactamente de esto): %s\n" % prob) if prob else "- Problema o miedo a resolver: elige tú uno concreto y real de esa temática y servicio, distinto de los guiones ya hechos\n"
         if int(it.get("variaciones") or 1) > 1: usuario += "- Es la variación %s de %s sobre lo mismo: usa un ángulo y un gancho distintos a los otros.\n" % (it.get("variacion", 1), it.get("variaciones"))
         usuario += ("- Longitud: gancho + partes + cta en total, un MÁXIMO de %d palabras (el video dura %d segundos) y no menos de %d.\n\nGUIONES QUE YA EXISTEN (no repitas tema, gancho ni ideas):\n%s" % (max_total, dur, int(max_total * 0.65), historial()))

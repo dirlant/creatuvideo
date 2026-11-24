@@ -199,7 +199,7 @@ OPC.tematicasDuenas = [
 OPC.rubrosDuenas = ["Salones de belleza", "Peluquería", "Estéticas", "Clínicas", "Independientes", "Servicio a domicilio"];   // tipo de negocio de la dueña (Diegao)
 const RUBROS_L = (L = BL) => (L === "diegao" ? OPC.rubrosDuenas : OPC.rubros);
 const TEMAS = (L = BL) => (L === "diegao" ? OPC.tematicasDuenas : OPC.tematicas);
-const BRIEF0 = { idioma: "Español", problemasAuto: true, rubros: [], formatos: [OPC.formatos[0][0]], tonos: ["Cercano"], tematicas: [], problemas: [], ganchos: [OPC.ganchos[0][0]], ctas: ["Que lo guarde"], duracion: 25, variaciones: 1 };
+const BRIEF0 = { idioma: "Español", problemasAuto: true, rubros: [], formatos: [OPC.formatos[0][0]], tonos: ["Cercano"], tematicas: [], problemas: [], ganchos: [OPC.ganchos[0][0]], ctas: ["Que lo guarde"], ctaTexto: "", duracion: 25, variaciones: 1 };
 // dimensiones que se combinan: [clave, singular, plural]
 const DIMS = [["rubros", "rubro", "rubros"], ["tematicas", "temática", "temáticas"], ["formatos", "formato", "formatos"], ["ganchos", "gancho", "ganchos"], ["ctas", "acción", "acciones"]];
 function brief() {                               // siempre el MISMO objeto, completando solo lo que falte
@@ -221,15 +221,16 @@ function brief() {                               // siempre el MISMO objeto, com
 let tGuardarBrief = null;
 function guardarBrief() { clearTimeout(tGuardarBrief); tGuardarBrief = setTimeout(() => window.ctv.saveSettings(ajustes), 500); }
 const problemasEf = (b) => (b.problemasAuto ? [] : b.problemas);
+const ctaPersonal = (b) => !!String(b.ctaTexto || "").trim();                                           // frase final propia: reemplaza a las acciones de la lista
 const temaOpcional = (b) => !b.problemasAuto && b.problemas.length > 0 && !b.tematicas.length;      // sin temática elegida pero con problemas propios: se cuentan igual (la temática la deduce la IA del problema)
-const totalVideos = () => { const b = brief(); let n = (Number(b.variaciones) || 1) * (b.problemasAuto ? 1 : b.problemas.length); for (const [k] of DIMS) { if (!b[k].length) { if (k === "tematicas" && temaOpcional(b)) continue; return 0; } n *= b[k].length; } return n; };
+const totalVideos = () => { const b = brief(); let n = (Number(b.variaciones) || 1) * (b.problemasAuto ? 1 : b.problemas.length); for (const [k] of DIMS) { if (k === "ctas" && ctaPersonal(b)) continue; if (!b[k].length) { if (k === "tematicas" && temaOpcional(b)) continue; return 0; } n *= b[k].length; } return n; };
 function desgloseBrief() {
-  const b = brief(), partes = DIMS.filter(([k]) => b[k].length > 1).map(([k, s, p]) => b[k].length + " " + p);
+  const b = brief(), partes = DIMS.filter(([k]) => b[k].length > 1 && !(k === "ctas" && ctaPersonal(b))).map(([k, s, p]) => b[k].length + " " + p);
   if (!b.problemasAuto && b.problemas.length > 1) partes.push(b.problemas.length + " problemas");
   if (Number(b.variaciones) > 1) partes.push(b.variaciones + " variaciones");
   return partes.length ? partes.join(" × ") : "una sola combinación";
 }
-const FALTA = () => { const b = brief(), f = DIMS.filter(([k]) => !b[k].length && !(k === "tematicas" && temaOpcional(b))).map(([k, s]) => s); if (!b.problemasAuto && !b.problemas.length) f.push("temática o problema (o activa Automático)"); return f.length ? "Elige al menos un valor en: " + f.join(", ") + "." : ""; };
+const FALTA = () => { const b = brief(), f = DIMS.filter(([k]) => !b[k].length && !(k === "tematicas" && temaOpcional(b)) && !(k === "ctas" && ctaPersonal(b))).map(([k, s]) => s); if (!b.problemasAuto && !b.problemas.length) f.push("temática o problema (o activa Automático)"); return f.length ? "Elige al menos un valor en: " + f.join(", ") + "." : ""; };
 
 function actualizarContador() {
   if (gen && !gen.fin) return;
@@ -305,6 +306,9 @@ function pintarBrief() {
   cont.appendChild(campo(7, "Temática o problema a resolver", "Automático, o agrega los tuyos de uno en uno: cada uno se convierte en un guion distinto.", pb, true));
   cont.appendChild(campoMulti(8, "Gancho (uno o varios)", OPC.ganchos.map((x) => x[0]), b.ganchos, cambio));
   cont.appendChild(campoMulti(9, "¿Qué quieres que haga el usuario? (una o varias)", OPC.ctas.map((x) => x[0]), b.ctas, cambio));
+  { const ci = document.createElement("input"); ci.maxLength = 110; ci.placeholder = "Ej.: Reserva tu hora escribiéndome por WhatsApp"; ci.value = b.ctaTexto || "";
+    ci.addEventListener("input", () => { b.ctaTexto = ci.value; cambio(); });
+    cont.appendChild(campo("", "…o escribe tu propio llamado a la acción (opcional)", "Si lo escribes, esta frase cierra TODOS los videos y reemplaza a las acciones de la lista de arriba (no multiplica los videos). Déjalo vacío para usar las acciones elegidas.", ci, true)); }
   const rg = document.createElement("div"); rg.className = "rango";
   const ir_ = document.createElement("input"); ir_.type = "range"; ir_.min = 10; ir_.max = 30; ir_.value = b.duracion;
   const bd = document.createElement("span"); bd.className = "badge"; bd.textContent = b.duracion + " seg";
@@ -325,7 +329,7 @@ function textoBrief() {
   const defs = (lista, sel) => sel.map((s) => "  · " + s + " → " + busca(lista, s)[1]).join("\n");
   // una entrada por cada combinacion de las dimensiones elegidas
   let combos = [[]];
-  const listas = [b.rubros, b.tematicas.length ? b.tematicas : [""], b.formatos, b.ganchos, b.ctas];
+  const listas = [b.rubros, b.tematicas.length ? b.tematicas : [""], b.formatos, b.ganchos, ctaPersonal(b) ? ["Personalizado"] : b.ctas];
   if (!b.problemasAuto) listas.push(b.problemas);
   for (const l of listas) combos = combos.flatMap((c) => l.map((x) => [...c, x]));
   const lineas = [];
@@ -419,12 +423,13 @@ for (const L of ["dianchi", "diegao"]) {
 function pedidoLinea(L) {
   return conLinea(L, () => {
     const b = brief(), busca = (lista, nombre) => lista.find((x) => x[0] === nombre) || [nombre, ""];
-    const listas = [b.rubros, b.tematicas.length ? b.tematicas : [""], b.formatos, b.ganchos, b.ctas]; if (!b.problemasAuto) listas.push(b.problemas);
+    const custom = String(b.ctaTexto || "").trim();
+    const listas = [b.rubros, b.tematicas.length ? b.tematicas : [""], b.formatos, b.ganchos, custom ? ["Personalizado"] : b.ctas]; if (!b.problemasAuto) listas.push(b.problemas);
     let combos = [[]]; for (const l of listas) combos = combos.flatMap((c) => l.map((x) => [...c, x]));
     const out = [];
     for (const c of combos) for (let v = 1; v <= (Number(b.variaciones) || 1); v++) {
       out.push({ rubro: c[0], tematica: c[1], tematica_def: busca(TEMAS(), c[1])[1], formato: c[2], formato_def: busca(OPC.formatos, c[2])[1], gancho: c[3], gancho_def: busca(OPC.ganchos, c[3])[1],
-        accion: c[4], accion_def: busca(OPC.ctas, c[4])[1], cta_tipo: busca(OPC.ctas, c[4])[2], cta_ancla: busca(OPC.ctas, c[4])[3], problema: b.problemasAuto ? "" : c[5], variacion: v, variaciones: Number(b.variaciones) || 1, duracion: b.duracion });
+        accion: c[4], accion_def: custom ? custom : busca(OPC.ctas, c[4])[1], cta_tipo: custom ? "custom" : busca(OPC.ctas, c[4])[2], cta_ancla: custom ? custom.split(/\s+/)[0] : busca(OPC.ctas, c[4])[3], cta_custom: custom, problema: b.problemasAuto ? "" : c[5], variacion: v, variaciones: Number(b.variaciones) || 1, duracion: b.duracion });
     }
     return out;
   });

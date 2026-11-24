@@ -84,7 +84,7 @@ V = [
 GN_F = os.path.join(AG, "diegao", "prompt", "guiones_nuevos.json")
 def _v_de_json(d):
     return dict(slug=d["slug"], buenas=[tuple(x) for x in d.get("buenas", [])], malas=[tuple(x) for x in d.get("malas", [])], rubro=d["rubro"], titulo=list(d["titulo"]),
-                gancho=d["gancho"], guion=d["guion"], burbuja=tuple(d["burbuja"]), pasos=[tuple(x) for x in d["pasos"]], pasos_hasta=tuple(d["pasos_hasta"]), busquedas=list(d.get("busquedas") or []))
+                gancho=d["gancho"], guion=d["guion"], burbuja=tuple(d["burbuja"]), pasos=[tuple(x) for x in d["pasos"]], pasos_hasta=tuple(d["pasos_hasta"]), busquedas=list(d.get("busquedas") or []), cta=d.get("cta") or CTA, cta_tipo=d.get("cta_tipo") or "seguir")
 def _cargar_extra():
     try: arr = json.load(open(GN_F, encoding="utf-8"))
     except Exception: return []
@@ -97,6 +97,16 @@ _ya = {v["slug"] for v in V}
 V.extend([x for x in _cargar_extra() if x["slug"] not in _ya])
 
 CTA = "Sígueme para más ideas para tu negocio."
+CTA_TIPOS = {"seguir": CTA, "guardar": "Guarda este video para ponerlo en práctica en tu negocio.", "comentar": "Comenta qué opinas y cuéntame tu caso.",
+             "compartir": "Comparte este video con otra dueña de negocio.", "like": "Dale like si te sirvió y sigue aprendiendo.", "mensaje": "Escríbeme un mensaje y te ayudo con tu negocio."}
+def cta_info(v):
+    """Accion final del video: la frase v["cta"] (por defecto «Sígueme…»); trae su palabra ancla, cuantas veces aparece antes y los textos de la cinta y la tarjeta final."""
+    import textwrap
+    txt = re.sub(r"\s+", " ", v.get("cta") or CTA).strip(); pal = txt.split(); ancla = re.sub(r"^\W+|\W+$", "", pal[0]) if pal else "Sígueme"
+    previo = [norm(w) for w in (v["gancho"] + " " + v["guion"]).replace("*", "").split()]
+    if txt == CTA: cinta, cierre = ["Sígueme para más ideas", "para tu negocio"], "SÍGUEME|PARA MÁS IDEAS|PARA TU NEGOCIO"        # el diseño de siempre
+    else: cinta, cierre = textwrap.wrap(txt.rstrip("."), 28)[:2], "|".join(textwrap.wrap(txt.rstrip(".").upper(), 20)[:3])
+    return dict(texto=txt, ancla=ancla, n=previo.count(norm(ancla)) + 1, cinta=cinta, cierre=cierre)
 
 def sh(cmd, **kw):
     kw.setdefault("env", env)
@@ -168,13 +178,14 @@ def _solo_subtitulos():
 
 def config(v, escenas, extra=None):
     marc = lambda s: s
-    c = {"slug": v["slug"], "rubro": v["rubro"], "titulo": v["titulo"], "gancho": v["gancho"], "guion": v["guion"], "cta": CTA,
-         "cinta": ["Sígueme para más ideas", "para tu negocio"], "clips_dir": "diegao/_operacion/recursos/cortes3s/" + v["slug"], "salida": "diegao/resultado", "operacion": "diegao/_operacion",
+    ci = cta_info(v)
+    c = {"slug": v["slug"], "rubro": v["rubro"], "titulo": v["titulo"], "gancho": v["gancho"], "guion": v["guion"], "cta": ci["texto"],
+         "cinta": ci["cinta"], "clips_dir": "diegao/_operacion/recursos/cortes3s/" + v["slug"], "salida": "diegao/resultado", "operacion": "diegao/_operacion",
          "titulo_top": 420, "escenas": escenas, "voz": os.environ.get("CTV_VOZ", "es-MX-JorgeNeural"), "sin_whoosh": True, "sonido_cortes": True,
-         "sfx": [{"tipo": "bueno", "ancla": a, "n": n} for a, n in v.get("buenas", [])] + [{"tipo": "malo", "ancla": a, "n": n} for a, n in v.get("malas", [])] + [{"tipo": "ding", "ancla": "Sígueme"}],
+         "sfx": [{"tipo": "bueno", "ancla": a, "n": n} for a, n in v.get("buenas", [])] + [{"tipo": "malo", "ancla": a, "n": n} for a, n in v.get("malas", [])] + [{"tipo": "ding", "ancla": ci["ancla"], "n": ci["n"]}],
          "collages": [], "pildoras2": [{"ancla": a, "n": n, "texto": t} for a, n, t in v["pasos"]], "pildoras2_hasta": v["pasos_hasta"][0],
          "pildoras3": [{"ancla": v["burbuja"][0], "n": v["burbuja"][1], "texto": v["burbuja"][2]}], "pildoras3_hasta": v["burbuja"][3],
-         "pildoras_top": 380, "pildoras_paso": 108, "cierre": {"ancla": "Sígueme", "texto": "SÍGUEME|PARA MÁS IDEAS|PARA TU NEGOCIO", "icono": "sig"}}
+         "pildoras_top": 380, "pildoras_paso": 108, "cierre": {"ancla": ci["ancla"], "n": ci["n"], "texto": ci["cierre"], "icono": "sig"}}
     if _solo_subtitulos(): c["solo_subtitulos"] = True
     if extra: c.update(extra)
     return c
@@ -190,7 +201,10 @@ def preparar(v, rnd, pl, usados):
     if not os.path.exists(os.path.join(W, "palabras_abs.json")): sys.exit("sin tiempos: " + (r.stdout + r.stderr)[-800:])
     pal = json.load(open(os.path.join(W, "palabras_abs.json"), encoding="utf-8"))
     NW = [norm(p[0]) for p in pal]; TOT = float(re.search(r"voz ([\d.]+)s", r.stdout).group(1)) + 0.35
-    idx_sig = NW.index(norm("Sígueme")); t_sig = pal[idx_sig][1]
+    ci = cta_info(v); idx_sig = len(NW) - len(ci["texto"].split())            # la frase final de accion ocupa las ultimas palabras de la narracion
+    for d_ in (0, 1, -1, 2, -2, 3, -3):
+        if 0 <= idx_sig + d_ < len(NW) and NW[idx_sig + d_] == norm(ci["ancla"]): idx_sig += d_; break
+    idx_sig = max(1, min(len(NW) - 1, idx_sig)); t_sig = pal[idx_sig][1]
     # escenas: una cada ~2.3-3.0 s (patron de interrupcion cada 3 s), en el inicio de una palabra; la ultima empieza en "Sigueme"
     starts = [0]
     while len(starts) < 20:
@@ -283,7 +297,7 @@ def verificar_repetidos(nuevos, todos):
 # ---------------------------------------------------------------- ESCRIBIR LOS GUIONES con la API de ChatGPT y el prompt de Diegao (modo «guiones»)
 def _json_de(v):
     return {"slug": v["slug"], "rubro": v["rubro"], "titulo": v["titulo"], "gancho": v["gancho"], "guion": v["guion"], "buenas": [list(x) for x in v["buenas"]], "malas": [list(x) for x in v["malas"]],
-            "burbuja": list(v["burbuja"]), "pasos": [list(x) for x in v["pasos"]], "pasos_hasta": list(v["pasos_hasta"]), "busquedas": list(v.get("busquedas") or [])}
+            "burbuja": list(v["burbuja"]), "pasos": [list(x) for x in v["pasos"]], "pasos_hasta": list(v["pasos_hasta"]), "busquedas": list(v.get("busquedas") or []), "cta": v.get("cta") or CTA, "cta_tipo": v.get("cta_tipo") or "seguir"}
 def _ejemplo(v):
     """Un guion existente en el formato JSON que se le pide a ChatGPT (palabras ancla sin numero de repeticion)."""
     return {"slug": v["slug"], "rubro": v["rubro"], "titulo": v["titulo"], "gancho": v["gancho"], "guion": v["guion"], "buenas": [a for a, n in v["buenas"]], "malas": [a for a, n in v["malas"]],
@@ -408,7 +422,7 @@ def generar_guiones():
                '"intro":"1 o 2 frases que plantean el problema y nombran la queja típica de la dueña","objecion":"NO TENGO TIEMPO",'
                '"pasos":[{"frase":"frase completa y breve del paso 1, que empieza con un verbo en imperativo","texto":"ETIQUETA CORTA"}],"cierre":"una frase final breve y contundente",'
                '"buenas":["palabra positiva"],"malas":["palabra negativa"],"busquedas":["english stock video search","english stock video search","english stock video search"]}\n'
-               "Reglas del formato: (1) «gancho» es la primera frase que dice la voz; no se repite en ninguna otra parte. (2) La narración completa será: gancho + intro + las frases de los pasos (en orden) + cierre, y después la app agrega sola el «Sígueme para más ideas para tu negocio»: NO lo escribas tú. "
+               "Reglas del formato: (1) «gancho» es la primera frase que dice la voz; no se repite en ninguna otra parte. (2) La narración completa será: gancho + intro + las frases de los pasos (en orden) + cierre, y después la app agrega sola la frase final de acción (por ejemplo «Sígueme…», «Guarda…», «Comenta…» o la que haya escrito la persona): NO la escribas tú. "
                "(3) «objecion»: la queja de la dueña en 2 a 5 palabras, en mayúsculas, que la «intro» menciona. (4) Entre 3 y 4 pasos concretos; la «etiqueta» de cada paso va en mayúsculas y tiene MÁXIMO 20 caracteres (sin número). "
                "(5) «titulo»: 2 o 3 líneas en MAYÚSCULAS, 40 a 50 caracteres en total, con UNA palabra clave entre *asteriscos* en minúscula y sin tildes ni ñ, sin repetir el gancho. "
                "(6) «buenas» y «malas»: 1 o 2 palabras sueltas, copiadas tal cual de tus frases (positivas y negativas de verdad en su contexto). (7) Sin cifras ni resultados inventados, sin símbolos decorativos, sin descripciones visuales, español neutro latinoamericano con «tú» (NUNCA voseo ni modismos: «pierdas», no «perdas» ni «perdás»; «tienes», no «tenés»; «mira», no «mirá») y con las conjugaciones, la ortografía y las tildes correctas. "
@@ -431,14 +445,14 @@ def generar_guiones():
         return r["choices"][0]["message"]["content"] or ""
     print("Escribiendo %d guion(es) con ChatGPT (%s) y el prompt de Diegao…" % (len(pedido), modelo), flush=True)
     for i, it in enumerate(pedido, 1):
-        dur = max(10, min(30, int(it.get("duracion") or 25))); max_pal = int(dur * 2.5) - 7          # 7 palabras ocupa el «Sígueme para más ideas para tu negocio»
+        dur = max(10, min(30, int(it.get("duracion") or 25))); max_pal = int(dur * 2.5) - len(((it.get("cta_custom") or "").strip() or CTA_TIPOS.get(it.get("cta_tipo") or "seguir", CTA)).split())          # palabras que ocupa la frase final de accion
         print("CTV_PROGRESO guiones %d %d %s" % (i, len(pedido), _slug(it.get("tematica") or it.get("problema") or "guion")), flush=True)
         prob = (it.get("problema") or "").strip()
-        usuario = ("Escribe UN guion nuevo con estos datos del pedido:\n- Tipo de negocio de la dueña: %s\n- Temática (dolor): %s%s\n- Formato: %s → %s\n- Tipo de gancho: %s → %s\n- Objetivo de la frase final antes del «Sígueme»: %s → %s\n"
+        usuario = ("Escribe UN guion nuevo con estos datos del pedido:\n- Tipo de negocio de la dueña: %s\n- Temática (dolor): %s%s\n- Formato: %s → %s\n- Tipo de gancho: %s → %s\n- Acción de la frase final (la agrega la app, no la escribas): %s → %s\n"
                    % (it.get("rubro", ""), (it.get("tematica") or "la que corresponda al problema indicado abajo (tú la deduces: finanzas, administración, estrategia, fidelización, atención, protocolos, estructura, espiritualidad o mentalidad)"), (" → " + it["tematica_def"]) if it.get("tematica_def") else "", it.get("formato", ""), it.get("formato_def", ""), it.get("gancho", ""), it.get("gancho_def", ""), it.get("accion", ""), it.get("accion_def", "")))
         usuario += ("- Problema a resolver (OBLIGATORIO, el guion trata exactamente de esto): %s\n" % prob) if prob else "- Problema a resolver: elige tú uno concreto y real de esa temática, distinto de los guiones ya hechos\n"
         if int(it.get("variaciones") or 1) > 1: usuario += "- Es la variación %s de %s sobre lo mismo: usa un ángulo y un gancho distintos a los otros.\n" % (it.get("variacion", 1), it.get("variaciones"))
-        usuario += ("- Longitud: entre gancho y guion un MÁXIMO de %d palabras (el video dura %d segundos con el «Sígueme» final) y no menos de %d.\n\nGUIONES QUE YA EXISTEN (no repitas tema, gancho ni ideas):\n%s"
+        usuario += ("- Longitud: entre gancho y guion un MÁXIMO de %d palabras (el video dura %d segundos con la frase final de acción) y no menos de %d.\n\nGUIONES QUE YA EXISTEN (no repitas tema, gancho ni ideas):\n%s"
                     % (max_pal, dur, int(max_pal * 0.7), historial()))
         msgs = [{"role": "system", "content": sistema}, {"role": "user", "content": usuario}]; v = None; errs = []
         for intento in range(3):
@@ -461,6 +475,8 @@ def generar_guiones():
             print("  intento %d: %s" % (intento + 1, "; ".join(errs)[:300]), flush=True)
             msgs += [{"role": "assistant", "content": txt}, {"role": "user", "content": "Corrige estos problemas y responde de nuevo SOLO con el JSON completo:\n- " + "\n- ".join(errs)}]
         if v is None: print("  ✗ no se pudo crear el guion %d de %d (%s): se omite." % (i, len(pedido), "; ".join(errs)[:200]), flush=True); continue
+        custom_ = (it.get("cta_custom") or "").strip(); tipo_ = it.get("cta_tipo") or "seguir"
+        v["cta"] = custom_ or CTA_TIPOS.get(tipo_, CTA); v["cta_tipo"] = "custom" if custom_ else tipo_
         usados.add(v["slug"]); V.append(v); nuevos.append(v); hechos_json.append(_json_de(v))
         json.dump(hechos_json, open(GN_F, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         print("  ✓ %s · «%s» · %d palabras" % (v["slug"], " ".join(v["titulo"]).replace("*", ""), len((v["gancho"] + " " + v["guion"]).replace("*", "").split())), flush=True)
