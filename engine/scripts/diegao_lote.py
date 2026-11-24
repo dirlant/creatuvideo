@@ -283,6 +283,38 @@ def _ejemplo(v):
     return {"slug": v["slug"], "rubro": v["rubro"], "titulo": v["titulo"], "gancho": v["gancho"], "guion": v["guion"], "buenas": [a for a, n in v["buenas"]], "malas": [a for a, n in v["malas"]],
             "objecion": {"texto": v["burbuja"][2], "ancla": v["burbuja"][0], "hasta": v["burbuja"][3]}, "pasos": [{"ancla": a, "texto": t} for a, n, t in v["pasos"]], "pasos_hasta": v["pasos_hasta"][0]}
 def norm_acentos(s): return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode()
+# ---------------------------------------------------------------- REVISION DEL ESPAÑOL: segunda pasada (corrector) + lista de formas de voseo
+VOSEO = re.compile(r"\b(vos|sos|tenés|querés|podés|sabés|hacés|decís|pensás|necesitás|empezás|ponés|venís|salís|vivís|perdés|perdás|perdas|mirá|escuchá|fijate|ponete|acordate|andá|dejá|cuidá|mostrá|aprendé|comprá|vendé|cobrá|pagá|ahorrá|confiá|che|laburo|laburar|pibe|boludo)\b", re.I)
+def _textos_de(o, acum=None):
+    acum = [] if acum is None else acum
+    if isinstance(o, str): acum.append(o)
+    elif isinstance(o, list): [_textos_de(x, acum) for x in o]
+    elif isinstance(o, dict): [_textos_de(x, acum) for k, x in o.items() if not str(k).startswith("busqueda") and k not in ("slug", "busquedas")]
+    return acum
+def _forma(o):
+    if isinstance(o, dict): return {k: _forma(v) for k, v in o.items()}
+    if isinstance(o, list): return [_forma(x) for x in o]
+    return None
+def revisar_espanol(d, pedir_rev):
+    """Segunda pasada: un corrector arregla voseo, conjugaciones mal escritas («perdas» -> «pierdas»), ortografia y tildes de los textos en español del guion, sin cambiar su sentido ni su estructura."""
+    sistema = ("Eres corrector de textos en ESPAÑOL NEUTRO LATINOAMERICANO con tuteo («tú»). Recibes un JSON con un guion de video. Corrige SOLO los textos en español: "
+               "(1) voseo y formas rioplatenses → tuteo («tenés»→«tienes», «perdás» o «perdas»→«pierdas», «mirá»→«mira», «vos»→«tú», «sos»→«eres»); "
+               "(2) verbos mal conjugados o mal escritos (irregulares: pierdas, tengas, quieras, puedas, vayas, cuentes…), faltas de ortografía y tildes; (3) concordancia de género y número. "
+               "NO cambies el sentido, no agregues ni quites ideas, mantén la misma cantidad de palabras (±2) y respeta las mayúsculas y los asteriscos (*palabra*) tal como están. "
+               "NO modifiques las claves, los números, los slugs ni los textos en inglés (búsquedas de video). Si algo ya está bien, déjalo igual. Responde SOLO con el MISMO JSON, sin comentarios.")
+    try: nuevo = json.loads(pedir_rev([{"role": "system", "content": sistema}, {"role": "user", "content": json.dumps(d, ensure_ascii=False)}]))
+    except Exception: return d, []
+    if not isinstance(nuevo, dict) or json.dumps(_forma(nuevo), sort_keys=True) != json.dumps(_forma(d), sort_keys=True): return d, []        # cambio la estructura: se descarta la correccion
+    a, b = _textos_de(d), _textos_de(nuevo); cambios = []
+    if len(a) != len(b): return d, []
+    import difflib
+    for x, y in zip(a, b):
+        if x != y:
+            for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, x.split(), y.split()).get_opcodes():
+                if op == "replace" and (i2 - i1) == (j2 - j1): cambios += [(" ".join(x.split()[i1:i2]), " ".join(y.split()[j1:j2]))]
+    return nuevo, cambios
+def voseo_en(d):
+    return sorted({m.group(0).lower() for t in _textos_de(d) for m in VOSEO.finditer(t)})
 def _slug(s):
     s = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFD", (s or "").lower()).encode("ascii", "ignore").decode()).strip("-")
     return s[:38].strip("-") or "guion"
@@ -373,7 +405,7 @@ def generar_guiones():
                "Reglas del formato: (1) «gancho» es la primera frase que dice la voz; no se repite en ninguna otra parte. (2) La narración completa será: gancho + intro + las frases de los pasos (en orden) + cierre, y después la app agrega sola el «Sígueme para más ideas para tu negocio»: NO lo escribas tú. "
                "(3) «objecion»: la queja de la dueña en 2 a 5 palabras, en mayúsculas, que la «intro» menciona. (4) Entre 3 y 4 pasos concretos; la «etiqueta» de cada paso va en mayúsculas y tiene MÁXIMO 20 caracteres (sin número). "
                "(5) «titulo»: 2 o 3 líneas en MAYÚSCULAS, 40 a 50 caracteres en total, con UNA palabra clave entre *asteriscos* en minúscula y sin tildes ni ñ, sin repetir el gancho. "
-               "(6) «buenas» y «malas»: 1 o 2 palabras sueltas, copiadas tal cual de tus frases (positivas y negativas de verdad en su contexto). (7) Sin cifras ni resultados inventados, sin símbolos decorativos, sin descripciones visuales, español neutro y de tú. "
+               "(6) «buenas» y «malas»: 1 o 2 palabras sueltas, copiadas tal cual de tus frases (positivas y negativas de verdad en su contexto). (7) Sin cifras ni resultados inventados, sin símbolos decorativos, sin descripciones visuales, español neutro latinoamericano con «tú» (NUNCA voseo ni modismos: «pierdas», no «perdas» ni «perdás»; «tienes», no «tenés»; «mira», no «mirá») y con las conjugaciones, la ortografía y las tildes correctas. "
                "(8) «busquedas»: 3 búsquedas en INGLÉS (2 a 5 palabras cada una) de videos de stock verticales que muestren, con imágenes distintas entre sí, la situación de este guion (por ejemplo una dueña de salón trabajando, revisando cuentas, atendiendo a una clienta); nada genérico ni repetido. "
                "(9) Escribe frases CORTAS: respeta el máximo de palabras que se indica en el pedido, contando gancho + intro + pasos + cierre.\n\nEJEMPLO DE UN GUION YA HECHO (imita el nivel de concreción y el formato, NO el tema):\n" + ejemplo)
     nuevos = []; usados = {v["slug"] for v in V}; hechos_json = []
@@ -381,8 +413,8 @@ def generar_guiones():
     except Exception: pass
     def historial():
         return "\n".join("- %s · «%s» · gancho: %s" % (v["slug"], " ".join(v["titulo"]).replace("*", ""), v["gancho"]) for v in V[-70:])
-    def pedir(mensajes):
-        cuerpo = json.dumps({"model": modelo, "temperature": 0.9, "max_tokens": 1800, "response_format": {"type": "json_object"}, "messages": mensajes}).encode("utf-8")
+    def pedir(mensajes, temp=0.9):
+        cuerpo = json.dumps({"model": modelo, "temperature": temp, "max_tokens": 1800, "response_format": {"type": "json_object"}, "messages": mensajes}).encode("utf-8")
         rq = urllib.request.Request("https://api.openai.com/v1/chat/completions", data=cuerpo, headers={"Content-Type": "application/json", "Authorization": "Bearer " + key})
         try: r = json.loads(urllib.request.urlopen(rq, timeout=150).read().decode("utf-8"))
         except urllib.error.HTTPError as ex:
@@ -409,6 +441,11 @@ def generar_guiones():
             except Exception: d = None
             if not isinstance(d, dict): errs = ["la respuesta no fue un JSON válido"]; v = None
             else:
+                d, cambios = revisar_espanol(d, lambda m: pedir(m, 0))
+                if cambios: print("  ✎ corrector de español: " + "; ".join("«%s» → «%s»" % c for c in cambios[:8]), flush=True)
+                vos = voseo_en(d)
+                if vos: errs = ["usas voseo o modismos (%s): escribe en español neutro con «tú»" % ", ".join(vos)]; v = None; d = None
+            if isinstance(d, dict):
                 v, errs = _convertir(d, usados, max_pal)
                 if v is not None:
                     otro = max(V, key=lambda o: parecido(v, o)[0]) if V else None
