@@ -161,6 +161,11 @@ def poner_imagenes(fotos, rnd):
 
 def trabajo(v): return os.path.join(OPG, "_trabajo", v["slug"])
 
+def _solo_subtitulos():
+    """Diseño de los videos: «solo subtitulos» (Lato, palabra por palabra) o el diseño completo con titulo, pasos, globo, collage y tarjeta final. Se elige en la app (presets.estiloVideo)."""
+    try: return ((json.load(open(os.environ.get("CTV_AJUSTES") or os.path.join(os.environ.get("APPDATA", ""), "CreaTuVideo", "settings.json"), encoding="utf-8")).get("presets") or {}).get("estiloVideo") or "subtitulos") == "subtitulos"
+    except Exception: return True
+
 def config(v, escenas, extra=None):
     marc = lambda s: s
     c = {"slug": v["slug"], "rubro": v["rubro"], "titulo": v["titulo"], "gancho": v["gancho"], "guion": v["guion"], "cta": CTA,
@@ -170,6 +175,7 @@ def config(v, escenas, extra=None):
          "collages": [], "pildoras2": [{"ancla": a, "n": n, "texto": t} for a, n, t in v["pasos"]], "pildoras2_hasta": v["pasos_hasta"][0],
          "pildoras3": [{"ancla": v["burbuja"][0], "n": v["burbuja"][1], "texto": v["burbuja"][2]}], "pildoras3_hasta": v["burbuja"][3],
          "pildoras_top": 380, "pildoras_paso": 108, "cierre": {"ancla": "Sígueme", "texto": "SÍGUEME|PARA MÁS IDEAS|PARA TU NEGOCIO", "icono": "sig"}}
+    if _solo_subtitulos(): c["solo_subtitulos"] = True
     if extra: c.update(extra)
     return c
 

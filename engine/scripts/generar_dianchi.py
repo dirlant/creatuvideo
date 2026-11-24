@@ -202,11 +202,15 @@ with wave.open(os.path.join(W, "sfx.wav"), "wb") as wv:
 n = len(esc)
 fc = list(fcs)
 fc.append("%sconcat=n=%d:v=1:a=0[bv]" % ("".join("[s%d]" % k for k in range(n)), n))
-fc.append("[2:v]format=rgba,fade=t=in:st=0.1:d=0.3:alpha=1,fade=t=out:st=%.2f:d=0.3:alpha=1[ti]" % (t_titulo_fin - 0.3))
-fc.append("[bv][ti]overlay=0:0:format=auto:eof_action=pass:enable='between(t,0.1,%.2f)'[v1]" % t_titulo_fin)
-fc.append("[3:v]format=rgba,fade=t=in:st=0.4:d=0.3:alpha=1[ci]")
-fc.append("[v1][ci]overlay=0:1150:format=auto:eof_action=pass:enable='gte(t,0.4)'[v2]")
-fc.append("[v2]subtitles=sub.ass:fontsdir=.,format=yuv420p[vo]")
+SOLO_SUB = bool(C.get("solo_subtitulos"))      # diseno «solo subtitulos»: sin chip del rubro, titulo, cinta de color, pildoras, globo, collage ni tarjeta final; solo los subtitulos Lato
+if SOLO_SUB:
+    fc.append("[bv]drawbox=x=0:y=0:w=iw:h=ih:color=black@%.2f:t=fill,format=yuv420p[vo]" % float(C.get("oscuro", 0.25)))
+else:
+    fc.append("[2:v]format=rgba,fade=t=in:st=0.1:d=0.3:alpha=1,fade=t=out:st=%.2f:d=0.3:alpha=1[ti]" % (t_titulo_fin - 0.3))
+    fc.append("[bv][ti]overlay=0:0:format=auto:eof_action=pass:enable='between(t,0.1,%.2f)'[v1]" % t_titulo_fin)
+    fc.append("[3:v]format=rgba,fade=t=in:st=0.4:d=0.3:alpha=1[ci]")
+    fc.append("[v1][ci]overlay=0:1150:format=auto:eof_action=pass:enable='gte(t,0.4)'[v2]")
+    fc.append("[v2]subtitles=sub.ass:fontsdir=.,format=yuv420p[vo]")
 fc.append("[0:a]aresample=44100,aformat=channel_layouts=stereo[va];[1:a]aresample=44100,aformat=channel_layouts=stereo[sa];"
           "[va][sa]amix=inputs=2:duration=first:weights='1 0.5':normalize=0,alimiter=limit=0.85:level=disabled[a]")
 open(os.path.join(W, "filtro.txt"), "w", encoding="utf-8").write(";\n".join(fc))
@@ -221,6 +225,25 @@ r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors
 if r.returncode != 0 or not os.path.exists(base): sys.exit("ffmpeg codigo %s: %s" % (r.returncode, (r.stderr or r.stdout or "sin salida")[-1500:]))
 print("base OK", base, flush=True)
 if os.environ.get("DETENER_BASE"): sys.exit(0)
+
+if SOLO_SUB:
+    from subs_lato import Capa
+    carpeta = C["salida"] if os.path.isabs(C["salida"]) else os.path.join(AG, C["salida"]); os.makedirs(carpeta, exist_ok=True)
+    nombre = re.sub(r'[\\/:*?"<>|]', "", " ".join(" ".join(titulo).replace("*", "").split())).strip().upper()
+    salida = os.path.join(carpeta, "%s %s.mp4" % (nombre, datetime.now().strftime("%Y-%m-%d %H-%M")))
+    capa = Capa(texto.split(), words, 1080, 1920, ini=0.0, sobre_video=True, claves_on=True, fps=30); nf = int(TOT * 30) + 1
+    print("subtitulos Lato palabra por palabra: %d frases..." % len(capa.chunks), flush=True)
+    cmd2 = [FF, "-y", "-v", "error", "-i", base, "-f", "rawvideo", "-pix_fmt", "rgba", "-s", "1080x%d" % capa.banda, "-r", "30", "-i", "-",
+            "-filter_complex", "[0:v][1:v]overlay=0:%d:format=auto,format=yuv420p[v]" % capa.y0, "-map", "[v]", "-map", "0:a", "-t", "%.2f" % TOT,
+            "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", salida]
+    pr = subprocess.Popen(cmd2, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        for datos in capa.frames(nf): pr.stdin.write(datos)
+        pr.stdin.close()
+    except BrokenPipeError: pass
+    err = pr.stderr.read().decode("utf-8", "replace"); pr.wait()
+    print(("OK" if pr.returncode == 0 and os.path.exists(salida) else "ERROR ffmpeg: " + err[-500:]), "->", salida, flush=True)
+    sys.exit(0 if pr.returncode == 0 else 1)
 
 # ---------------- animaciones con hyperframes: collages, pildoras y tarjeta final ----------------
 HF = os.path.join(OP, "hf"); os.makedirs(HF, exist_ok=True); proj = os.path.join(HF, "dianchi-" + SLUG)

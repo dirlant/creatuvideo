@@ -383,6 +383,9 @@ function irPasoWiz(L, n) {
   if (PASO[L] === TOTAL_PASOS[L]) resumenWiz(L);
 }
 const irPasoDianchi = (n) => irPasoWiz("dianchi", n);
+// Estilo de los videos de Servicios y Negocios: «solo subtitulos» (por defecto) o diseño completo
+const estiloVideo = () => (ajustes && ajustes.presets && ajustes.presets.estiloVideo) || "subtitulos";
+for (const id of ["est-video", "est-video-d"]) $("#" + id).addEventListener("change", (ev) => { ajustes.presets.estiloVideo = ev.target.value; guardarAuto(); });
 function resumenWiz(L) {
   const r = $("#resumen-" + L); if (!r || !ajustes) return;
   const p = ajustes.presets, d = ajustes.dirs, ev = p.eventos;
@@ -954,6 +957,7 @@ function pintarSecciones() {
     $(caja).classList.toggle("oculto", valor !== "carpeta");
   }
   for (const k of ["burbuja", "pasos", "collage", "sfx", "cierre"]) $("#ev-" + k).checked = ajustes.presets.eventos[k] !== false;
+  $$(".est-video").forEach((s) => (s.value = estiloVideo()));
   resumenDianchi();
   pintarPrecios();
   pintarInfografias();

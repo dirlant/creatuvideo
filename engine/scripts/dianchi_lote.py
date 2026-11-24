@@ -178,6 +178,11 @@ def marcado(guion, claves):
 an = lambda a: (a, 1) if isinstance(a, str) else a       # ancla -> (palabra, n)
 def item(a, t): w, n = an(a); return {"ancla": w, "n": n, "texto": t}
 
+def _solo_subtitulos():
+    """Diseño de los videos: «solo subtitulos» (Lato, palabra por palabra) o el diseño completo con titulo, pasos, globo, collage y tarjeta final. Se elige en la app (presets.estiloVideo)."""
+    try: return ((json.load(open(os.environ.get("CTV_AJUSTES") or os.path.join(os.environ.get("APPDATA", ""), "CreaTuVideo", "settings.json"), encoding="utf-8")).get("presets") or {}).get("estiloVideo") or "subtitulos") == "subtitulos"
+    except Exception: return True
+
 def config(Rr, clips_dir, fotos):
     esc = []
     for i, (a, n, q) in enumerate(Rr["escenas"]):
@@ -198,6 +203,7 @@ def config(Rr, clips_dir, fotos):
         a, t, h = Rr["bubble"]; w, n = an(a); cfg["pildoras3"] = [{"ancla": w, "n": n, "texto": t}]; cfg["pildoras3_hasta"] = an(h)[0]
     if Rr.get("voz"): cfg["voz"] = Rr["voz"]                          # voz propia del guion (por ejemplo, otro idioma)
     ev = lambda k: os.environ.get("CTV_EV_" + k, "1") != "0"          # eventos del video activables desde la app
+    if _solo_subtitulos(): cfg["solo_subtitulos"] = True
     if not ev("COLLAGE"): cfg["collages"] = []; cfg["sfx"] = [x for x in cfg["sfx"] if x["tipo"] != "sparkle"]
     if not ev("PASOS"):
         for k in ("pildoras", "pildoras_hasta", "pildoras2", "pildoras2_hasta"): cfg.pop(k, None)
