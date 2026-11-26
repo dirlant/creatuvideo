@@ -19,6 +19,7 @@
     <button class="nav-b" data-v="animtexto" title="Animación de Texto" aria-label="Animación de Texto"><span class="ico-t" data-ico="animtexto"></span><span class="nav-sub">Animación de Texto</span></button>
     <button class="nav-b" data-v="subtitulado" title="Subtitulado" aria-label="Subtitulado"><span class="ico-t" data-ico="subtitulado"></span><span class="nav-sub">Subtitulado</span></button>
     <button class="nav-b" data-v="infografias" title="Infografías Animadas" aria-label="Infografías Animadas"><span class="ico-t" data-ico="infografia"></span><span class="nav-sub">Infografías Animadas</span></button>
+    <button class="nav-b" data-v="personalizados" title="Personalizados" aria-label="Personalizados"><span class="ico-t" data-ico="personalizados"></span><span class="nav-sub">Personalizados</span></button>
     <button class="nav-b" data-v="cortar" title="Cortar y silencios" aria-label="Cortar y silencios"><span class="ico-t" data-ico="cortar"></span><span class="nav-sub">Cortar y silencios</span></button>
     <button class="nav-b" data-v="claude" title="Claude Code" aria-label="Claude Code"><span class="ico-t" data-ico="claude"></span><span class="nav-sub">Claude Code</span></button>
     <button class="nav-b" data-v="ajustes" title="Ajustes" aria-label="Ajustes"><span class="ico-t" data-ico="ajustes"></span><span class="nav-sub">Ajustes</span></button>
@@ -45,6 +46,7 @@
         <button class="tarjeta" data-ir="animtexto"><h3><span class="ico-t" data-ico="animtexto" role="img" aria-label="Animación de Texto" title="Animación de Texto"></span> <span class="tit">Animación de Texto</span></h3><p>Escribe o pega un texto y conviértelo en un video con narración y texto animado, con 22 estilos de diseño.</p></button>
         <button class="tarjeta" data-ir="subtitulado"><h3><span class="ico-t" data-ico="subtitulado" role="img" aria-label="Subtitulado" title="Subtitulado"></span> <span class="tit">Subtitulado</span></h3><p>Agrega videos y narración (tuya o de ChatGPT): el texto aparece en el centro, palabra por palabra, en tipografía Lato.</p></button>
         <button class="tarjeta" data-ir="infografias"><h3><span class="ico-t" data-ico="infografia" role="img" aria-label="Infografías Animadas" title="Infografías Animadas"></span> <span class="tit">Infografías Animadas</span></h3><p>Sube una imagen y conviértela en videos animados con 22 estilos de diseño.</p></button>
+        <button class="tarjeta" data-ir="personalizados"><h3><span class="ico-t" data-ico="personalizados" role="img" aria-label="Personalizados" title="Personalizados"></span> <span class="tit">Personalizados</span></h3><p>Ediciones a medida: tus videos sin editar, tus referencias (con lo que te gusta de cada una), lo exportado y los temporales.</p></button>
         <button class="tarjeta" data-ir="cortar"><h3><span class="ico-t" data-ico="cortar" role="img" aria-label="Cortar y silencios" title="Cortar y silencios"></span> <span class="tit">Cortar y silencios</span></h3><p>Corta un video largo, quita silencios y aplica el patrón de interrupción.</p></button>
         <button class="tarjeta" data-ir="claude"><h3><span class="ico-t" data-ico="claude" role="img" aria-label="Claude Code" title="Claude Code"></span> <span class="tit">Claude Code</span></h3><p>Pide un lote nuevo o un cambio de reglas en lenguaje normal.</p></button>
       </div>
@@ -303,6 +305,46 @@
           <button class="p fuerte run-pr" id="b-precios-aspecto">Aplicar aspecto y regenerar el video</button>
           <button id="b-precios-restablecer">Restablecer colores</button>
         </div>
+      </div>
+    </section>
+
+    <section id="v-personalizados" class="vista">
+      <h1><span class="ico-t" data-ico="personalizados" role="img" aria-label="Personalizados" title="Personalizados"></span> <span class="tit">Personalizados</span></h1>
+      <p class="sub">Tu espacio para <b>ediciones a medida</b>. Guarda tus videos originales, agrega videos de referencia contando qué te gusta de cada uno, y pídele a Claude Code (con el motor HyperFrames) que edite con ese estilo. Todo se organiza en 4 carpetas; puedes dejar las predeterminadas o elegir las tuyas.</p>
+
+      <div class="cfg"><h3>1 · Videos sin edición</h3>
+        <p class="sub">Tus videos originales. La app los copia a esta carpeta y nunca se modifican.</p>
+        <div id="cfg-personalizados-sin" class="filas"></div>
+        <div class="barra"><button class="p fuerte" id="b-pz-agregar-sin">Agregar video…</button><button data-abrir="personalizados/videos-sin-edicion">Abrir carpeta</button><span id="pz-n-sin" class="chico"></span></div>
+        <div id="pz-lista-sin" class="pz-lista"></div>
+      </div>
+      <div class="cfg"><h3>2 · Referencias</h3>
+        <p class="sub">Videos que te gustan como modelo. Al agregar cada uno, cuéntanos <b>qué te gusta de ese video en particular</b> (el ritmo, la tipografía, las transiciones, el color, el sonido…): Claude Code lo lee antes de editar.</p>
+        <div id="cfg-personalizados-ref" class="filas"></div>
+        <div class="barra"><button class="p fuerte" id="b-pz-agregar-ref">Agregar referencia…</button><button data-abrir="personalizados/referencias">Abrir carpeta</button><span id="pz-n-ref" class="chico"></span></div>
+        <div id="pz-lista-ref" class="pz-lista"></div>
+      </div>
+      <div id="pz-form-ref" class="cfg oculto"><h3>Nueva referencia: <span id="pz-ref-nombre"></span></h3>
+        <label class="et">¿Qué te gusta de este video?</label>
+        <textarea id="pz-ref-desc" rows="4" placeholder="Ej.: Me gusta que las palabras clave aparecen grandes en el centro, los cortes son rápidos cada 2 segundos y la música sube en el momento del giro."></textarea>
+        <div class="barra"><button class="p fuerte" id="b-pz-ref-guardar">Guardar referencia</button><button id="b-pz-ref-cancelar">Cancelar</button><span id="pz-ref-estado" class="chico"></span></div>
+      </div>
+      <div class="cfg"><h3>3 · Exportados</h3>
+        <p class="sub">Aquí se entregan los videos terminados.</p>
+        <div id="cfg-personalizados-exp" class="filas"></div>
+        <div class="barra"><button data-abrir="personalizados/exportados">Abrir carpeta</button><span id="pz-n-exp" class="chico"></span></div>
+        <div id="pz-lista-exp" class="pz-lista"></div>
+      </div>
+      <div class="cfg"><h3>4 · Temporales</h3>
+        <p class="sub">Zona de trabajo de Claude Code (cortes, audios, proyectos intermedios). Puedes borrar su contenido cuando quieras.</p>
+        <div id="cfg-personalizados-tmp" class="filas"></div>
+        <div class="barra"><button data-abrir="personalizados/temporales">Abrir carpeta</button><span id="pz-n-tmp" class="chico"></span></div>
+        <div id="pz-lista-tmp" class="pz-lista"></div>
+      </div>
+      <div class="cfg"><h3>5 · Pedir una edición a Claude Code</h3>
+        <p class="sub">Cuéntale qué quieres crear. Claude Code recibe las rutas de las 4 carpetas, la lista de tus videos y tus referencias con lo que te gusta de cada una; trabaja en Temporales y deja el resultado en Exportados.</p>
+        <textarea id="pz-pedido" rows="6" placeholder="Ej.: Con el video «entrevista.mp4», crea un reel de 30 segundos con subtítulos grandes en el centro y cortes cada 2 segundos, con el estilo de mi referencia."></textarea>
+        <div class="barra"><button class="p fuerte" id="b-pz-claude">Editar con Claude Code</button><button id="b-pz-refrescar">Actualizar listas</button><span id="pz-estado" class="chico"></span></div>
       </div>
     </section>
 

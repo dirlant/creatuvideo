@@ -15,6 +15,7 @@ function ir(v) {
   if (v === "dianchi" || v === "diegao") { BL = v; actualizarContador(); }
   $("#barra-estado").classList.toggle("oculto", v !== "dianchi" && v !== "diegao" && !(gen && !gen.fin));   // el conteo de videos queda fijo al pie, solo en Dianchi y Diegao
   if (v === "ajustes") comprobarEntorno();
+  if (v === "personalizados") pzListar();
   if (v === "claude") { actualizarCuenta(); setTimeout(() => $("#txt-claude").focus(), 50); }
 }
 $$(".nav-b").forEach((b) => b.addEventListener("click", () => ir(b.dataset.v)));
@@ -87,6 +88,7 @@ const ICO = {
   claude: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>',
   ajustes: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>',
   subtitulado: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 14h4M13 14h4M7 17h2M11 17h6"/></svg>',
+  personalizados: '<svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="m3 8 3-4h4L7 8m3 0 3-4h4l-3 4m3 0 3-4"/><path d="m10 13 4 2-4 2z"/></svg>',
   animtexto: '<svg viewBox="0 0 24 24"><path d="M4 6V4h12v2M10 4v12M7 16h6"/><path d="M16 12h4M18 12v8M16 20h4"/><path d="m19 4 .5 1.2L20.7 5.7l-1.2.5L19 7.4l-.5-1.2-1.2-.5 1.2-.5z"/></svg>',
   infografia: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 17v-4M12 17V8M17 17v-6"/><path d="m15 5.5.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></svg>',
   precio: '<svg viewBox="0 0 24 24"><path d="M3 10v4a1 1 0 0 0 1 1h3l11 5V4L7 9H4a1 1 0 0 0-1 1z"/><path d="M7 15l1.4 4.2a1 1 0 0 0 1 .8h1a1 1 0 0 0 1-1.2L10.5 16.5M21 9.5v5"/></svg>',
@@ -133,7 +135,7 @@ $$("[data-run]").forEach((b) => b.addEventListener("click", async () => {
   const r = await window.ctv.run({ linea, modo, slugs });
   if (r && r.error) escribir("⚠ " + r.error);
 }));
-const DIR_RESULTADOS = { "dianchi/resultado": "dianchiResultado", "diegao/resultado": "diegaoResultado", "precios/resultado": "preciosResultado", "infografias/resultado": "infografiasResultado", "animtexto/resultado": "animtextoResultado", "subtitulado/resultado": "subtituladoResultado", "por-cortar/resultado": "cortarResultado" };
+const DIR_RESULTADOS = { "dianchi/resultado": "dianchiResultado", "diegao/resultado": "diegaoResultado", "precios/resultado": "preciosResultado", "infografias/resultado": "infografiasResultado", "animtexto/resultado": "animtextoResultado", "subtitulado/resultado": "subtituladoResultado", "personalizados/videos-sin-edicion": "personalizadosSinEdicion", "personalizados/referencias": "personalizadosReferencias", "personalizados/exportados": "personalizadosExportados", "personalizados/temporales": "personalizadosTemporales", "por-cortar/resultado": "cortarResultado" };
 // "Abrir resultados" abre la carpeta que el usuario eligio (si no eligio ninguna, la predeterminada dentro de la carpeta de trabajo)
 $$("[data-abrir]").forEach((b) => b.addEventListener("click", () => window.ctv.openPath((ajustes && ajustes.dirs && ajustes.dirs[DIR_RESULTADOS[b.dataset.abrir]]) || b.dataset.abrir || (ajustes && ajustes.workspace) || "")));
 
@@ -571,7 +573,7 @@ $("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#tx
 const NOMBRES_DIRS = {
   dianchiResultado: "Resultados de Dianchi", imagenes: "Carpeta de imágenes", relleno: "Videos de relleno",
   diegaoResultado: "Resultados de Diegao", diegaoFuente: "Videos fuente (evento)", diegaoImagenes: "Carpeta de imágenes (Diegao)",
-  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Anuncios Con Precio", infografiasResultado: "Resultados de Infografías Animadas", animtextoResultado: "Resultados de Animación de Texto", subtituladoResultado: "Resultados de Subtitulado",
+  preciosVideos: "Videos de fondo (Precios)", preciosImagenes: "Carpeta de imágenes (Precios)", preciosResultado: "Resultados de Anuncios Con Precio", infografiasResultado: "Resultados de Infografías Animadas", animtextoResultado: "Resultados de Animación de Texto", subtituladoResultado: "Resultados de Subtitulado", personalizadosSinEdicion: "Videos sin edición", personalizadosReferencias: "Referencias", personalizadosExportados: "Exportados", personalizadosTemporales: "Temporales",
   claudeVideos: "Carpeta de videos", claudeImagenes: "Carpeta de imágenes", claudeSalida: "Carpeta de salida",
   cortarEntrada: "Video a cortar (entrada)", cortarResultado: "Resultados de los cortes",
 };
@@ -588,6 +590,10 @@ const SECCIONES = {
   "infografias-resultados": ["infografiasResultado"],
   "animtexto-resultados": ["animtextoResultado"],
   "subtitulado-resultados": ["subtituladoResultado"],
+  "personalizados-sin": ["personalizadosSinEdicion"],
+  "personalizados-ref": ["personalizadosReferencias"],
+  "personalizados-exp": ["personalizadosExportados"],
+  "personalizados-tmp": ["personalizadosTemporales"],
   claude: ["claudeVideos", "claudeImagenes", "claudeSalida"],
   cortar: ["cortarEntrada", "cortarResultado"],
 };
@@ -927,10 +933,87 @@ $("#b-sb-generar").addEventListener("click", async () => {
   st.textContent = r && r.ok ? "✔ Listo. Tus videos aparecen abajo para verlos y descargarlos." : "⚠ No se pudo terminar; revisa el registro de abajo.";
 });
 
+// ---------------------------------------------------------------- Personalizados: 4 carpetas (sin edición, referencias con su descripción, exportados, temporales) + pedido a Claude Code
+function pzp() { const p = ajustes.presets.personalizados || (ajustes.presets.personalizados = {}); if (!p.descripciones) p.descripciones = {}; return p; }
+let pzDatos = null, pzRefRuta = "", pzFirma = "";
+const PZ_K = { sin: "sinEdicion", ref: "referencias", exp: "exportados", tmp: "temporales" };
+const pzFirmaActual = () => JSON.stringify([ajustes.dirs.personalizadosSinEdicion, ajustes.dirs.personalizadosReferencias, ajustes.dirs.personalizadosExportados, ajustes.dirs.personalizadosTemporales]);
+function pzSiCambio() { if (ajustes && $("#v-personalizados") && $("#v-personalizados").classList.contains("activa") && pzFirmaActual() !== pzFirma) pzListar(); }   // si se eligió otra carpeta, se vuelve a leer
+async function pzListar() {
+  if (!ajustes) return;
+  pzFirma = pzFirmaActual();
+  ajustes.presets.lineaActiva = "personalizados"; await guardarAuto();
+  const r = await window.ctv.listar("infografias");
+  if (r && r.items && r.items.sinEdicion) { pzDatos = r.items; $("#pz-estado").textContent = ""; }
+  else $("#pz-estado").textContent = "⚠ No se pudieron leer las carpetas (¿actualizaste la app con «Actualizar ahora»?). " + ((r && r.error) || "").slice(0, 160);
+  pintarPersonalizados();
+}
+function pintarPersonalizados() {
+  if (!ajustes || !$("#pz-lista-sin")) return;
+  for (const [id, k] of Object.entries(PZ_K)) {
+    const lista = $("#pz-lista-" + id), d = pzDatos && pzDatos[k]; lista.innerHTML = "";
+    if (!d) { $("#pz-n-" + id).textContent = ""; continue; }
+    $("#pz-n-" + id).textContent = d.archivos.length ? d.archivos.length + (d.archivos.length === 1 ? " archivo" : " archivos") : "Carpeta vacía";
+    if (!d.archivos.length) { const v = document.createElement("div"); v.className = "pz-vacio"; v.textContent = "Todavía no hay archivos aquí."; lista.appendChild(v); }
+    for (const a of d.archivos) {
+      const f = document.createElement("div"); f.className = "pz-fila"; f.innerHTML = '<div class="pz-n"><b></b><span class="pz-mb"></span></div>';
+      $("b", f).textContent = a.nombre; $(".pz-mb", f).textContent = a.mb + " MB";
+      if (id === "ref") {
+        const ta = document.createElement("textarea"); ta.placeholder = "¿Qué te gusta de este video?"; ta.value = pzp().descripciones[a.nombre] !== undefined ? pzp().descripciones[a.nombre] : (a.descripcion || "");
+        const b = document.createElement("button"); b.type = "button"; b.textContent = "Guardar descripción";
+        b.addEventListener("click", async () => { pzp().descripciones = { [a.nombre]: ta.value }; const ok = await pzEjecutar("describir"); if (ok) { delete pzp().descripciones[a.nombre]; $("#pz-n-ref").textContent = "✔ Descripción guardada"; await pzListar(); } });
+        $(".pz-n", f).appendChild(ta); f.appendChild(b);
+      }
+      lista.appendChild(f);
+    }
+  }
+}
+async function pzEjecutar(modo) {
+  if (!(await exigirUltimaVersion())) return false;
+  ajustes.presets.lineaActiva = "personalizados"; await guardarAuto();
+  const r = await window.ctv.run({ linea: "infografias", modo, slugs: [] });
+  if (!r || !r.ok) { escribir("⚠ No se pudo completar" + (r && r.error ? ": " + r.error : ". Revisa el registro.")); return false; }
+  return true;
+}
+async function pzAgregar(destino, ruta, descripcion) {
+  pzp().pendiente = { destino, archivos: [{ ruta, descripcion: descripcion || "" }] };
+  const ok = await pzEjecutar("agregar"); pzp().pendiente = null; await guardarAuto();
+  if (ok) await pzListar(); return ok;
+}
+$("#b-pz-agregar-sin").addEventListener("click", async () => {
+  const r = await window.ctv.pickFile("Elegir un video para guardar sin editar"); if (!r) return;
+  $("#pz-n-sin").textContent = "Copiando…"; const ok = await pzAgregar("sinEdicion", r); if (!ok) $("#pz-n-sin").textContent = "⚠ No se pudo copiar";
+});
+$("#b-pz-agregar-ref").addEventListener("click", async () => {
+  const r = await window.ctv.pickFile("Elegir un video de referencia"); if (!r) return;
+  pzRefRuta = r; $("#pz-ref-nombre").textContent = r.split(/[\\/]/).pop(); $("#pz-ref-desc").value = ""; $("#pz-ref-estado").textContent = ""; $("#pz-form-ref").classList.remove("oculto"); $("#pz-ref-desc").focus();
+});
+$("#b-pz-ref-cancelar").addEventListener("click", () => { pzRefRuta = ""; $("#pz-form-ref").classList.add("oculto"); });
+$("#b-pz-ref-guardar").addEventListener("click", async () => {
+  const desc = $("#pz-ref-desc").value.trim(), st = $("#pz-ref-estado");
+  if (desc.length < 8) { st.textContent = "⚠ Cuéntanos qué te gusta de este video (al menos una frase)."; return; }
+  st.textContent = "Copiando la referencia…"; const ok = await pzAgregar("referencias", pzRefRuta, desc);
+  if (ok) { pzRefRuta = ""; $("#pz-form-ref").classList.add("oculto"); } else st.textContent = "⚠ No se pudo guardar; revisa el registro.";
+});
+$("#b-pz-refrescar").addEventListener("click", () => pzListar());
+$("#b-pz-claude").addEventListener("click", async () => {
+  const pedido = $("#pz-pedido").value.trim(), st = $("#pz-estado"); if (!pedido) { st.textContent = "⚠ Cuéntale a Claude Code qué quieres crear."; return; }
+  await pzListar(); const D = pzDatos; if (!D) { st.textContent = "⚠ No se pudieron leer las carpetas."; return; }
+  const refs = D.referencias.archivos.map((a) => "- " + a.nombre + ": «" + ((pzp().descripciones[a.nombre] !== undefined ? pzp().descripciones[a.nombre] : a.descripcion) || "(sin descripción)") + "»").join("\n") || "(ninguna todavía)";
+  const sin = D.sinEdicion.archivos.filter((a) => a.video).map((a) => "- " + a.nombre + " (" + a.mb + " MB)").join("\n") || "(ninguno todavía)";
+  const texto = "EDICIÓN PERSONALIZADA. Lee ./personalizados/CLAUDE.md (reglas y motor HyperFrames) y trabaja con estas carpetas (rutas exactas):\n"
+    + "- Videos sin edición (originales; NO los modifiques): " + D.sinEdicion.ruta + "\n- Referencias: " + D.referencias.ruta + "\n- Exportados (entrega aquí el resultado): " + D.exportados.ruta + "\n- Temporales (tu zona de trabajo): " + D.temporales.ruta + "\n\n"
+    + "VIDEOS SIN EDICIÓN DISPONIBLES:\n" + sin + "\n\nREFERENCIAS Y QUÉ LE GUSTA A LA PERSONA DE CADA UNA (reproduce ese estilo; también está en referencias.json):\n" + refs + "\n\nPEDIDO:\n" + pedido
+    + "\n\nAntes de editar mira cuadros reales de las referencias. Al terminar deja el video en Exportados, revisa cuadros, duración y audio, y cuéntame qué hiciste.";
+  const r = await window.ctv.openClaude({ linea: "personalizados", instruccion: texto });
+  st.textContent = r && r.ok ? "Claude Code abierto en una ventana nueva." : "⚠ " + ((r && r.error) || "No se pudo abrir Claude Code.");
+});
+
 $$(".sel-voz").forEach((s) => { for (const [v, n] of VOCES) { const o = document.createElement("option"); o.value = v; o.textContent = n; s.appendChild(o); } });
 async function guardarAuto() {
   ajustes = await window.ctv.saveSettings(ajustes);
   pintarSecciones();
+  pzSiCambio();
   repintarBriefs();   // los botones de rubro, temática, etc. guardan sus listas dentro del objeto de ajustes: al cambiar ese objeto hay que volver a enlazarlos o el conteo se queda pegado
 }
 function repintarBriefs() {
@@ -968,6 +1051,7 @@ function pintarSecciones() {
   pintarInfografias();
   pintarAnimTexto();
   pintarSubtitulado();
+  pintarPersonalizados();
   pintarCortar();
   $$(".sel-voz").forEach((s) => (s.value = ajustes.presets.voz));
 }

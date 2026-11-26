@@ -2,6 +2,11 @@ r"""INFOGRAFIAS ANIMADAS: una imagen se transforma en videos animados con distin
 Uso: uv run --python 3.12 --with pillow --with numpy python scripts\infografias_lote.py <ffmpeg.exe> generar
 Lee los datos de los ajustes de la app (presets.infografias): imagen, estilos (lista), titulo, subtitulo, duracion, formato."""
 import json, math, os, subprocess, sys, time
+def _linea_activa():
+    try: return (json.load(open(os.environ.get("CTV_AJUSTES") or os.path.join(os.environ.get("APPDATA", ""), "CreaTuVideo", "settings.json"), encoding="utf-8")).get("presets", {}) or {}).get("lineaActiva")
+    except Exception: return None
+if _linea_activa() == "personalizados":                   # la seccion «Personalizados» (carpetas y referencias) comparte este punto de entrada; no necesita numpy ni edge-tts
+    import runpy; runpy.run_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "personalizados_lote.py"), run_name="__main__"); sys.exit(0)
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 

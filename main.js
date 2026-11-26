@@ -10,8 +10,8 @@ const { spawn, spawnSync } = require("child_process");
 
 const REPO = "dirlant/creatuvideo";
 const BRANCH = "main";
-const LINEAS = ["dianchi", "diegao", "precios", "infografias", "por-cortar", "ads"];
-const SCRIPTS_LINEA = { dianchi: "dianchi_lote.py", diegao: "diegao_lote.py", precios: "precios_lote.py", infografias: "infografias_lote.py" };
+const LINEAS = ["dianchi", "diegao", "precios", "infografias", "por-cortar", "ads", "personalizados"];
+const SCRIPTS_LINEA = { dianchi: "dianchi_lote.py", diegao: "diegao_lote.py", precios: "precios_lote.py", infografias: "infografias_lote.py", personalizados: "personalizados_lote.py" };
 
 let win = null;
 let hijo = null; // proceso en ejecucion (uno a la vez)
