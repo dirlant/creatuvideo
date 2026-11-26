@@ -57,6 +57,7 @@ window.ctv.onLog((t) => {
   for (const l of String(t).split(/\r?\n/)) { const m = l.match(/^OK (.+(?:infografia|animtexto|subtitulado)_.+\.mp4)\s*$/); if (m) ifVideoListo(m[1]); }
   const limpias = String(t).split(/\r?\n/).filter((l) => !lineaProgreso(l) && !lineaGuion(l));
   if (limpias.length) escribir(limpias.join("\n"));
+  if (forzandoUpd && $("#modal-upd-estado")) { const u = limpias.filter((l) => /Descargando|Actualizado|Reiniciando|Aviso/.test(l)).pop(); if (u) $("#modal-upd-estado").textContent = u; }
 });
 window.ctv.onBusy((b) => {
   ocupado = b;
@@ -203,7 +204,7 @@ const RUBROS_L = (L = BL) => (L === "diegao" ? OPC.rubrosDuenas : OPC.rubros);
 const TEMAS = (L = BL) => (L === "diegao" ? OPC.tematicasDuenas : OPC.tematicas);
 const BRIEF0 = { idioma: "Español", problemasAuto: true, rubros: [], formatos: [OPC.formatos[0][0]], tonos: ["Cercano"], tematicas: [], problemas: [], ganchos: [OPC.ganchos[0][0]], ctas: ["Que lo guarde"], ctaTexto: "", duracion: 25, variaciones: 1 };
 // dimensiones que se combinan: [clave, singular, plural]
-const DIMS = [["rubros", "rubro", "rubros"], ["tematicas", "temática", "temáticas"], ["formatos", "formato", "formatos"], ["ganchos", "gancho", "ganchos"], ["ctas", "acción", "acciones"]];
+const DIMS = [["rubros", "rubro", "rubros"], ["formatos", "formato", "formatos"], ["ganchos", "gancho", "ganchos"], ["ctas", "acción", "acciones"]];
 function brief() {                               // siempre el MISMO objeto, completando solo lo que falte
   const p = ajustes.presets;
   const kb = KB();
@@ -215,7 +216,7 @@ function brief() {                               // siempre el MISMO objeto, com
   { const okR = RUBROS_L(); const vr = b.rubros.filter((x) => okR.includes(x)); if (vr.length !== b.rubros.length) b.rubros.splice(0, b.rubros.length, ...vr); }
   { const ok = TEMAS().map((x) => x[0]); const v = b.tematicas.filter((x) => ok.includes(x)); if (v.length !== b.tematicas.length) b.tematicas.splice(0, b.tematicas.length, ...v); }   // quita temáticas que ya no existen en la lista de esta línea
   if (typeof b.tema === "string" && b.tema.trim() && !b.problemas.includes(b.tema.trim())) { b.problemas.push(b.tema.trim()); b.tema = ""; }   // el antiguo "de qué hablar" pasa a ser un problema
-  if (!("problemasAuto" in b)) b.problemasAuto = !b.problemas.length;
+  b.problemasAuto = !(b.problemas.length || b.tematicas.length);        // automatico = no elegiste ni escribiste ninguna temática
   if (!Array.isArray(b.problemas) && typeof b.tendencia === "string" && b.tendencia.trim()) b.problemas = [b.tendencia.trim()];
   for (const k of Object.keys(BRIEF0)) if (!(k in b)) b[k] = Array.isArray(BRIEF0[k]) ? [...BRIEF0[k]] : BRIEF0[k];
   return b;
@@ -224,15 +225,17 @@ let tGuardarBrief = null;
 function guardarBrief() { clearTimeout(tGuardarBrief); tGuardarBrief = setTimeout(() => window.ctv.saveSettings(ajustes), 500); }
 const problemasEf = (b) => (b.problemasAuto ? [] : b.problemas);
 const ctaPersonal = (b) => !!String(b.ctaTexto || "").trim();                                           // frase final propia: reemplaza a las acciones de la lista
-const temaOpcional = (b) => !b.problemasAuto && b.problemas.length > 0 && !b.tematicas.length;      // sin temática elegida pero con problemas propios: se cuentan igual (la temática la deduce la IA del problema)
-const totalVideos = () => { const b = brief(); let n = (Number(b.variaciones) || 1) * (b.problemasAuto ? 1 : b.problemas.length); for (const [k] of DIMS) { if (k === "ctas" && ctaPersonal(b)) continue; if (!b[k].length) { if (k === "tematicas" && temaOpcional(b)) continue; return 0; } n *= b[k].length; } return n; };
+// Temática o problema a resolver: UNA sola opción. Vale elegir de la lista, escribir las tuyas o mezclar; cada una es un guion distinto. Si no hay ninguna, la app elige al azar.
+const temasBrief = (b) => { const l = [...b.tematicas.map((x) => "T:" + x), ...b.problemas.map((x) => "P:" + x)]; return l.length ? l : [""]; };
+const temaNombre = (k) => (k.startsWith("T:") ? k.slice(2) : ""), temaProblema = (k) => (k.startsWith("P:") ? k.slice(2) : "");
+const totalVideos = () => { const b = brief(); let n = (Number(b.variaciones) || 1) * temasBrief(b).length; for (const [k] of DIMS) { if (k === "ctas" && ctaPersonal(b)) continue; if (!b[k].length) return 0; n *= b[k].length; } return n; };
 function desgloseBrief() {
   const b = brief(), partes = DIMS.filter(([k]) => b[k].length > 1 && !(k === "ctas" && ctaPersonal(b))).map(([k, s, p]) => b[k].length + " " + p);
-  if (!b.problemasAuto && b.problemas.length > 1) partes.push(b.problemas.length + " problemas");
+  if (temasBrief(b).length > 1) partes.push(temasBrief(b).length + " temáticas");
   if (Number(b.variaciones) > 1) partes.push(b.variaciones + " variaciones");
   return partes.length ? partes.join(" × ") : "una sola combinación";
 }
-const FALTA = () => { const b = brief(), f = DIMS.filter(([k]) => !b[k].length && !(k === "tematicas" && temaOpcional(b)) && !(k === "ctas" && ctaPersonal(b))).map(([k, s]) => s); if (!b.problemasAuto && !b.problemas.length) f.push("temática o problema (o activa Automático)"); return f.length ? "Elige al menos un valor en: " + f.join(", ") + "." : ""; };
+const FALTA = () => { const b = brief(), f = DIMS.filter(([k]) => !b[k].length && !(k === "ctas" && ctaPersonal(b))).map(([k, s]) => s); return f.length ? "Elige al menos un valor en: " + f.join(", ") + "." : ""; };
 
 function actualizarContador() {
   if (gen && !gen.fin) return;
@@ -286,28 +289,26 @@ function pintarBrief() {
   for (const [txt, fn] of [["Todos", rb.todos], ["Ninguno", rb.ninguno]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", fr).appendChild(m); }
   cont.appendChild(fr);
   cont.appendChild(campoMulti(4, "Formato (uno o varios)", OPC.formatos.map((x) => x[0]), b.formatos, cambio));
-  const tm = chipsMulti(TEMAS().map((t) => t[0]), b.tematicas, cambio);
-  const ft = campo(6, "Temática (una o varias)", "Opcional si agregas tus propios problemas más abajo: en ese caso la temática se deduce de cada problema.", tm.cont, true);
-  for (const [txt, fn] of [["Todas", tm.todos], ["Ninguna", tm.ninguno]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", ft).appendChild(m); }
-  cont.appendChild(ft);
+  const tm = chipsMulti(TEMAS().map((x) => x[0]), b.tematicas, () => { pintarEt(); cambio(); });
   const pb = document.createElement("div"); pb.className = "problemas";
-  const auto = document.createElement("button"); auto.type = "button"; auto.className = "chip auto";
   const fila = document.createElement("div"); fila.className = "fila";
-  const tn = document.createElement("input"); tn.placeholder = "Escribe una temática o problema a resolver y pulsa Enter…";
+  const tn = document.createElement("input"); tn.placeholder = "…o escribe tu propia temática o problema y pulsa Enter";
   const ad = document.createElement("button"); ad.type = "button"; ad.textContent = "Agregar";
   const et = document.createElement("div"); et.className = "etiquetas";
-  const pintarEt = () => {
-    auto.classList.toggle("on", !!b.problemasAuto); auto.textContent = (b.problemasAuto ? "✓ " : "") + "Automático: la app elige temáticas del rubro al azar";
-    tn.disabled = ad.disabled = !!b.problemasAuto; pb.classList.toggle("apagado", !!b.problemasAuto);
+  const nota = document.createElement("div"); nota.className = "chico";
+  function pintarEt() {
     et.innerHTML = ""; b.problemas.forEach((p, i) => { const e = document.createElement("span"); e.className = "etiqueta"; e.appendChild(document.createTextNode(p)); const x = document.createElement("button"); x.type = "button"; x.title = "Quitar"; x.textContent = "×"; x.addEventListener("click", () => { b.problemas.splice(i, 1); pintarEt(); cambio(); }); e.appendChild(x); et.appendChild(e); });
-  };
+    const n = b.tematicas.length + b.problemas.length;
+    nota.textContent = n ? n + (n === 1 ? " temática elegida: un guion distinto por cada una." : " temáticas elegidas: un guion distinto por cada una.") : "Sin elegir ninguna: la app escoge temáticas del rubro al azar (automático).";
+  }
   const agregar = () => { const v = tn.value.trim(); if (!v) return; if (!b.problemas.includes(v)) b.problemas.push(v); tn.value = ""; pintarEt(); cambio(); tn.focus(); };
-  auto.addEventListener("click", () => { b.problemasAuto = !b.problemasAuto; pintarEt(); cambio(); });
   ad.addEventListener("click", agregar); tn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); agregar(); } });
-  fila.appendChild(tn); fila.appendChild(ad); pb.appendChild(auto); pb.appendChild(fila); pb.appendChild(et); pintarEt();
-  cont.appendChild(campo(7, "Temática o problema a resolver", "Automático, o agrega los tuyos de uno en uno: cada uno se convierte en un guion distinto.", pb, true));
-  cont.appendChild(campoMulti(8, "Gancho (uno o varios)", OPC.ganchos.map((x) => x[0]), b.ganchos, cambio));
-  cont.appendChild(campoMulti(9, "¿Qué quieres que haga el usuario? (una o varias)", OPC.ctas.map((x) => x[0]), b.ctas, cambio));
+  fila.appendChild(tn); fila.appendChild(ad); pb.appendChild(tm.cont); pb.appendChild(fila); pb.appendChild(et); pb.appendChild(nota); pintarEt();
+  const ft = campo(6, "Temática o problema a resolver", "Elige de la lista, escribe las tuyas o mezcla las dos: cualquiera es válida. Cada una se convierte en un guion distinto.", pb, true);
+  for (const [txt, fn] of [["Todas", tm.todos], ["Ninguna", () => { tm.ninguno(); b.problemas.splice(0); pintarEt(); cambio(); }]]) { const m = document.createElement("button"); m.className = "mini"; m.type = "button"; m.textContent = txt; m.addEventListener("click", fn); $("label", ft).appendChild(m); }
+  cont.appendChild(ft);
+  cont.appendChild(campoMulti(7, "Gancho (uno o varios)", OPC.ganchos.map((x) => x[0]), b.ganchos, cambio));
+  cont.appendChild(campoMulti(8, "¿Qué quieres que haga el usuario? (una o varias)", OPC.ctas.map((x) => x[0]), b.ctas, cambio));
   { const ci = document.createElement("input"); ci.maxLength = 110; ci.placeholder = "Ej.: Reserva tu hora escribiéndome por WhatsApp"; ci.value = b.ctaTexto || "";
     ci.addEventListener("input", () => { b.ctaTexto = ci.value; cambio(); });
     cont.appendChild(campo("", "…o escribe tu propio llamado a la acción (opcional)", "Si lo escribes, esta frase cierra TODOS los videos y reemplaza a las acciones de la lista de arriba (no multiplica los videos). Déjalo vacío para usar las acciones elegidas.", ci, true)); }
@@ -331,13 +332,12 @@ function textoBrief() {
   const defs = (lista, sel) => sel.map((s) => "  · " + s + " → " + busca(lista, s)[1]).join("\n");
   // una entrada por cada combinacion de las dimensiones elegidas
   let combos = [[]];
-  const listas = [b.rubros, b.tematicas.length ? b.tematicas : [""], b.formatos, b.ganchos, ctaPersonal(b) ? ["Personalizado"] : b.ctas];
-  if (!b.problemasAuto) listas.push(b.problemas);
+  const listas = [b.rubros, temasBrief(b), b.formatos, b.ganchos, ctaPersonal(b) ? ["Personalizado"] : b.ctas];
   for (const l of listas) combos = combos.flatMap((c) => l.map((x) => [...c, x]));
   const lineas = [];
   for (const c of combos) for (let v = 1; v <= b.variaciones; v++) {
     const ct = busca(OPC.ctas, c[4]);
-    lineas.push("- " + c[0] + " · " + c[1] + " · formato " + c[2] + " · gancho " + c[3] + " · acción " + c[4] + (!b.problemasAuto ? " · problema/temática a resolver: «" + c[5] + "»" : " · temática a resolver: elígela tú al azar, propia del rubro y distinta en cada guion") + " (cta_tipo=\"" + ct[2] + "\", la frase final empieza con «" + ct[3] + "»)" + (b.variaciones > 1 ? " · variación " + v : ""));
+    lineas.push("- " + c[0] + " · " + (temaNombre(c[1]) || "(sin temática de la lista)") + " · formato " + c[2] + " · gancho " + c[3] + " · acción " + c[4] + (temaProblema(c[1]) ? " · problema/temática a resolver: «" + temaProblema(c[1]) + "»" : temaNombre(c[1]) ? " · problema concreto: deduce uno real y específico de esa temática y del rubro, distinto en cada guion" : " · temática a resolver: elígela tú al azar, propia del rubro y distinta en cada guion") + " (cta_tipo=\"" + ct[2] + "\", la frase final empieza con «" + ct[3] + "»)" + (b.variaciones > 1 ? " · variación " + v : ""));
   }
   const dg = L === "diegao";
   const intro = dg
@@ -351,9 +351,9 @@ function textoBrief() {
   return intro
     + "- Idioma: " + b.idioma + (b.idioma === "Español" ? "" : " (usa el parámetro voz=\"" + voz + "\" en cada entrada)") + "\n"
     + "- Rubros" + (dg ? " (tipo de salón de la dueña)" : "") + ": " + b.rubros.join(", ") + "\n"
-    + "- Temáticas:\n" + defs(TEMAS(), b.tematicas) + "\n"
+    + (b.tematicas.length ? "- Temáticas:\n" + defs(TEMAS(), b.tematicas) + "\n" : "")
     + "- Formatos:\n" + defs(OPC.formatos, b.formatos) + "\n"
-    + (b.problemasAuto ? "- Temática o problema a resolver: AUTOMÁTICO. Elige tú, al azar, un problema o tema concreto y real " + (dg ? "de una dueña de salón (administración, finanzas, agenda, precios, equipo…)" : "del rubro") + " para cada guion, sin repetir entre guiones" + (dg ? " ni con los que ya existen.\n" : " ni con prompt/rubros_hechos.md.\n") : "- Temáticas o problemas a resolver (cada guion trata UNO): " + b.problemas.map((p) => "«" + p + "»").join("; ") + "\n")
+    + (b.problemasAuto ? "- Temática o problema a resolver: AUTOMÁTICO. Elige tú, al azar, un problema o tema concreto y real " + (dg ? "de una dueña de salón (administración, finanzas, agenda, precios, equipo…)" : "del rubro") + " para cada guion, sin repetir entre guiones" + (dg ? " ni con los que ya existen.\n" : " ni con prompt/rubros_hechos.md.\n") : b.problemas.length ? "- Problemas propios a resolver (cada guion trata UNO): " + b.problemas.map((p) => "«" + p + "»").join("; ") + "\n" : "")
     + "- Ganchos:\n" + defs(OPC.ganchos, b.ganchos) + "\n"
     + "- Acciones del usuario:\n" + defs(OPC.ctas, b.ctas) + "\n"
     + "- Duración objetivo: " + b.duracion + " segundos (máximo 30; unas 2,5 palabras por segundo).\n"
@@ -426,12 +426,12 @@ function pedidoLinea(L) {
   return conLinea(L, () => {
     const b = brief(), busca = (lista, nombre) => lista.find((x) => x[0] === nombre) || [nombre, ""];
     const custom = String(b.ctaTexto || "").trim();
-    const listas = [b.rubros, b.tematicas.length ? b.tematicas : [""], b.formatos, b.ganchos, custom ? ["Personalizado"] : b.ctas]; if (!b.problemasAuto) listas.push(b.problemas);
+    const listas = [b.rubros, temasBrief(b), b.formatos, b.ganchos, custom ? ["Personalizado"] : b.ctas];
     let combos = [[]]; for (const l of listas) combos = combos.flatMap((c) => l.map((x) => [...c, x]));
     const out = [];
     for (const c of combos) for (let v = 1; v <= (Number(b.variaciones) || 1); v++) {
-      out.push({ rubro: c[0], tematica: c[1], tematica_def: busca(TEMAS(), c[1])[1], formato: c[2], formato_def: busca(OPC.formatos, c[2])[1], gancho: c[3], gancho_def: busca(OPC.ganchos, c[3])[1],
-        accion: c[4], accion_def: custom ? custom : busca(OPC.ctas, c[4])[1], cta_tipo: custom ? "custom" : busca(OPC.ctas, c[4])[2], cta_ancla: custom ? custom.split(/\s+/)[0] : busca(OPC.ctas, c[4])[3], cta_custom: custom, problema: b.problemasAuto ? "" : c[5], variacion: v, variaciones: Number(b.variaciones) || 1, duracion: b.duracion });
+      out.push({ rubro: c[0], tematica: temaNombre(c[1]), tematica_def: busca(TEMAS(), temaNombre(c[1]))[1], formato: c[2], formato_def: busca(OPC.formatos, c[2])[1], gancho: c[3], gancho_def: busca(OPC.ganchos, c[3])[1],
+        accion: c[4], accion_def: custom ? custom : busca(OPC.ctas, c[4])[1], cta_tipo: custom ? "custom" : busca(OPC.ctas, c[4])[2], cta_ancla: custom ? custom.split(/\s+/)[0] : busca(OPC.ctas, c[4])[3], cta_custom: custom, problema: temaProblema(c[1]), variacion: v, variaciones: Number(b.variaciones) || 1, duracion: b.duracion });
     }
     return out;
   });
@@ -943,11 +943,13 @@ async function pzListar() {
   if (!ajustes) return;
   pzFirma = pzFirmaActual();
   ajustes.presets.lineaActiva = "personalizados"; await guardarAuto();
-  const r = await window.ctv.listar("infografias");
+  let r = await window.ctv.listar("infografias");
+  if (!(r && r.items && r.items.sinEdicion)) { await new Promise((ok) => setTimeout(ok, 1500)); ajustes.presets.lineaActiva = "personalizados"; r = await window.ctv.listar("infografias"); }   // un segundo intento (a veces uv aun esta ocupado)
   if (r && r.items && r.items.sinEdicion) { pzDatos = r.items; $("#pz-estado").textContent = ""; }
-  else $("#pz-estado").textContent = "⚠ No se pudieron leer las carpetas (¿actualizaste la app con «Actualizar ahora»?). " + ((r && r.error) || "").slice(0, 160);
+  else { const m = (r && r.error) || "sin respuesta"; $("#pz-estado").textContent = "⚠ No se pudieron leer las carpetas. Detalle: " + m.slice(-400); escribir("Personalizados · listar falló: " + m); }
   pintarPersonalizados();
 }
+function urlArchivo(ruta) { return "file:///" + String(ruta).replace(/\\/g, "/").split("/").map((s, i) => (i === 0 && /^[A-Za-z]:$/.test(s) ? s : encodeURIComponent(s))).join("/"); }
 function pintarPersonalizados() {
   if (!ajustes || !$("#pz-lista-sin")) return;
   for (const [id, k] of Object.entries(PZ_K)) {
@@ -958,6 +960,7 @@ function pintarPersonalizados() {
     for (const a of d.archivos) {
       const f = document.createElement("div"); f.className = "pz-fila"; f.innerHTML = '<div class="pz-n"><b></b><span class="pz-mb"></span></div>';
       $("b", f).textContent = a.nombre; $(".pz-mb", f).textContent = a.mb + " MB";
+      if (a.video && d.ruta) { const v = document.createElement("video"); v.className = "pz-prev"; v.controls = true; v.preload = "metadata"; v.src = urlArchivo(d.ruta + "/" + a.nombre); f.insertBefore(v, f.firstChild); }
       if (id === "ref") {
         const ta = document.createElement("textarea"); ta.placeholder = "¿Qué te gusta de este video?"; ta.value = pzp().descripciones[a.nombre] !== undefined ? pzp().descripciones[a.nombre] : (a.descripcion || "");
         const b = document.createElement("button"); b.type = "button"; b.textContent = "Guardar descripción";
@@ -976,24 +979,34 @@ async function pzEjecutar(modo) {
   return true;
 }
 async function pzAgregar(destino, ruta, descripcion) {
-  pzp().pendiente = { destino, archivos: [{ ruta, descripcion: descripcion || "" }] };
+  const rutas = Array.isArray(ruta) ? ruta : [ruta];
+  pzp().pendiente = { destino, archivos: rutas.map((r) => ({ ruta: r, descripcion: descripcion || "" })) };
   const ok = await pzEjecutar("agregar"); pzp().pendiente = null; await guardarAuto();
   if (ok) await pzListar(); return ok;
 }
+// Elegir uno o varios videos (una instalacion antigua devuelve solo una ruta: tambien funciona)
+async function elegirVideos(titulo) { const r = await window.ctv.pickFile(titulo, true); return !r ? [] : Array.isArray(r) ? r : [r]; }
+let pzRefCola = [], pzRefTotal = 0;
+function pzMostrarSiguienteRef() {
+  if (!pzRefCola.length) { pzRefRuta = ""; const v = $("#pz-ref-video"); v.pause(); v.removeAttribute("src"); $("#pz-form-ref").classList.add("oculto"); return; }
+  pzRefRuta = pzRefCola[0]; const n = pzRefTotal - pzRefCola.length + 1;
+  $("#pz-ref-nombre").textContent = pzRefRuta.split(/[\\/]/).pop() + (pzRefTotal > 1 ? "  (" + n + " de " + pzRefTotal + ")" : "");
+  $("#pz-ref-video").src = urlArchivo(pzRefRuta); $("#pz-ref-desc").value = ""; $("#pz-ref-estado").textContent = ""; $("#pz-form-ref").classList.remove("oculto"); $("#pz-ref-desc").focus();
+}
 $("#b-pz-agregar-sin").addEventListener("click", async () => {
-  const r = await window.ctv.pickFile("Elegir un video para guardar sin editar"); if (!r) return;
-  $("#pz-n-sin").textContent = "Copiando…"; const ok = await pzAgregar("sinEdicion", r); if (!ok) $("#pz-n-sin").textContent = "⚠ No se pudo copiar";
+  const r = await elegirVideos("Elegir uno o varios videos para guardar sin editar"); if (!r.length) return;
+  $("#pz-n-sin").textContent = "Copiando " + r.length + (r.length > 1 ? " videos…" : " video…"); const ok = await pzAgregar("sinEdicion", r); if (!ok) $("#pz-n-sin").textContent = "⚠ No se pudo copiar";
 });
 $("#b-pz-agregar-ref").addEventListener("click", async () => {
-  const r = await window.ctv.pickFile("Elegir un video de referencia"); if (!r) return;
-  pzRefRuta = r; $("#pz-ref-nombre").textContent = r.split(/[\\/]/).pop(); $("#pz-ref-desc").value = ""; $("#pz-ref-estado").textContent = ""; $("#pz-form-ref").classList.remove("oculto"); $("#pz-ref-desc").focus();
+  const r = await elegirVideos("Elegir uno o varios videos de referencia"); if (!r.length) return;
+  pzRefCola = r.slice(); pzRefTotal = r.length; pzMostrarSiguienteRef();
 });
-$("#b-pz-ref-cancelar").addEventListener("click", () => { pzRefRuta = ""; $("#pz-form-ref").classList.add("oculto"); });
+$("#b-pz-ref-cancelar").addEventListener("click", () => { pzRefCola.shift(); pzMostrarSiguienteRef(); });
 $("#b-pz-ref-guardar").addEventListener("click", async () => {
   const desc = $("#pz-ref-desc").value.trim(), st = $("#pz-ref-estado");
   if (desc.length < 8) { st.textContent = "⚠ Cuéntanos qué te gusta de este video (al menos una frase)."; return; }
   st.textContent = "Copiando la referencia…"; const ok = await pzAgregar("referencias", pzRefRuta, desc);
-  if (ok) { pzRefRuta = ""; $("#pz-form-ref").classList.add("oculto"); } else st.textContent = "⚠ No se pudo guardar; revisa el registro.";
+  if (ok) { pzRefCola.shift(); pzMostrarSiguienteRef(); } else st.textContent = "⚠ No se pudo guardar; revisa el registro.";
 });
 $("#b-pz-refrescar").addEventListener("click", () => pzListar());
 $("#b-pz-claude").addEventListener("click", async () => {
@@ -1207,7 +1220,7 @@ async function actualizarAhora() {
   const aviso = $("#aviso-upd");
   $("#b-upd-ir").disabled = true; $("#txt-upd").textContent = "Descargando la actualización…";
   aviso.textContent = "Descargando la actualización… la app se reiniciará sola."; aviso.classList.remove("oculto");
-  const r = await window.ctv.applyUpdate();
+  updEnCurso = true; const r = await window.ctv.applyUpdate(); updEnCurso = false;
   if (!r.ok) {
     actualizando = false;
     $("#txt-upd").textContent = r.motivo || "No se pudo actualizar."; $("#b-upd-ir").disabled = false;
@@ -1220,20 +1233,35 @@ $("#b-upd-ir").addEventListener("click", actualizarAhora);
 
 // Antes de generar videos hay que tener la ultima version: si hay una nueva, se descarga e instala (la app se reinicia) y la generacion no arranca.
 let forzandoUpd = false;
-function modalUpd(titulo, texto, cerrable) {
+// Ventana del aviso de actualizacion: SIEMPRE se puede cerrar (boton, Esc o clic afuera). Muestra lo que va haciendo la app y, si tarda, deja seguir con la version actual.
+let omitirUpd = false, tUpd = null, updEnCurso = false;      // updEnCurso: ya hay una descarga en marcha (aunque se haya cerrado el aviso, no se lanza otra)
+function cerrarModalUpd() { const m = $("#modal-upd"); if (m) m.classList.add("oculto"); clearTimeout(tUpd); forzandoUpd = false; }
+function modalUpd(titulo, texto, cerrable, conSeguir) {
   let m = $("#modal-upd");
-  if (!m) { m = document.createElement("div"); m.id = "modal-upd"; m.className = "modal-upd"; m.innerHTML = '<div class="modal-caja"><h2></h2><p></p><div class="barra"><button class="p fuerte" id="modal-upd-cerrar">Entendido</button></div></div>'; document.body.appendChild(m); $("#modal-upd-cerrar").addEventListener("click", () => m.classList.add("oculto")); }
-  $("h2", m).textContent = titulo; $("p", m).textContent = texto; $("#modal-upd-cerrar").classList.toggle("oculto", !cerrable); m.classList.remove("oculto");
+  if (!m) {
+    m = document.createElement("div"); m.id = "modal-upd"; m.className = "modal-upd";
+    m.innerHTML = '<div class="modal-caja" role="dialog" aria-modal="true"><h2></h2><p></p><p class="chico" id="modal-upd-estado"></p><div class="barra"><button class="p fuerte" id="modal-upd-cerrar">Cerrar</button><button id="modal-upd-seguir" class="oculto">Continuar con la versión actual</button></div></div>';
+    document.body.appendChild(m);
+    $("#modal-upd-cerrar").addEventListener("click", cerrarModalUpd);
+    $("#modal-upd-seguir").addEventListener("click", () => { omitirUpd = true; cerrarModalUpd(); escribir("Se continúa con la versión actual (sin actualizar). Pulsa de nuevo lo que querías hacer."); });
+    m.addEventListener("click", (ev) => { if (ev.target === m) cerrarModalUpd(); });
+    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !m.classList.contains("oculto")) cerrarModalUpd(); });
+  }
+  $("h2", m).textContent = titulo; $("p", m).textContent = texto; $("#modal-upd-estado").textContent = "";
+  $("#modal-upd-seguir").classList.toggle("oculto", !conSeguir); m.classList.remove("oculto"); $("#modal-upd-cerrar").focus();
 }
 async function exigirUltimaVersion() {
+  if (omitirUpd) return true;
   if (forzandoUpd) return false;
+  if (updEnCurso) { forzandoUpd = true; modalUpd("Ya se está actualizando", "La descarga sigue en marcha; la app se reiniciará sola al terminar. Puedes esperar, cerrar este aviso o continuar con la versión actual.", true, true); return false; }
   let i; try { i = await window.ctv.checkUpdate(); } catch { i = null; }
   if (!i || !i.ok) { escribir("⚠ No se pudo comprobar si tienes la última versión (" + ((i && i.motivo) || "sin respuesta") + "). Se continúa con la versión actual."); return true; }
   if (!i.hay) return true;
   forzandoUpd = true;
-  modalUpd("Hay una versión nueva (" + i.corto + ")", "Para generar videos necesitas tener la última versión. Se está descargando e instalando; la app se reiniciará sola. Cuando vuelva a abrir, pulsa «Generar» otra vez.", false);
+  modalUpd("Hay una versión nueva (" + i.corto + ")", "Para generar videos conviene tener la última versión. Se está descargando e instalando; la app se reiniciará sola (puede tardar un minuto). Cuando vuelva a abrir, pulsa «Generar» otra vez. Si prefieres no esperar, puedes cerrar este aviso.", true, false);
+  clearTimeout(tUpd); tUpd = setTimeout(() => { if (forzandoUpd) { modalUpd("La actualización está tardando", "Está tardando más de lo normal (puede ser tu conexión o que OneDrive esté ocupado). Puedes seguir esperando, cerrar este aviso, o continuar con la versión actual para generar ahora.", true, true); } }, 90000);
   const r = await window.ctv.applyUpdate();
-  if (!r || !r.ok) { forzandoUpd = false; modalUpd("No se pudo actualizar", ((r && r.motivo) || "Error desconocido") + ". Revisa tu conexión e inténtalo de nuevo: no se puede generar sin la última versión.", true); }
+  if (!r || !r.ok) { forzandoUpd = false; clearTimeout(tUpd); modalUpd("No se pudo actualizar", ((r && r.motivo) || "Error desconocido") + ". Revisa tu conexión e inténtalo de nuevo, o continúa con la versión actual.", true, true); }
   return false;
 }
 

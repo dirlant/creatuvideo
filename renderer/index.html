@@ -314,30 +314,31 @@
 
       <div class="cfg"><h3>1 · Videos sin edición</h3>
         <p class="sub">Tus videos originales. La app los copia a esta carpeta y nunca se modifican.</p>
-        <div id="cfg-personalizados-sin" class="filas"></div>
+        <details class="pz-carpeta"><summary>Cambiar la carpeta donde se guarda (opcional)</summary><div id="cfg-personalizados-sin" class="filas"></div></details>
         <div class="barra"><button class="p fuerte" id="b-pz-agregar-sin">Agregar video…</button><button data-abrir="personalizados/videos-sin-edicion">Abrir carpeta</button><span id="pz-n-sin" class="chico"></span></div>
         <div id="pz-lista-sin" class="pz-lista"></div>
       </div>
       <div class="cfg"><h3>2 · Referencias</h3>
         <p class="sub">Videos que te gustan como modelo. Al agregar cada uno, cuéntanos <b>qué te gusta de ese video en particular</b> (el ritmo, la tipografía, las transiciones, el color, el sonido…): Claude Code lo lee antes de editar.</p>
-        <div id="cfg-personalizados-ref" class="filas"></div>
+        <details class="pz-carpeta"><summary>Cambiar la carpeta donde se guarda (opcional)</summary><div id="cfg-personalizados-ref" class="filas"></div></details>
         <div class="barra"><button class="p fuerte" id="b-pz-agregar-ref">Agregar referencia…</button><button data-abrir="personalizados/referencias">Abrir carpeta</button><span id="pz-n-ref" class="chico"></span></div>
         <div id="pz-lista-ref" class="pz-lista"></div>
       </div>
       <div id="pz-form-ref" class="cfg oculto"><h3>Nueva referencia: <span id="pz-ref-nombre"></span></h3>
+        <video id="pz-ref-video" class="pz-prev-grande" controls preload="metadata"></video>
         <label class="et">¿Qué te gusta de este video?</label>
         <textarea id="pz-ref-desc" rows="4" placeholder="Ej.: Me gusta que las palabras clave aparecen grandes en el centro, los cortes son rápidos cada 2 segundos y la música sube en el momento del giro."></textarea>
         <div class="barra"><button class="p fuerte" id="b-pz-ref-guardar">Guardar referencia</button><button id="b-pz-ref-cancelar">Cancelar</button><span id="pz-ref-estado" class="chico"></span></div>
       </div>
       <div class="cfg"><h3>3 · Exportados</h3>
         <p class="sub">Aquí se entregan los videos terminados.</p>
-        <div id="cfg-personalizados-exp" class="filas"></div>
+        <details class="pz-carpeta"><summary>Cambiar la carpeta donde se guarda (opcional)</summary><div id="cfg-personalizados-exp" class="filas"></div></details>
         <div class="barra"><button data-abrir="personalizados/exportados">Abrir carpeta</button><span id="pz-n-exp" class="chico"></span></div>
         <div id="pz-lista-exp" class="pz-lista"></div>
       </div>
       <div class="cfg"><h3>4 · Temporales</h3>
         <p class="sub">Zona de trabajo de Claude Code (cortes, audios, proyectos intermedios). Puedes borrar su contenido cuando quieras.</p>
-        <div id="cfg-personalizados-tmp" class="filas"></div>
+        <details class="pz-carpeta"><summary>Cambiar la carpeta donde se guarda (opcional)</summary><div id="cfg-personalizados-tmp" class="filas"></div></details>
         <div class="barra"><button data-abrir="personalizados/temporales">Abrir carpeta</button><span id="pz-n-tmp" class="chico"></span></div>
         <div id="pz-lista-tmp" class="pz-lista"></div>
       </div>

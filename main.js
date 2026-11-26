@@ -238,9 +238,10 @@ ipcMain.handle("pick-folder", async (_e, titulo) => {
   const r = await dialog.showOpenDialog(win, { title: titulo || "Elegir carpeta", properties: ["openDirectory", "createDirectory"] });
   return r.canceled ? null : r.filePaths[0];
 });
-ipcMain.handle("pick-file", async (_e, titulo) => {
-  const r = await dialog.showOpenDialog(win, { title: titulo || "Elegir archivo", properties: ["openFile"], filters: [{ name: "Video", extensions: ["mp4", "mov", "mkv", "webm"] }] });
-  return r.canceled ? null : r.filePaths[0];
+ipcMain.handle("pick-file", async (_e, titulo, varios) => {   // varios=true: devuelve una lista de rutas (uno o muchos videos)
+  const r = await dialog.showOpenDialog(win, { title: titulo || "Elegir archivo", properties: varios ? ["openFile", "multiSelections"] : ["openFile"], filters: [{ name: "Video", extensions: ["mp4", "mov", "mkv", "webm"] }] });
+  if (r.canceled || !r.filePaths.length) return null;
+  return varios ? r.filePaths : r.filePaths[0];
 });
 function miniaturaDe(ruta) {
   let miniatura = "", ancho = 0, alto = 0;
