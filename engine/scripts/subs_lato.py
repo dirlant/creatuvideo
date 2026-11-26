@@ -42,26 +42,50 @@ def alinear(tokens, B):
     return t0
 
 def frases(tokens):
-    """Agrupa las palabras en frases cortas (como las lineas del video de referencia): corta en puntos y comas, y por largo."""
+    """Agrupa las palabras en frases de pantalla de 3 a 8 palabras y ~44 caracteres: corta en puntos, y en comas o dos puntos si la frase ya lleva 3 palabras o mas.
+    No separa un articulo de su sustantivo ni una preposicion de lo que sigue (si el corte cae justo despues de una de esas palabras, pasa a la frase siguiente) y no deja palabras sueltas."""
     out, cur, chars = [], [], 0
     for i, tk in enumerate(tokens):
         cur.append(i); chars += len(tk) + 1
         fin = re.search(r"[.!?…]+[\"')\]]*$", tk); pausa = re.search(r"[,;:]+[\"')\]]*$", tk)
-        if fin or (pausa and len(cur) >= 3) or len(cur) >= 8 or chars >= 44: out.append(cur); cur, chars = [], 0
-    if cur:
-        if out and len(cur) <= 1 and len(out[-1]) < 8: out[-1] += cur            # una palabra suelta se une a la frase anterior
-        else: out.append(cur)
+        if fin or (pausa and len(cur) >= 3): out.append(cur); cur, chars = [], 0
+        elif len(cur) >= 8 or chars >= 44:
+            resto = []
+            while len(cur) > 2 and norm(re.sub(r"^\W+|\W+$", "", tokens[cur[-1]])) in STOP: resto.insert(0, cur.pop())   # una palabra de enlace no se queda al final de la frase
+            out.append(cur); cur = resto; chars = sum(len(tokens[j]) + 1 for j in cur)
+    if cur: out.append(cur)
+    k = 0
+    while k < len(out):                                             # ninguna palabra suelta: se une a la frase vecina
+        if len(out[k]) == 1 and len(out) > 1:
+            if k > 0 and len(out[k - 1]) < 8: out[k - 1] += out.pop(k); continue
+            if k + 1 < len(out) and len(out[k + 1]) < 8: out[k + 1] = out[k] + out[k + 1]; out.pop(k); continue
+        k += 1
     return out
 
-def claves(tokens, idxs):
-    """Palabras clave de una frase (las que van GRANDES): las mas largas y significativas; 1 o 2 por frase."""
+def marcadas(marcado, n):
+    """Indices de las palabras que el guion marco con asteriscos (*Lash* *Record,*); None si no coincide el numero de palabras."""
+    idx, abierto, i = set(), False, 0
+    for w in marcado.split():
+        limpio = w.replace("*", "")
+        if not limpio:
+            abierto = not abierto if w.count("*") % 2 else abierto; continue
+        if abierto or "*" in w: idx.add(i)
+        if w.count("*") % 2: abierto = not abierto
+        i += 1
+    return idx if i == n else None
+
+def claves(tokens, idxs, marcas=None):
+    """Palabras clave de una frase (las que van GRANDES): 1 si la frase tiene 4 palabras o menos y 2 si tiene mas. Si el guion las marco con asteriscos se usan esas;
+    si no, las mas largas y significativas (sustantivos, verbos fuertes, nombres propios, cifras): nunca articulos, preposiciones ni conectores."""
+    k = 1 if len(idxs) <= 4 else 2
     c = []
     for pos, i in enumerate(idxs):
         w = re.sub(r"^\W+|\W+$", "", tokens[i]); nw = norm(w)
-        if len(nw) < 4 or nw in STOP: continue
-        puntos = len(nw) + (4 if (w[:1].isupper() and pos > 0) else 0) + (6 if any(ch.isdigit() for ch in w) else 0)
+        if len(nw) < 3 or nw in STOP: continue
+        puntos = len(nw) + (4 if (w[:1].isupper() and pos > 0) else 0) + (6 if any(ch.isdigit() for ch in w) else 0) + (50 if (marcas and i in marcas) else 0)
         c.append((puntos, i))
-    c.sort(reverse=True); k = 1 if len(idxs) <= 4 else 2
+    c.sort(reverse=True)
+    if marcas and any(i in marcas for _, i in c): return {i for p, i in c[:k] if i in marcas}
     return {i for _, i in c[:k]}
 
 def fuente(grande, px):
@@ -129,12 +153,12 @@ def sobre(dst, src, x, y):
 
 class Capa:
     """Capa de subtitulos: calcula las frases y genera, cuadro a cuadro, la imagen RGBA de la banda de texto (centrada en el video)."""
-    def __init__(self, tokens, B, W, H, ini=0.0, tamano=1.0, sobre_video=True, claves_on=True, fps=30, cola=1.0):
+    def __init__(self, tokens, B, W, H, ini=0.0, tamano=1.0, sobre_video=True, claves_on=True, fps=30, cola=1.0, marcado=None):
         self.W, self.H, self.fps = W, H, fps; self.st = Estilo(W, H, tamano, sobre_video=sobre_video)
         t0 = alinear(tokens, B); self.fin_voz = B[-1][2] if B else t0[-1] + 0.5
-        fr = frases(tokens); self.chunks = []
+        fr = frases(tokens); self.chunks = []; marcas = marcadas(marcado, len(tokens)) if marcado else None
         for k, idxs in enumerate(fr):
-            grandes = claves(tokens, idxs) if claves_on else set(); its = self.st.maquetar(idxs, tokens, grandes)
+            grandes = claves(tokens, idxs, marcas) if claves_on else set(); its = self.st.maquetar(idxs, tokens, grandes)
             a = t0[idxs[0]]; b = t0[fr[k + 1][0]] if k + 1 < len(fr) else self.fin_voz + 0.6
             self.chunks.append(dict(ini=a + ini - 0.02, fin=b + ini - 0.02, items=its, t0=[t0[it["i"]] + ini for it in its]))
         self.dur = self.fin_voz + ini + cola

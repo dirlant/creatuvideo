@@ -231,7 +231,7 @@ if SOLO_SUB:
     carpeta = C["salida"] if os.path.isabs(C["salida"]) else os.path.join(AG, C["salida"]); os.makedirs(carpeta, exist_ok=True)
     nombre = re.sub(r'[\\/:*?"<>|]', "", " ".join(" ".join(titulo).replace("*", "").split())).strip().upper()
     salida = os.path.join(carpeta, "%s %s.mp4" % (nombre, datetime.now().strftime("%Y-%m-%d %H-%M")))
-    capa = Capa(texto.split(), words, 1080, 1920, ini=0.0, sobre_video=True, claves_on=True, fps=30); nf = int(TOT * 30) + 1
+    capa = Capa(texto.split(), words, 1080, 1920, ini=0.0, sobre_video=True, claves_on=True, fps=30, marcado=marcado); nf = int(TOT * 30) + 1
     print("subtitulos Lato palabra por palabra: %d frases..." % len(capa.chunks), flush=True)
     cmd2 = [FF, "-y", "-v", "error", "-i", base, "-f", "rawvideo", "-pix_fmt", "rgba", "-s", "1080x%d" % capa.banda, "-r", "30", "-i", "-",
             "-filter_complex", "[0:v][1:v]overlay=0:%d:format=auto,format=yuv420p[v]" % capa.y0, "-map", "[v]", "-map", "0:a", "-t", "%.2f" % TOT,
