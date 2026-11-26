@@ -1041,9 +1041,31 @@ $("#b-pz-claude").addEventListener("click", async () => {
     + "- Videos sin edición (originales; NO los modifiques): " + D.sinEdicion.ruta + "\n- Referencias: " + D.referencias.ruta + "\n- Exportados (entrega aquí el resultado): " + D.exportados.ruta + "\n- Temporales (tu zona de trabajo): " + D.temporales.ruta + "\n\n"
     + "VIDEOS SIN EDICIÓN A TRABAJAR (" + usar.length + (elegidos.length ? ", elegidos por la persona" : ", todos los disponibles") + "; edita cada uno por separado):\n" + sin + "\n\nREFERENCIAS Y QUÉ LE GUSTA A LA PERSONA DE CADA UNA (reproduce ese estilo; también está en referencias.json):\n" + refs + "\n\nINDICACIONES:\n" + (pedido || "(sin indicaciones: edita cada video imitando fielmente el estilo de las referencias y lo que la persona dijo que le gusta de cada una; tú decides cortes, subtítulos, tipografía y efectos)")
     + "\n\nAntes de editar mira cuadros reales de las referencias. Al terminar deja el video en Exportados, revisa cuadros, duración y audio, y cuéntame qué hiciste.";
+  const btn = $("#b-pz-claude"); btn.disabled = true; st.textContent = "Iniciando Claude Code…";
+  const baseExp = new Set(D.exportados.archivos.map((a) => a.nombre));
   const r = await window.ctv.openClaude({ linea: "personalizados", instruccion: texto });
-  st.textContent = r && r.ok ? "Claude Code abierto en una ventana nueva." : "⚠ " + ((r && r.error) || "No se pudo abrir Claude Code.");
+  if (!(r && r.ok)) { btn.disabled = false; st.textContent = "⚠ " + ((r && r.error) || "No se pudo abrir Claude Code."); return; }
+  pzVigilar(baseExp, usar.length, btn, st);
 });
+// Tras iniciar: muestra que Claude Code ya esta trabajando y avisa cuando aparece un video nuevo en Exportados
+let pzTimerVig = null, pzOcupado = false;
+function pzVigilar(baseExp, nVideos, btn, st) {
+  clearInterval(pzTimerVig); const t0 = Date.now(); btn.textContent = "Claude Code trabajando…";
+  const fmt = (ms) => { const s = Math.round(ms / 1000); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+  const pintar = async () => {
+    if (pzOcupado) return; pzOcupado = true; let D = null;   // lectura ligera: no repinta las tarjetas ni reinicia los videos
+    try { const rr = await window.ctv.listar("infografias"); D = rr && rr.items && rr.items.sinEdicion ? rr.items : null; } catch {} finally { pzOcupado = false; }
+    if (!D) return;
+    const nuevos = D.exportados.archivos.filter((a) => !baseExp.has(a.nombre));
+    const tmp = D.temporales.archivos.length;
+    if (nuevos.length) { st.textContent = "✔ Ya hay " + nuevos.length + (nuevos.length === 1 ? " video nuevo" : " videos nuevos") + " en Exportados: " + nuevos.map((a) => a.nombre).join(", ") + (nuevos.length < nVideos ? " (sigue trabajando…)" : ""); }
+    else st.textContent = "▶ Claude Code ya inició (ventana nueva en la barra de tareas) · " + fmt(Date.now() - t0) + " · " + (tmp ? tmp + " archivos de trabajo en Temporales" : "preparando…");
+    if (nuevos.length >= nVideos) { clearInterval(pzTimerVig); btn.disabled = false; btn.textContent = "Editar con Claude Code"; }
+  };
+  st.textContent = "▶ Claude Code ya inició: se abrió una ventana nueva (búscala en la barra de tareas). Aquí verás el avance."; btn.disabled = false;   // se puede lanzar otra edicion cuando quieras
+  pzTimerVig = setInterval(pintar, 10000);
+  setTimeout(() => { clearInterval(pzTimerVig); if (btn.textContent !== "Editar con Claude Code") btn.textContent = "Editar con Claude Code"; }, 40 * 60 * 1000);
+}
 
 $$(".sel-voz").forEach((s) => { for (const [v, n] of VOCES) { const o = document.createElement("option"); o.value = v; o.textContent = n; s.appendChild(o); } });
 async function guardarAuto() {
