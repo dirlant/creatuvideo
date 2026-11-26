@@ -133,19 +133,26 @@ function copiarSiFalta(src, dst, avisar) {
   }
 }
 function normRuta(p) { return path.resolve(String(p).replace(/^\\\\\?\\/, "")).replace(/[\\/]+$/, "").toLowerCase(); }
+// Quita un enlace (junction) o carpeta vacia. OneDrive suele marcarlos como «solo lectura» y entonces rmdir da EPERM: se quita ese atributo y se reintenta.
+function quitarEnlace(p) {
+  try { fs.rmdirSync(p); return true; } catch {}
+  try { spawnSync("attrib", ["-R", p, "/L"], { windowsHide: true }); fs.rmdirSync(p); return true; } catch {}
+  try { spawnSync("cmd.exe", ["/c", "rmdir", p], { windowsHide: true }); return !fs.existsSync(p); } catch {}
+  return false;
+}
 function asegurarEnlace(ws, rel, destino) {
   const p = path.join(ws, rel);
   fs.mkdirSync(path.dirname(p), { recursive: true });
   let st = null; try { st = fs.lstatSync(p); } catch {}
   if (!destino) {                                  // sin carpeta elegida: carpeta normal dentro de la carpeta de trabajo
-    if (st && st.isSymbolicLink()) fs.rmdirSync(p);
+    if (st && st.isSymbolicLink() && !quitarEnlace(p)) { log("AVISO: no se pudo quitar el enlace " + rel + " (OneDrive lo tiene bloqueado). Se reintentará al reiniciar."); return; }
     fs.mkdirSync(p, { recursive: true }); return;
   }
   fs.mkdirSync(destino, { recursive: true });
   if (st) {
-    if (st.isSymbolicLink()) { if (normRuta(fs.readlinkSync(p)) === normRuta(destino)) return; fs.rmdirSync(p); }
+    if (st.isSymbolicLink()) { if (normRuta(fs.readlinkSync(p)) === normRuta(destino)) return; if (!quitarEnlace(p)) { log("AVISO: no se pudo cambiar el enlace " + rel + " a " + destino + " (bloqueado por OneDrive). Cierra las ventanas del Explorador en esa carpeta y reinicia."); return; } }
     else if (st.isDirectory()) {
-      if (fs.readdirSync(p).length === 0) fs.rmdirSync(p);
+      if (fs.readdirSync(p).length === 0) { if (!quitarEnlace(p)) { log("AVISO: no se pudo reemplazar " + rel + " (bloqueado)."); return; } }
       else { log("AVISO: " + rel + " ya tiene archivos dentro de la carpeta de trabajo; no se enlaza a " + destino + ". Muevelos y vuelve a guardar."); return; }
     }
   }
