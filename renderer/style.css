@@ -285,3 +285,73 @@ html, body, button, input, select, textarea, pre, code { font-family: "Lato", "S
 .pz-falta { font-size: 12px; color: var(--aviso); }
 .pz-stage { border: 1px dashed var(--acento2); border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
 .pz-stage h4 { margin: 0 0 6px; font-size: 13px; color: var(--suave); font-weight: 600; }
+
+/* ================= Tema claro estilo Skool =================
+   Fondo gris calido, tarjetas blancas con borde fino, menu con la seccion activa en amarillo suave, pasos como pestanas con subrayado negro,
+   botones principales en amarillo con letra oscura. Todo cuelga de las variables de :root. */
+:root {
+  --bg: #f7f6f4; --panel: #ffffff; --panel2: #f1efeb; --borde: #e6e2dc; --txt: #1d1d1f; --suave: #6e6a64;
+  --acento: #1d1d1f; --acento2: #b8136f; --ok: #1f9d63; --mal: #d93a3a; --aviso: #f5b82e;
+  --amarillo: #f8e2a6; --amarillo2: #f6d56f; --sombra: 0 1px 2px rgba(29,29,31,.06);
+}
+html, body { background: var(--bg); color: var(--txt); }
+.nav { background: #fff; border-right: 1px solid var(--borde); }
+.marca { background: #fff; padding: 4px 6px; margin-bottom: 10px; }
+.nav-b { color: #3b3a38; font-weight: 600; }
+.nav-b:hover { background: var(--panel2); color: var(--txt); }
+.nav-b.activo { background: var(--amarillo); color: var(--txt); font-weight: 700; }
+.nav-pie { border-top-color: var(--borde); }
+h1 { font-weight: 900; letter-spacing: -.2px; }
+h2, .sep { color: var(--txt); }
+.sub { color: var(--suave); }
+.ico-t { background: var(--amarillo); color: var(--txt); }
+.nav-b .ico-t { background: transparent; }
+.tarjeta, .cfg, .item, .estado, .resumen, .opcion, .est { box-shadow: var(--sombra); border-radius: 14px; }
+.tarjeta:hover, .opcion:hover, .item:hover { border-color: #cfc9c0; box-shadow: 0 4px 14px rgba(29,29,31,.08); }
+button { background: #fff; color: var(--txt); border-color: var(--borde); font-weight: 600; box-shadow: var(--sombra); }
+button:hover:not(:disabled) { border-color: var(--txt); }
+button.fuerte, button.p.fuerte { background: var(--amarillo2); border-color: var(--amarillo2); color: var(--txt); font-weight: 700; }
+button.fuerte:hover:not(:disabled) { background: #f2c94c; border-color: #f2c94c; }
+button.p { border-color: #cfc9c0; }
+textarea, input:not([type=checkbox]), select { background: #fff; color: var(--txt); border-color: var(--borde); }
+textarea:focus, input:focus, select:focus { outline: 2px solid var(--amarillo2); outline-offset: 0; border-color: var(--txt); }
+::placeholder { color: #a39e96; }
+/* pasos: pestanas con subrayado, como las de Skool */
+.pasos { gap: 4px 22px; border-bottom: 1px solid var(--borde); margin-bottom: 20px; }
+.pasos li { background: none; border: 0; border-radius: 0; padding: 10px 2px 12px; color: var(--suave); font-weight: 700; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.pasos li:hover { color: var(--txt); }
+.pasos li.act { background: none; color: var(--txt); border-bottom-color: var(--txt); }
+.pasos li.hecho { border-color: transparent; border-bottom-color: var(--ok); color: var(--txt); }
+.tab.on, .chips-multi .chip.on, .chip.on { background: var(--txt); border-color: var(--txt); color: #fff; }
+.tab { background: #fff; }
+.chip { background: #fff; }
+.etiqueta { background: var(--txt); color: #fff; }
+.contador { background: #fdf3d3; border-color: var(--amarillo2); }
+.contador b { color: var(--txt); }
+.contador.vacio { background: var(--panel); border-color: var(--borde); }
+.contador.progreso { background: #e9f6ef; border-color: var(--ok); }
+.contador.fijo { box-shadow: 0 6px 14px rgba(29,29,31,.12); top: -22px; }
+.banner { background: #fdf3d3; border-color: var(--amarillo2); }
+.opcion:has(input:checked) { background: #fdf3d3; border-color: var(--txt); }
+.ico-g { background: var(--panel2); color: var(--txt); }
+.opcion:has(input:checked) .ico-g { background: var(--txt); color: #fff; }
+.rango .badge { background: var(--txt); }
+.prog-barra { background: #ece8e1; }
+.prog-barra > i { background: linear-gradient(90deg, var(--amarillo2), var(--ok)); }
+.barra-estado { background: var(--bg); box-shadow: 0 -6px 14px rgba(29,29,31,.07); }
+.registro { background: #fff; border-top: 1px solid var(--borde); }
+.reg-cab { border-bottom-color: var(--borde); }
+#log { color: #3b3a38; }
+code { background: var(--panel2); }
+.peligro:hover { background: #fdeaea; }
+.diseno { background: #fff; border-color: var(--borde); }
+.para { background: var(--amarillo); color: var(--txt); }
+.modal-upd { background: rgba(29,29,31,.45); }
+.modal-caja { border-color: var(--borde); box-shadow: 0 20px 60px rgba(29,29,31,.25); }
+.aviso { background: var(--amarillo2); color: #2b2000; }
+.estado .n { color: var(--txt); }
+.pz-fila.sel { border-color: var(--txt); box-shadow: 0 0 0 1px var(--txt); }
+.pz-stage { border-color: #cfc9c0; background: #fffdf6; }
+.pz-elegir input, .item input, .chk input, .rango input, .opcion input[type=radio] { accent-color: #1d1d1f; }
+.nav-lista { scrollbar-color: #d6d1c9 transparent; } .nav-lista::-webkit-scrollbar-thumb { background: #d6d1c9; }
+.nav-b, .nav-b:hover { box-shadow: none; border: 0; background-clip: padding-box; } .nav-b { background: none; } .nav-b:hover { background: var(--panel2); } .nav-b.activo { background: var(--amarillo); }
