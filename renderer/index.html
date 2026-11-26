@@ -316,6 +316,8 @@
         <p class="sub">Tus videos originales. La app los copia a esta carpeta y nunca se modifican.</p>
         <details class="pz-carpeta"><summary>Cambiar la carpeta donde se guarda (opcional)</summary><div id="cfg-personalizados-sin" class="filas"></div></details>
         <div class="barra"><button class="p fuerte" id="b-pz-agregar-sin">Agregar video…</button><button data-abrir="personalizados/videos-sin-edicion">Abrir carpeta</button><span id="pz-n-sin" class="chico"></span></div>
+        <div id="pz-form-sin" class="pz-stage oculto"><h4>Vista previa de lo que elegiste</h4><div id="pz-prev-sin" class="pz-lista"></div>
+          <div class="barra"><button class="p fuerte" id="b-pz-sin-guardar">Agregar a Videos sin edición</button><button id="b-pz-sin-cancelar">Cancelar</button><span id="pz-sin-estado" class="chico"></span></div></div>
         <div id="pz-lista-sin" class="pz-lista"></div>
       </div>
       <div class="cfg"><h3>2 · Referencias</h3>
@@ -342,9 +344,9 @@
         <div class="barra"><button data-abrir="personalizados/temporales">Abrir carpeta</button><span id="pz-n-tmp" class="chico"></span></div>
         <div id="pz-lista-tmp" class="pz-lista"></div>
       </div>
-      <div class="cfg"><h3>5 · Pedir una edición a Claude Code</h3>
-        <p class="sub">Cuéntale qué quieres crear. Claude Code recibe las rutas de las 4 carpetas, la lista de tus videos y tus referencias con lo que te gusta de cada una; trabaja en Temporales y deja el resultado en Exportados.</p>
-        <textarea id="pz-pedido" rows="6" placeholder="Ej.: Con el video «entrevista.mp4», crea un reel de 30 segundos con subtítulos grandes en el centro y cortes cada 2 segundos, con el estilo de mi referencia."></textarea>
+      <div class="cfg"><h3>5 · Editar con Claude Code</h3>
+        <p class="sub">Marca arriba los videos que quieres trabajar (si no marcas ninguno, se usan todos). Claude Code recibe las rutas de las 4 carpetas, tus videos y tus referencias con lo que te gusta de cada una; trabaja en Temporales y deja el resultado en Exportados. <b>Las indicaciones son opcionales</b>: si las dejas vacías, edita cada video imitando tus referencias.</p>
+        <textarea id="pz-pedido" rows="4" placeholder="(Opcional) Ej.: Con el video «entrevista.mp4», crea un reel de 30 segundos con subtítulos grandes en el centro y cortes cada 2 segundos, con el estilo de mi referencia."></textarea>
         <div class="barra"><button class="p fuerte" id="b-pz-claude">Editar con Claude Code</button><button id="b-pz-refrescar">Actualizar listas</button><span id="pz-estado" class="chico"></span></div>
       </div>
     </section>

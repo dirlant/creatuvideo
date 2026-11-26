@@ -935,7 +935,8 @@ $("#b-sb-generar").addEventListener("click", async () => {
 
 // ---------------------------------------------------------------- Personalizados: 4 carpetas (sin edición, referencias con su descripción, exportados, temporales) + pedido a Claude Code
 function pzp() { const p = ajustes.presets.personalizados || (ajustes.presets.personalizados = {}); if (!p.descripciones) p.descripciones = {}; return p; }
-let pzDatos = null, pzRefRuta = "", pzFirma = "";
+let pzDatos = null, pzRefRuta = "", pzFirma = ""; const pzSel = new Set(), pzNuevos = new Set();
+function pzContarSel() { const n = pzSel.size; const e = $("#pz-n-sin"); if (e && pzDatos) { const t = pzDatos.sinEdicion.archivos.length; e.textContent = t ? t + (t === 1 ? " video" : " videos") + (n ? " · " + n + " para trabajar" : " · se usarán todos") : "Carpeta vacía"; } }
 const PZ_K = { sin: "sinEdicion", ref: "referencias", exp: "exportados", tmp: "temporales" };
 const pzFirmaActual = () => JSON.stringify([ajustes.dirs.personalizadosSinEdicion, ajustes.dirs.personalizadosReferencias, ajustes.dirs.personalizadosExportados, ajustes.dirs.personalizadosTemporales]);
 function pzSiCambio() { if (ajustes && $("#v-personalizados") && $("#v-personalizados").classList.contains("activa") && pzFirmaActual() !== pzFirma) pzListar(); }   // si se eligió otra carpeta, se vuelve a leer
@@ -949,20 +950,27 @@ async function pzListar() {
   else { const m = (r && r.error) || "sin respuesta"; $("#pz-estado").textContent = "⚠ No se pudieron leer las carpetas. Detalle: " + m.slice(-400); escribir("Personalizados · listar falló: " + m); }
   pintarPersonalizados();
 }
-function urlArchivo(ruta) { return "file:///" + String(ruta).replace(/\\/g, "/").split("/").map((s, i) => (i === 0 && /^[A-Za-z]:$/.test(s) ? s : encodeURIComponent(s))).join("/"); }
+function urlArchivo(ruta) { return "file:///" + String(ruta).replace(/\\/g, "/").split("/").map((s, i) => (i === 0 && /^[A-Za-z]:$/.test(s) ? s : encodeURIComponent(s))).join("/") + "#t=0.1"; }   // #t=0.1: muestra el primer cuadro como miniatura
 function pintarPersonalizados() {
   if (!ajustes || !$("#pz-lista-sin")) return;
   for (const [id, k] of Object.entries(PZ_K)) {
     const lista = $("#pz-lista-" + id), d = pzDatos && pzDatos[k]; lista.innerHTML = "";
     if (!d) { $("#pz-n-" + id).textContent = ""; continue; }
+    if (id === "sin") { for (const a of d.archivos) if (a.video && pzNuevos.has(a.nombre)) { pzSel.add(a.nombre); pzNuevos.delete(a.nombre); } for (const n of [...pzSel]) if (!d.archivos.some((a) => a.nombre === n)) pzSel.delete(n); }
     $("#pz-n-" + id).textContent = d.archivos.length ? d.archivos.length + (d.archivos.length === 1 ? " archivo" : " archivos") : "Carpeta vacía";
     if (!d.archivos.length) { const v = document.createElement("div"); v.className = "pz-vacio"; v.textContent = "Todavía no hay archivos aquí."; lista.appendChild(v); }
     for (const a of d.archivos) {
       const f = document.createElement("div"); f.className = "pz-fila"; f.innerHTML = '<div class="pz-n"><b></b><span class="pz-mb"></span></div>';
       $("b", f).textContent = a.nombre; $(".pz-mb", f).textContent = a.mb + " MB";
+      if (id === "sin" && a.video) {
+        const lb = document.createElement("label"); lb.className = "pz-elegir"; const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = pzSel.has(a.nombre); f.classList.toggle("sel", cb.checked);
+        cb.addEventListener("change", () => { if (cb.checked) pzSel.add(a.nombre); else pzSel.delete(a.nombre); f.classList.toggle("sel", cb.checked); pzContarSel(); });
+        lb.appendChild(cb); lb.appendChild(document.createTextNode("Trabajar este video")); $(".pz-n", f).appendChild(lb);
+      }
       if (a.video && d.ruta) { const v = document.createElement("video"); v.className = "pz-prev"; v.controls = true; v.preload = "metadata"; v.src = urlArchivo(d.ruta + "/" + a.nombre); f.insertBefore(v, f.firstChild); }
       if (id === "ref") {
         const ta = document.createElement("textarea"); ta.placeholder = "¿Qué te gusta de este video?"; ta.value = pzp().descripciones[a.nombre] !== undefined ? pzp().descripciones[a.nombre] : (a.descripcion || "");
+        if (!ta.value.trim()) { const w = document.createElement("div"); w.className = "pz-falta"; w.textContent = "⚠ Cuéntanos qué te gusta de este video para poder imitarlo."; $(".pz-n", f).appendChild(w); }
         const b = document.createElement("button"); b.type = "button"; b.textContent = "Guardar descripción";
         b.addEventListener("click", async () => { pzp().descripciones = { [a.nombre]: ta.value }; const ok = await pzEjecutar("describir"); if (ok) { delete pzp().descripciones[a.nombre]; $("#pz-n-ref").textContent = "✔ Descripción guardada"; await pzListar(); } });
         $(".pz-n", f).appendChild(ta); f.appendChild(b);
@@ -993,9 +1001,19 @@ function pzMostrarSiguienteRef() {
   $("#pz-ref-nombre").textContent = pzRefRuta.split(/[\\/]/).pop() + (pzRefTotal > 1 ? "  (" + n + " de " + pzRefTotal + ")" : "");
   $("#pz-ref-video").src = urlArchivo(pzRefRuta); $("#pz-ref-desc").value = ""; $("#pz-ref-estado").textContent = ""; $("#pz-form-ref").classList.remove("oculto"); $("#pz-ref-desc").focus();
 }
+let pzSinCola = [];
 $("#b-pz-agregar-sin").addEventListener("click", async () => {
   const r = await elegirVideos("Elegir uno o varios videos para guardar sin editar"); if (!r.length) return;
-  $("#pz-n-sin").textContent = "Copiando " + r.length + (r.length > 1 ? " videos…" : " video…"); const ok = await pzAgregar("sinEdicion", r); if (!ok) $("#pz-n-sin").textContent = "⚠ No se pudo copiar";
+  pzSinCola = r.slice(); const cont = $("#pz-prev-sin"); cont.innerHTML = "";
+  for (const ruta of pzSinCola) { const f = document.createElement("div"); f.className = "pz-fila"; f.innerHTML = '<div class="pz-n"><b></b></div>'; $("b", f).textContent = ruta.split(/[\\/]/).pop(); const v = document.createElement("video"); v.className = "pz-prev"; v.controls = true; v.preload = "metadata"; v.src = urlArchivo(ruta); f.insertBefore(v, f.firstChild); cont.appendChild(f); }
+  $("#pz-sin-estado").textContent = pzSinCola.length + (pzSinCola.length === 1 ? " video elegido" : " videos elegidos"); $("#pz-form-sin").classList.remove("oculto");
+});
+$("#b-pz-sin-cancelar").addEventListener("click", () => { pzSinCola = []; $("#pz-prev-sin").innerHTML = ""; $("#pz-form-sin").classList.add("oculto"); });
+$("#b-pz-sin-guardar").addEventListener("click", async () => {
+  if (!pzSinCola.length) return; for (const r of pzSinCola) pzNuevos.add(r.split(/[\\/]/).pop()); $("#pz-sin-estado").textContent = "Copiando…";   // los recien agregados quedan marcados para trabajar
+  const ok = await pzAgregar("sinEdicion", pzSinCola);
+  if (!ok) { $("#pz-sin-estado").textContent = "⚠ No se pudo copiar; revisa el registro."; return; }
+  pzSinCola = []; $("#pz-prev-sin").innerHTML = ""; $("#pz-form-sin").classList.add("oculto");
 });
 $("#b-pz-agregar-ref").addEventListener("click", async () => {
   const r = await elegirVideos("Elegir uno o varios videos de referencia"); if (!r.length) return;
@@ -1010,13 +1028,18 @@ $("#b-pz-ref-guardar").addEventListener("click", async () => {
 });
 $("#b-pz-refrescar").addEventListener("click", () => pzListar());
 $("#b-pz-claude").addEventListener("click", async () => {
-  const pedido = $("#pz-pedido").value.trim(), st = $("#pz-estado"); if (!pedido) { st.textContent = "⚠ Cuéntale a Claude Code qué quieres crear."; return; }
-  await pzListar(); const D = pzDatos; if (!D) { st.textContent = "⚠ No se pudieron leer las carpetas."; return; }
+  const pedido = $("#pz-pedido").value.trim(), st = $("#pz-estado");
+  await pzListar(); const D = pzDatos; if (!D) { st.textContent = "⚠ No se pudieron leer las carpetas. Pulsa «Actualizar listas»."; return; }
+  const videos = D.sinEdicion.archivos.filter((a) => a.video), elegidos = videos.filter((a) => pzSel.has(a.nombre)), usar = elegidos.length ? elegidos : videos;
+  if (!usar.length) { st.textContent = "⚠ Primero agrega al menos un video en «Videos sin edición»."; return; }
+  const descr = (a) => (pzp().descripciones[a.nombre] !== undefined ? pzp().descripciones[a.nombre] : a.descripcion) || "";
+  const sinDesc = D.referencias.archivos.filter((a) => a.video && !descr(a).trim());
+  if (sinDesc.length) { st.textContent = "⚠ Cuéntanos qué te gustó de: " + sinDesc.map((a) => a.nombre).join(", ") + " (escríbelo en su tarjeta y pulsa «Guardar descripción»)."; return; }
   const refs = D.referencias.archivos.map((a) => "- " + a.nombre + ": «" + ((pzp().descripciones[a.nombre] !== undefined ? pzp().descripciones[a.nombre] : a.descripcion) || "(sin descripción)") + "»").join("\n") || "(ninguna todavía)";
-  const sin = D.sinEdicion.archivos.filter((a) => a.video).map((a) => "- " + a.nombre + " (" + a.mb + " MB)").join("\n") || "(ninguno todavía)";
+  const sin = usar.map((a) => "- " + a.nombre + " (" + a.mb + " MB)").join("\n") || "(ninguno todavía)";
   const texto = "EDICIÓN PERSONALIZADA. Lee ./personalizados/CLAUDE.md (reglas y motor HyperFrames) y trabaja con estas carpetas (rutas exactas):\n"
     + "- Videos sin edición (originales; NO los modifiques): " + D.sinEdicion.ruta + "\n- Referencias: " + D.referencias.ruta + "\n- Exportados (entrega aquí el resultado): " + D.exportados.ruta + "\n- Temporales (tu zona de trabajo): " + D.temporales.ruta + "\n\n"
-    + "VIDEOS SIN EDICIÓN DISPONIBLES:\n" + sin + "\n\nREFERENCIAS Y QUÉ LE GUSTA A LA PERSONA DE CADA UNA (reproduce ese estilo; también está en referencias.json):\n" + refs + "\n\nPEDIDO:\n" + pedido
+    + "VIDEOS SIN EDICIÓN A TRABAJAR (" + usar.length + (elegidos.length ? ", elegidos por la persona" : ", todos los disponibles") + "; edita cada uno por separado):\n" + sin + "\n\nREFERENCIAS Y QUÉ LE GUSTA A LA PERSONA DE CADA UNA (reproduce ese estilo; también está en referencias.json):\n" + refs + "\n\nINDICACIONES:\n" + (pedido || "(sin indicaciones: edita cada video imitando fielmente el estilo de las referencias y lo que la persona dijo que le gusta de cada una; tú decides cortes, subtítulos, tipografía y efectos)")
     + "\n\nAntes de editar mira cuadros reales de las referencias. Al terminar deja el video en Exportados, revisa cuadros, duración y audio, y cuéntame qué hiciste.";
   const r = await window.ctv.openClaude({ linea: "personalizados", instruccion: texto });
   st.textContent = r && r.ok ? "Claude Code abierto en una ventana nueva." : "⚠ " + ((r && r.error) || "No se pudo abrir Claude Code.");
