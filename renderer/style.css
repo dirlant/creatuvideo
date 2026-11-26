@@ -355,3 +355,116 @@ code { background: var(--panel2); }
 .pz-elegir input, .item input, .chk input, .rango input, .opcion input[type=radio] { accent-color: #1d1d1f; }
 .nav-lista { scrollbar-color: #d6d1c9 transparent; } .nav-lista::-webkit-scrollbar-thumb { background: #d6d1c9; }
 .nav-b, .nav-b:hover { box-shadow: none; border: 0; background-clip: padding-box; } .nav-b { background: none; } .nav-b:hover { background: var(--panel2); } .nav-b.activo { background: var(--amarillo); }
+
+/* ===== Marca Skool (valores tomados de skool.com): fondo #F8F7F5, texto #202124, gris #909090, borde #E4E4E4,
+   resaltado #FDF1D5 / #FAE3AC, dorado #E4A511, azul de enlaces #2E6EF5, rojo #DF1A1A, fuente Roboto 500, tarjetas de 10 px y botones en pildora ===== */
+@font-face { font-family: "Roboto"; font-weight: 400; font-style: normal; src: url("fonts/Roboto-400.woff2") format("woff2"); }
+@font-face { font-family: "Roboto"; font-weight: 500; font-style: normal; src: url("fonts/Roboto-500.woff2") format("woff2"); }
+@font-face { font-family: "Roboto"; font-weight: 700; font-style: normal; src: url("fonts/Roboto-700.woff2") format("woff2"); }
+:root {
+  --bg: #F8F7F5; --panel: #FFFFFF; --panel2: #F8F7F5; --borde: #E4E4E4; --txt: #202124; --suave: #909090;
+  --acento: #202124; --acento2: #2E6EF5; --ok: #21B8A6; --mal: #DF1A1A; --aviso: #E4A511;
+  --amarillo: #FDF1D5; --amarillo2: #FAE3AC; --dorado: #E4A511;
+  --sombra: 0px 1px 2px rgba(60, 64, 67, 0.32), 0px 2px 6px rgba(60, 64, 67, 0.15);
+}
+html, body, button, input, select, textarea { font-family: "Roboto", "Helvetica", "Arial", sans-serif; }
+body { font-weight: 400; }
+h1, h2, h3, b, strong, .nav-b, button { font-weight: 500; }
+h1 { font-weight: 700; letter-spacing: 0; }
+.sub, .chico, label.et, .et, .brief .ayuda { color: #767676; }
+.nav { background: #FFFFFF; border-right: 1px solid #E4E4E4; }
+.nav-b { color: #202124; font-weight: 500; border-radius: 10px; }
+.nav-b:hover { background: #F8F7F5; }
+.nav-b.activo { background: #FDF1D5; color: #202124; font-weight: 700; }
+.tarjeta, .cfg, .item, .estado, .resumen, .opcion, .est, .contador, .banner { border-radius: 10px; border-color: #E4E4E4; box-shadow: none; }
+.tarjeta:hover, .opcion:hover, .item:hover { box-shadow: var(--sombra); border-color: #E4E4E4; transform: none; }
+.ico-t { background: #FDF1D5; color: #202124; border-radius: 10px; }
+button { border-radius: 25px; padding: 8px 16px; background: #FFFFFF; border: 1px solid #E4E4E4; color: #202124; box-shadow: none; }
+button:hover:not(:disabled) { background: #F8F7F5; border-color: #E4E4E4; }
+button.fuerte, button.p.fuerte { background: #E4A511; border-color: #E4A511; color: #202124; font-weight: 700; }
+button.fuerte:hover:not(:disabled) { background: #F0B629; border-color: #F0B629; }
+.nav-b, .nav-b:hover { border-radius: 10px; }
+.chip, .tab { border-radius: 25px; color: #202124; }
+.chip.on, .tab.on, .chips-multi .chip.on { background: #FDF1D5; border-color: #E4A511; color: #202124; font-weight: 700; }
+.mini { border-radius: 25px; }
+textarea, input:not([type=checkbox]), select { border-radius: 10px; border-color: #E4E4E4; }
+textarea:focus, input:focus, select:focus { outline: 2px solid #FAE3AC; border-color: #E4A511; }
+.pasos li { color: #909090; font-weight: 500; }
+.pasos li.act { color: #202124; border-bottom-color: #202124; }
+.pasos li.hecho { border-bottom-color: #21B8A6; }
+.etiqueta { background: #FDF1D5; color: #202124; border: 1px solid #E4A511; }
+.etiqueta button { background: rgba(32,33,36,.12); color: #202124; }
+.contador { background: #FDF1D5; border-color: #FAE3AC; }
+.contador b, .resumen b, .sep, h2 { color: #202124; }
+.contador.progreso { background: #e5f3f7; border-color: #c6e3ec; }
+.banner, .opcion:has(input:checked) { background: #FDF1D5; border-color: #E4A511; }
+.opcion:has(input:checked) .ico-g { background: #E4A511; color: #202124; }
+.rango .badge { background: #202124; }
+.prog-barra { background: #E4E4E4; } .prog-barra > i { background: #E4A511; }
+.aviso { background: #FDF1D5; color: #202124; border: 1px solid #E4A511; }
+a { color: #2E6EF5; }
+.pz-fila.sel { border-color: #E4A511; box-shadow: 0 0 0 1px #E4A511; background: #FFFDF6; }
+.pz-elegir input, .item input, .chk input, .rango input, .opcion input[type=radio] { accent-color: #E4A511; }
+.estado .pt { background: #DF1A1A; } .estado.ok .pt { background: #21B8A6; }
+.registro { background: #FFFFFF; }
+
+/* ===== Estilo Skool sobre fondo oscuro (los colores de fondo de antes): se mantienen Roboto, tarjetas de 10 px, botones en pildora,
+   pestanas con subrayado y el dorado de Skool para lo principal y lo elegido ===== */
+:root {
+  --bg: #14111c; --panel: #1d1928; --panel2: #262033; --borde: #3a3150; --txt: #f3eefb; --suave: #a79bbd;
+  --acento: #E4A511; --acento2: #F0B629; --ok: #21B8A6; --mal: #ff6b6b; --aviso: #E4A511;
+  --amarillo: rgba(228,165,17,.16); --amarillo2: rgba(228,165,17,.28);
+  --sombra: 0 2px 10px rgba(0,0,0,.45);
+}
+html, body { background: var(--bg); color: var(--txt); }
+h1, h2, h3, .sep, .contador b, .resumen b, .estado .n { color: var(--txt); }
+.sub, .chico, label.et, .et, .brief .ayuda { color: var(--suave); }
+.nav { background: var(--panel); border-right: 1px solid var(--borde); }
+.nav-b { color: var(--suave); }
+.nav-b:hover { background: var(--panel2); color: var(--txt); }
+.nav-b.activo { background: var(--amarillo); color: #fff; box-shadow: inset 3px 0 0 #E4A511; }
+.nav-pie { border-top-color: var(--borde); }
+.nav-lista { scrollbar-color: var(--borde) transparent; } .nav-lista::-webkit-scrollbar-thumb { background: var(--borde); }
+.ico-t { background: var(--amarillo); color: #F0B629; }
+.nav-b .ico-t { background: transparent; color: inherit; }
+.tarjeta, .cfg, .item, .estado, .resumen, .opcion, .est { background: var(--panel); border-color: var(--borde); }
+.tarjeta:hover, .opcion:hover, .item:hover { border-color: #5a4d75; box-shadow: var(--sombra); }
+button { background: var(--panel2); border-color: var(--borde); color: var(--txt); }
+button:hover:not(:disabled) { background: #2f2840; border-color: #5a4d75; }
+button.fuerte, button.p.fuerte { background: #E4A511; border-color: #E4A511; color: #202124; }
+button.fuerte:hover:not(:disabled) { background: #F0B629; border-color: #F0B629; }
+button.p { border-color: #5a4d75; }
+.chip, .tab { background: var(--panel2); color: var(--txt); border-color: var(--borde); }
+.chip.on, .tab.on, .chips-multi .chip.on { background: var(--amarillo2); border-color: #E4A511; color: #fff; }
+textarea, input:not([type=checkbox]), select { background: var(--panel); color: var(--txt); border-color: var(--borde); }
+textarea:focus, input:focus, select:focus { outline: 2px solid rgba(228,165,17,.45); border-color: #E4A511; }
+::placeholder { color: #7d7292; }
+.pasos { border-bottom-color: var(--borde); }
+.pasos li { color: var(--suave); }
+.pasos li:hover, .pasos li.act { color: #fff; }
+.pasos li.act { border-bottom-color: #E4A511; }
+.etiqueta { background: var(--amarillo2); color: #fff; border-color: #E4A511; }
+.etiqueta button { background: rgba(255,255,255,.15); color: #fff; }
+.contador { background: #241c14; border-color: #6b5420; }
+.contador.vacio { background: var(--panel); border-color: var(--borde); }
+.contador.progreso { background: #14261f; border-color: var(--ok); }
+.contador.fijo { box-shadow: 0 6px 14px rgba(0,0,0,.45); }
+.banner, .opcion:has(input:checked) { background: #241c14; border-color: #E4A511; }
+.ico-g { background: var(--panel2); color: #F0B629; }
+.opcion:has(input:checked) .ico-g { background: #E4A511; color: #202124; }
+.rango .badge { background: #E4A511; color: #202124; }
+.prog-barra { background: #0e0c14; } .prog-barra > i { background: linear-gradient(90deg, #E4A511, var(--ok)); }
+.aviso { background: #E4A511; color: #202124; border-color: #E4A511; }
+.registro { background: #0e0c14; border-top-color: var(--borde); }
+.reg-cab { border-bottom-color: var(--borde); }
+#log { color: #cfc6e0; }
+code { background: var(--panel2); }
+.barra-estado { background: var(--bg); box-shadow: 0 -8px 16px rgba(0,0,0,.4); }
+.diseno { background: #14141f; border-color: var(--borde); }
+.para { background: var(--amarillo); color: #F0B629; }
+.peligro:hover { background: #3a1820; }
+.modal-upd { background: rgba(8,5,16,.82); }
+.modal-caja { background: var(--panel); border-color: #E4A511; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.pz-fila.sel { border-color: #E4A511; box-shadow: 0 0 0 1px #E4A511; background: #241c14; }
+.pz-stage { border-color: #6b5420; background: #18141f; }
+a { color: #7aa5ff; }
