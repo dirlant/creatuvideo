@@ -592,18 +592,40 @@ async function ctLeer(forzar) {
 }
 // ---- Proceso: cada envío a Claude Code («tanda») queda anotado con sus videos y la app sigue su avance leyendo la carpeta de destino
 const CT_HORAS = 4;   // sin terminar después de este tiempo: se da por abandonado (por ejemplo, se cerró la ventana)
+const CT_QUIETO = 4;  // minutos sin ningún cambio en la carpeta del video: se avisa que Claude Code quizá espera una respuesta
 const ctSub = (n) => n.replace(/\.[^.]+$/, "").replace(/[<>:"/\\|?*]/g, "_").replace(/[. ]+$/, "");
 function ctTandas() { const p = cxp(); if (!Array.isArray(p.tandas)) p.tandas = []; return p.tandas; }
 function ctEstadoVideo(t, v) {
   const info = ctDatos && ctDatos.cortarProgreso && ctDatos.cortarProgreso[t.dst] && ctDatos.cortarProgreso[t.dst][v.sub];
   const clips = info ? info.clips : [], prog = info ? info.progreso : "", viejo = Date.now() - t.inicio > CT_HORAS * 3600e3;
-  if (info && info.listo) return { k: "listo", txt: "✔ Listo · " + clips.length + (clips.length === 1 ? " clip" : " clips"), clips };
-  if (/^ERROR/i.test(prog)) return { k: "error", txt: "⚠ " + prog, clips };
-  if (viejo) return { k: "error", txt: "⚠ Sin noticias desde hace más de " + CT_HORAS + " h (¿se cerró la ventana de Claude Code?)" + (clips.length ? " · " + clips.length + " clips" : ""), clips };
-  if (!info) return { k: "espera", txt: "⏳ En espera", clips };
-  return { k: "trabajando", txt: "▶ " + (prog || "Trabajando…") + (clips.length ? " · " + clips.length + (clips.length === 1 ? " clip listo" : " clips listos") : ""), clips };
+  if (info && info.listo) return { k: "listo", txt: "✔ Listo · " + clips.length + (clips.length === 1 ? " clip" : " clips"), clips, pct: 100 };
+  const { pct, texto } = ctPorcentaje(prog);
+  if (/^ERROR/i.test(texto)) return { k: "error", txt: "⚠ " + texto, clips, pct };
+  if (viejo) return { k: "error", txt: "⚠ Sin noticias desde hace más de " + CT_HORAS + " h (¿se cerró la ventana de Claude Code?)" + (clips.length ? " · " + clips.length + " clips" : ""), clips, pct };
+  const quieto = (ms) => Date.now() - ms > CT_QUIETO * 60000, mins = (ms) => Math.round((Date.now() - ms) / 60000);
+  const pista = " Revisa la ventana negra de Claude Code: si hay una pregunta, respóndela (elige «Sí»). Si está haciendo un paso largo, solo espera.";
+  if (!info) {   // nadie empezó todavía: si es el primero de la tanda y ya pasó un rato, probablemente Claude espera un permiso
+    const nadie = !t.videos.some((x) => ctDatos && ctDatos.cortarProgreso && ctDatos.cortarProgreso[t.dst] && ctDatos.cortarProgreso[t.dst][x.sub]);
+    if (nadie && t.videos[0] === v && quieto(t.inicio)) return { k: "quieto", txt: "⏸ Aún no empieza (enviado hace " + mins(t.inicio) + " min)." + pista, clips, pct: 0 };
+    return { k: "espera", txt: "⏳ En espera", clips, pct: 0 };
+  }
+  const base = (texto || "Trabajando…") + (clips.length ? " · " + clips.length + (clips.length === 1 ? " clip listo" : " clips listos") : "");
+  if (info.mod && quieto(info.mod)) return { k: "quieto", txt: "⏸ " + base + " · sin cambios hace " + mins(info.mod) + " min." + pista, clips, pct: Math.max(pct, 2) };
+  return { k: "trabajando", txt: "▶ " + base, clips, pct: Math.max(pct, 2) };
 }
-const ctTandaActiva = (t) => t.videos.some((v) => { const k = ctEstadoVideo(t, v).k; return k === "espera" || k === "trabajando"; });
+// «45% Exportando clip 2 de 5» → 45. Si Claude no puso el porcentaje, se estima por la etapa (misma escala que se le pide en la instrucción)
+const CT_ETAPAS = [[/transcrib/i, 10], [/silencio|muletilla/i, 28], [/elig|selecci/i, 40], [/verific|revis/i, 97]];
+function ctPorcentaje(linea) {
+  let t = String(linea || "").trim(), m = t.match(/^\[?\s*(\d{1,3})\s*%\s*\]?\s*[-–·:]?\s*/);
+  if (m) return { pct: Math.min(99, Number(m[1])), texto: t.slice(m[0].length) };
+  const c = t.match(/clip\s+(\d+)\s+de\s+(\d+)/i);
+  if (c && Number(c[2]) > 0) return { pct: Math.round(45 + 50 * (Number(c[1]) - 1) / Number(c[2])), texto: t };
+  for (const [re, p] of CT_ETAPAS) if (re.test(t)) return { pct: p, texto: t };
+  return { pct: t ? 5 : 0, texto: t };
+}
+const ctBarra = (pct) => '<div class="ct-barra"><i style="width:' + Math.max(0, Math.min(100, pct)) + '%"></i></div><span class="ct-pct">' + Math.round(pct) + "%</span>";
+const ctPctTanda = (t) => Math.round(t.videos.reduce((s, v) => { const e = ctEstadoVideo(t, v); return s + (e.k === "error" ? 100 : e.pct); }, 0) / t.videos.length);
+const ctTandaActiva = (t) => t.videos.some((v) => { const k = ctEstadoVideo(t, v).k; return k === "espera" || k === "trabajando" || k === "quieto"; });
 function hace(ms) { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? "hace un momento" : m < 60 ? "hace " + m + " min" : "hace " + Math.floor(m / 60) + " h " + (m % 60) + " min"; }
 function pintarCtProceso(forzar) {
   const cont = $("#ct-proceso"); if (!cont) return;
@@ -613,8 +635,8 @@ function pintarCtProceso(forzar) {
   const firma = JSON.stringify(T.map((t) => [t.id, t.videos.map((v) => ctEstadoVideo(t, v).clips.map((c) => c.nombre + c.mb))]));
   if (!forzar && firma === ctFirmaProc) {
     $$(".ct-hace", cont).forEach((e) => (e.textContent = hace(Number(e.dataset.t))));
-    $$(".ct-vid", cont).forEach((f) => { const t = T.find((x) => x.id === f.dataset.t), v = t && t.videos[Number(f.dataset.i)]; if (!v) return; const e = ctEstadoVideo(t, v); f.className = "ct-vid ct-" + e.k; $(".ct-vid-e", f).textContent = e.txt; });
-    $$(".ct-tanda", cont).forEach((c) => { const t = T.find((x) => x.id === c.dataset.t); if (t) c.classList.toggle("activa", ctTandaActiva(t)); });
+    $$(".ct-vid", cont).forEach((f) => { const t = T.find((x) => x.id === f.dataset.t), v = t && t.videos[Number(f.dataset.i)]; if (!v) return; const e = ctEstadoVideo(t, v); f.className = "ct-vid ct-" + e.k; $(".ct-vid-e", f).textContent = e.txt; $(".ct-vid-p", f).innerHTML = ctBarra(e.pct); });
+    $$(".ct-tanda", cont).forEach((c) => { const t = T.find((x) => x.id === c.dataset.t); if (t) { c.classList.toggle("activa", ctTandaActiva(t)); $(".ct-tanda-p", c).innerHTML = ctBarra(ctPctTanda(t)); } });
     return;
   }
   ctFirmaProc = firma; cont.innerHTML = "";
@@ -625,10 +647,12 @@ function pintarCtProceso(forzar) {
     h.innerHTML = '<b></b> · <span class="ct-hace"></span> · <span class="chico"></span>';
     $("b", h).textContent = t.videos.length + (t.videos.length === 1 ? " video" : " videos"); const hc = $(".ct-hace", h); hc.dataset.t = t.inicio; hc.textContent = hace(t.inicio); $(".chico", h).textContent = "destino: " + t.dst;
     c.appendChild(h);
+    const tp = document.createElement("div"); tp.className = "ct-tanda-p ct-prog"; tp.innerHTML = ctBarra(ctPctTanda(t)); c.appendChild(tp);
     for (const [i, v] of t.videos.entries()) {
       const e = ctEstadoVideo(t, v), f = document.createElement("div"); f.className = "ct-vid ct-" + e.k; f.dataset.t = t.id; f.dataset.i = i;
       f.innerHTML = '<div class="ct-vid-h"><span class="ct-vid-n"></span><span class="ct-vid-e"></span><button class="mini" type="button">Abrir carpeta</button></div>';
       $(".ct-vid-n", f).textContent = v.nombre; $(".ct-vid-e", f).textContent = e.txt;
+      const vp = document.createElement("div"); vp.className = "ct-vid-p ct-prog"; vp.innerHTML = ctBarra(e.pct); f.appendChild(vp);
       $("button", f).addEventListener("click", () => window.ctv.openPath(t.dst + "\\" + v.sub));
       if (e.clips.length) {
         const g = document.createElement("div"); g.className = "ct-clips";
@@ -712,12 +736,12 @@ $("#b-cortar").addEventListener("click", async () => {
   const vids = ctDatos.cortar.archivos.filter((a) => a.video), elegidos = vids.filter((a) => ctSel.has(a.nombre)), usar = elegidos.length ? elegidos : vids;
   if (!usar.length) { st.textContent = "⚠ Primero arrastra al menos un video al recuadro de arriba."; btn.disabled = false; return; }
   // ¿alguno ya se está cortando? (otra ventana de Claude Code trabajando en el mismo video)
-  const enMarcha = usar.filter((a) => ctTandas().some((t) => t.videos.some((v) => v.nombre === a.nombre && ["espera", "trabajando"].includes(ctEstadoVideo(t, v).k))));
+  const enMarcha = usar.filter((a) => ctTandas().some((t) => t.videos.some((v) => v.nombre === a.nombre && ["espera", "trabajando", "quieto"].includes(ctEstadoVideo(t, v).k))));
   if (enMarcha.length && !confirm("Estos videos ya se están cortando en otra ventana de Claude Code:\n\n" + enMarcha.map((a) => "• " + a.nombre).join("\n") + "\n\nSi los envías otra vez, dos ventanas harán el mismo trabajo. ¿Enviarlos de todas formas?")) { st.textContent = "No se envió nada: esos videos ya están en marcha (míralos en «4 · Proceso»)."; btn.disabled = false; return; }
   const ent = ctDatos.cortar.ruta, dst = ctDatos.cortarResultado.ruta, sep = "\\";
   const lote = ["VIDEOS A CORTAR (" + usar.length + "), todos en la carpeta de entrada " + ent + ":", ...usar.map((a, i) => (i + 1) + ". " + a.nombre + " (" + a.mb + " MB) → subcarpeta " + dst + sep + ctSub(a.nombre)),
     "CARPETA DE DESTINO: " + dst, "- Los clips de cada video van en SU subcarpeta (la indicada arriba, con ese nombre exacto). Deja ahí SOLO los clips terminados: el trabajo intermedio va en ./_operacion, y cada clip se exporta primero ahí y se mueve a la subcarpeta cuando está completo.",
-    "- AVANCE (la app lo muestra en vivo): al empezar con un video crea su subcarpeta y su archivo _progreso.txt, y agrega al final una línea corta en español por cada paso (por ejemplo «Transcribiendo», «Quitando silencios», «Eligiendo clips», «Exportando clip 2 de 5»). Cuando ese video esté terminado crea en su subcarpeta _LISTO.txt con el número de clips. Si un video falla, agrega a _progreso.txt una línea que empiece con «ERROR:» y el motivo.",
+    "- AVANCE (la app lo muestra en vivo con una barra de %): al empezar con un video crea su subcarpeta y su archivo _progreso.txt, y agrega al final una línea corta en español por cada paso, SIEMPRE empezando con el porcentaje de ese video. Usa esta escala: «5% Preparando», «10% Transcribiendo», «28% Quitando silencios», «40% Eligiendo clips», luego de 45% a 95% repartido entre los clips (por ejemplo con 5 clips: «45% Exportando clip 1 de 5», «55% Exportando clip 2 de 5»… «85% Exportando clip 5 de 5»), «97% Verificando los clips». Cuando ese video esté terminado crea en su subcarpeta _LISTO.txt con el número de clips. Si un video falla, agrega a _progreso.txt una línea que empiece con «ERROR:» y el motivo.",
     usar.length > 1 ? "- Es un trabajo por lotes: procesa los " + usar.length + " videos uno tras otro, sin detenerte a preguntar entre uno y otro. Si un video falla, anótalo y sigue con el siguiente. Al final muestra un resumen (video → número de clips o el error)." : "",
     "- No modifiques ni borres los videos originales.", (vids.length > usar.length ? "- En la carpeta de entrada hay otros videos: NO los cortes, solo los de esta lista." : "")].filter(Boolean).join("\n");
   const abierto = await enviarClaude("por-cortar", $("#txt-cortar").value.trim() + "\n\n" + lote + "\n\n" + cxEspecificacion());

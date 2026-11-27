@@ -89,7 +89,11 @@ def progreso_cortes():
                         clips.append({"ruta": p, "nombre": f, "mb": round(os.path.getsize(p) / 1048576, 1)})
                 try: prog = [l.strip() for l in open(os.path.join(d, "_progreso.txt"), encoding="utf-8", errors="replace").read().splitlines() if l.strip()][-1][:200]
                 except Exception: pass
-                subs[n] = {"clips": sorted(clips, key=lambda c: c["nombre"].lower()), "progreso": prog, "listo": os.path.exists(os.path.join(d, "_LISTO.txt"))}
+                mod = os.path.getmtime(d)   # ultimo cambio (carpeta, _progreso.txt o clips): sirve para avisar si Claude Code se quedo esperando
+                for f in os.listdir(d):
+                    try: mod = max(mod, os.path.getmtime(os.path.join(d, f)))
+                    except Exception: pass
+                subs[n] = {"clips": sorted(clips, key=lambda c: c["nombre"].lower()), "progreso": prog, "listo": os.path.exists(os.path.join(d, "_LISTO.txt")), "mod": int(mod * 1000)}
         out[dst] = subs
     return out
 
