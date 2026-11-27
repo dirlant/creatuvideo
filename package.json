@@ -1,6 +1,6 @@
 {
   "name": "creatuvideo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CreaTuVideo: panel de escritorio para generar videos de Dianchi, Diegao y cortes, con Claude Code",
   "main": "main.js",
   "author": "dirlant",
