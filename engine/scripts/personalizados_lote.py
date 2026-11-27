@@ -5,7 +5,7 @@ Modos:  listar    -> imprime (una linea JSON) el contenido de las 4 carpetas y l
         agregar   -> copia a la carpeta indicada los videos de presets.personalizados.pendiente = {destino: "sinEdicion"|"referencias", archivos: [{ruta, descripcion}]}
         describir -> guarda las descripciones de presets.personalizados.descripciones = {nombre_del_video: texto} en la carpeta de referencias
 Las carpetas son las elegidas en la app (dirs.personalizados*); si no se eligieron, van dentro de la carpeta de trabajo: personalizados\<carpeta>."""
-import json, os, re, shutil, sys, time
+import json, os, re, shutil, subprocess, sys, time
 
 MODO = sys.argv[2] if len(sys.argv) > 2 else "listar"
 AG = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -86,16 +86,140 @@ def progreso_cortes():
                 for f in os.listdir(d):   # solo los clips terminados (el trabajo intermedio va en otra carpeta)
                     p = os.path.join(d, f)
                     if os.path.isfile(p) and f.lower().endswith(VIDEO_EXT) and not f.startswith((".", "~", "_")):
-                        clips.append({"ruta": p, "nombre": f, "mb": round(os.path.getsize(p) / 1048576, 1)})
+                        clips.append({"ruta": p, "nombre": f, "mb": round(os.path.getsize(p) / 1048576, 1), "mod": int(os.path.getmtime(p) * 1000)})
+                ms = lambda n: int(os.path.getmtime(os.path.join(d, n)) * 1000) if os.path.exists(os.path.join(d, n)) else 0
                 try: prog = [l.strip() for l in open(os.path.join(d, "_progreso.txt"), encoding="utf-8", errors="replace").read().splitlines() if l.strip()][-1][:200]
                 except Exception: pass
                 mod = os.path.getmtime(d)   # ultimo cambio (carpeta, _progreso.txt o clips): sirve para avisar si Claude Code se quedo esperando
                 for f in os.listdir(d):
                     try: mod = max(mod, os.path.getmtime(os.path.join(d, f)))
                     except Exception: pass
-                subs[n] = {"clips": sorted(clips, key=lambda c: c["nombre"].lower()), "progreso": prog, "listo": os.path.exists(os.path.join(d, "_LISTO.txt")), "mod": int(mod * 1000)}
+                subs[n] = {"clips": sorted(clips, key=lambda c: c["nombre"].lower()), "progreso": prog, "listo": os.path.exists(os.path.join(d, "_LISTO.txt")), "mod": int(mod * 1000),
+                           "listoMod": ms("_LISTO.txt"), "canceladoMod": ms("_CANCELADO.txt"), "progresoMod": ms("_progreso.txt")}
         out[dst] = subs
     return out
+
+def _buscar_claude():
+    import glob
+    w = shutil.which("claude")
+    if w: return w
+    h = os.path.expanduser("~"); c = os.path.join(h, ".local", "bin", "claude.exe")
+    if os.path.exists(c): return c
+    for d in sorted(glob.glob(os.path.join(h, ".vscode", "extensions", "anthropic.claude-code*")), reverse=True):
+        for r, _, fs in os.walk(d):
+            if "claude.exe" in fs: return os.path.join(r, "claude.exe")
+    return None
+
+def dir_tanda(tid): return os.path.join(WS, "por-cortar", "_operacion", "tandas", re.sub(r"[^A-Za-z0-9_-]", "", str(tid)) or "x")
+
+def cortar_lanzar():
+    """Lanza Claude Code EN SEGUNDO PLANO (sin ventana y sin preguntas) para un envio de Cortar. Lo que va haciendo queda en
+    _operacion/tandas/<id>/salida.jsonl (la app lo muestra en vivo) y su PID en pid.txt (para poder cancelarlo)."""
+    c = ((AJ.get("presets", {}) or {}).get("cortar", {}) or {}).get("lanzar") or {}
+    tid, texto = c.get("id"), c.get("instruccion") or ""
+    if not tid or not texto.strip(): sys.exit("Falta la instrucción del corte.")
+    cl = _buscar_claude()
+    if not cl: sys.exit("No se encontró Claude Code. Instálalo desde Ajustes > Claude Code.")
+    d = dir_tanda(tid); os.makedirs(d, exist_ok=True)
+    ff = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else ""
+    if not os.path.isfile(ff): ff = shutil.which("ffmpeg") or "ffmpeg"
+    fp = os.path.join(os.path.dirname(ff), "ffprobe.exe")
+    texto += "\n\nRUTAS DE HERRAMIENTAS EN ESTE EQUIPO:\n- ffmpeg: " + ff + ("\n- ffprobe: " + fp if os.path.exists(fp) else "") + "\n- Python: usa «uv run --python 3.12 --with <paquetes> python <script>» (python no está en el PATH)."
+    instr = os.path.join(d, "instruccion.txt"); open(instr, "w", encoding="utf-8").write(texto)
+    rel = os.path.relpath(instr, WS).replace("\\", "/")
+    env = dict(os.environ); env.pop("ELECTRON_RUN_AS_NODE", None)
+    out = open(os.path.join(d, "salida.jsonl"), "wb"); err = open(os.path.join(d, "errores.txt"), "wb")
+    p = subprocess.Popen([cl, "-p", "Lee el archivo " + rel + " y haz exactamente lo que pide, de principio a fin, sin preguntar nada.",
+                          "--output-format", "stream-json", "--verbose", "--permission-mode", "bypassPermissions"],
+                         cwd=WS, env=env, stdin=subprocess.DEVNULL, stdout=out, stderr=err, close_fds=True,
+                         creationflags=0x00000008 | 0x00000200 | 0x08000000)   # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW: sigue aunque se cierre la app
+    open(os.path.join(d, "pid.txt"), "w").write(str(p.pid))
+    print("Claude Code está cortando en segundo plano (proceso %d). El avance se ve en «4 · Proceso»." % p.pid, flush=True)
+
+def _vivo(pid):
+    try:
+        r = subprocess.run(["tasklist", "/FI", "PID eq %d" % int(pid), "/NH", "/FO", "CSV"], capture_output=True, text=True, creationflags=0x08000000)
+        return ('"%d"' % int(pid)) in (r.stdout or "")
+    except Exception: return False
+
+def _resumir(ev):
+    """Una linea legible por cada cosa que hace Claude (texto que escribe o herramienta que usa)."""
+    out = []
+    if ev.get("type") == "assistant":
+        for b in (ev.get("message") or {}).get("content") or []:
+            if b.get("type") == "text" and (b.get("text") or "").strip(): out.append("💬 " + " ".join(b["text"].split())[:300])
+            elif b.get("type") == "tool_use":
+                i = b.get("input") or {}; n = b.get("name")
+                det = i.get("description") or i.get("command") or i.get("file_path") or i.get("pattern") or i.get("prompt") or ""
+                out.append("🔧 " + {"Bash": "Ejecuta", "Read": "Lee", "Write": "Escribe", "Edit": "Edita", "Glob": "Busca archivos", "Grep": "Busca texto", "TodoWrite": "Planifica"}.get(n, n) + (": " + " ".join(str(det).split())[:220] if det else ""))
+    elif ev.get("type") == "result":
+        out.append(("⚠ Terminó con error: " if ev.get("is_error") else "✔ Terminó: ") + " ".join(str(ev.get("result") or "").split())[:600])
+    return out
+
+def logs_cortes():
+    tandas = ((AJ.get("presets", {}) or {}).get("cortar", {}) or {}).get("tandas") or []
+    res = {}
+    for t in tandas:
+        if not t.get("id"): continue
+        d = dir_tanda(t["id"]); f = os.path.join(d, "salida.jsonl")
+        if not os.path.exists(f): continue
+        lineas, fin = [], None
+        try:
+            for l in open(f, encoding="utf-8", errors="replace"):
+                try: ev = json.loads(l)
+                except Exception: continue
+                lineas += _resumir(ev)
+                if ev.get("type") == "result": fin = {"error": bool(ev.get("is_error")), "texto": str(ev.get("result") or "")[:1500]}
+        except Exception: pass
+        try: errtxt = open(os.path.join(d, "errores.txt"), encoding="utf-8", errors="replace").read().strip()[-400:]
+        except Exception: errtxt = ""
+        try: pid = int(open(os.path.join(d, "pid.txt")).read().strip())
+        except Exception: pid = 0
+        res[t["id"]] = {"lineas": lineas[-40:], "total": len(lineas), "fin": fin, "vivo": bool(pid) and fin is None and _vivo(pid), "errores": errtxt, "mod": int(os.path.getmtime(f) * 1000)}
+    return res
+
+def cancelar():
+    """Cancela un envio de Cortar: cierra la ventana de Claude Code que se abrio para el (y lo que ejecutaba, p. ej. ffmpeg)
+    y deja _CANCELADO.txt en la subcarpeta de cada video. Datos en presets.cortar.cancelar = {inicio (ms), dst, subs: [...]}."""
+    c = ((AJ.get("presets", {}) or {}).get("cortar", {}) or {}).get("cancelar") or {}
+    inicio, dst, subs = int(c.get("inicio") or 0), c.get("dst") or "", c.get("subs") or []
+    if not inicio or not dst: sys.exit("No se indicó qué envío cancelar.")
+    pid = 0
+    try: pid = int(open(os.path.join(dir_tanda(c.get("id")), "pid.txt")).read().strip()) if c.get("id") else 0
+    except Exception: pid = 0
+    if pid:   # envio en segundo plano: se detiene ese proceso exacto (y lo que ejecutaba, p. ej. ffmpeg)
+        if _vivo(pid):
+            k = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True, creationflags=0x08000000)
+            print("Se detuvo Claude Code (proceso %d)." % pid if k.returncode == 0 else "No se pudo detener: " + (k.stderr or k.stdout).strip()[:200], flush=True)
+        else: print("Ese corte ya no estaba en marcha.", flush=True)
+        _marcar_cancelado(dst, subs, inicio); print("OK cancelado", flush=True); return
+    # ventanas de Claude Code abiertas por la app: powershell con «_instruccion.txt» en su linea de comandos; se elige la que se abrio junto con el envio
+    ps = ("Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\" | Where-Object { $_.CommandLine -like '*_instruccion.txt*' } | "
+          "ForEach-Object { '' + $_.ProcessId + ' ' + [int64](($_.CreationDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds) }")
+    r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], capture_output=True, text=True, creationflags=0x08000000)
+    cand = []
+    for l in (r.stdout or "").splitlines():
+        p = l.split()
+        if len(p) == 2 and p[0].isdigit() and p[1].lstrip("-").isdigit() and abs(int(p[1]) - inicio) < 90000: cand.append((abs(int(p[1]) - inicio), int(p[0])))
+    cerrada = False
+    if cand:
+        pid = min(cand)[1]
+        k = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True, creationflags=0x08000000)
+        cerrada = k.returncode == 0
+        print(("Se cerró la ventana de Claude Code de ese envío (y lo que estaba ejecutando)." if cerrada else "No se pudo cerrar la ventana: " + (k.stderr or k.stdout).strip()[:200]), flush=True)
+    else:
+        print("No se encontró abierta la ventana de Claude Code de ese envío (quizá ya se cerró).", flush=True)
+    _marcar_cancelado(dst, subs, inicio)
+    print("OK cancelado", flush=True)
+
+def _marcar_cancelado(dst, subs, inicio):
+    for s in subs:
+        d = os.path.join(dst, s)
+        try:
+            os.makedirs(d, exist_ok=True)
+            if not os.path.exists(os.path.join(d, "_LISTO.txt")) or os.path.getmtime(os.path.join(d, "_LISTO.txt")) * 1000 < inicio - 5000:
+                open(os.path.join(d, "_CANCELADO.txt"), "w", encoding="utf-8").write(time.strftime("%Y-%m-%d %H:%M:%S") + " cancelado desde la app\n")
+        except Exception as e: print("Aviso: %s" % e, flush=True)
 
 def permisos_claude():
     """Claude Code trabaja SIN pedir permisos (lo eligio la persona): se deja en <carpeta de trabajo>/.claude/settings.local.json
@@ -126,6 +250,8 @@ def listar():
     for a in data["referencias"]["archivos"]: a["descripcion"] = refs.get(a["nombre"], "")
     try: data["cortarProgreso"] = progreso_cortes()
     except Exception as e: data["cortarProgreso"] = {}; print("Aviso progreso: %s" % e, file=sys.stderr)
+    try: data["cortarLogs"] = logs_cortes()
+    except Exception as e: data["cortarLogs"] = {}; print("Aviso registro: %s" % e, file=sys.stderr)
     print(json.dumps(data, ensure_ascii=True))
 def agregar():
     pend = P.get("pendiente") or {}; destino = pend.get("destino"); lista = pend.get("archivos") or []
@@ -148,4 +274,4 @@ def describir():
 
 if __name__ == "__main__":
     preparar_prompt()
-    {"listar": listar, "agregar": agregar, "describir": describir}.get(MODO, lambda: sys.exit("Modo desconocido: " + MODO))()
+    {"listar": listar, "agregar": agregar, "describir": describir, "cancelar": cancelar, "cortar_lanzar": cortar_lanzar}.get(MODO, lambda: sys.exit("Modo desconocido: " + MODO))()

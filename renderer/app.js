@@ -572,6 +572,15 @@ function pintarCortar() {
 // Videos a cortar (trabajo masivo): se arrastran o eligen uno o varios, se copian a la carpeta de entrada y se marcan los que se cortan.
 let ctDatos = null; const ctSel = new Set();
 const CT_EXT = /\.(mp4|mov|mkv|webm|avi|m4v)$/i;
+// Claude Code corta en segundo plano: nadie puede contestarle, así que debe decidir solo con lo elegido en esta pantalla
+const CT_AUTONOMO = ["MODO AUTÓNOMO (muy importante): trabajas en segundo plano y NADIE puede responderte. No hagas preguntas, no propongas un plan para que lo aprueben y no esperes confirmación: decide tú siguiendo estas instrucciones y las opciones de abajo, y termina el trabajo completo de todos los videos.",
+  "- Si CLAUDE.md o PROMPT_cortar.md mencionan herramientas que no están en esta instalación (herramientas.ps1, modelo YOLO, crear_clips*.py, Whisper instalado), no pierdas tiempo buscándolas: hazlo directamente con ffmpeg/ffprobe y Python (rutas al final).",
+  "- Transcripción: extrae primero el audio (ffmpeg -vn -ac 1 -ar 16000 a WAV en ./por-cortar/_operacion) y transcríbelo con «uv run --python 3.12 --with faster-whisper python script.py» (modelo small, compute_type int8, idioma es, word_timestamps=True). Guarda la transcripción en ./por-cortar/_operacion para no repetirla.",
+  "- Silencios: córtalos usando los tiempos por palabra (pausas de más de 0,4 s) y quita muletillas evidentes.",
+  "- Clips: elige los fragmentos con una idea completa que se entienda sola, con la duración indicada abajo.",
+  "- Cambios de plano con una sola cámara: simúlalos con recortes y zoom (crop + scale) sobre la persona que habla, alternando los tipos de plano indicados abajo; salida vertical 1080x1920, 30 fps, H.264 yuv420p + AAC.",
+  "- Escribe el avance en _progreso.txt en cada paso: la persona solo ve eso y tus mensajes.",
+].join("\n");
 let ctLeyendo = null, ctFirmaLista = "", ctFirmaProc = "";
 function ctListar(forzar) {   // si ya hay una lectura en curso se reutiliza (el vigilante y los botones no se pisan)
   if (!ctLeyendo) ctLeyendo = ctLeer(forzar).finally(() => { ctLeyendo = null; });
@@ -596,16 +605,25 @@ const CT_QUIETO = 4;  // minutos sin ningún cambio en la carpeta del video: se 
 const ctSub = (n) => n.replace(/\.[^.]+$/, "").replace(/[<>:"/\\|?*]/g, "_").replace(/[. ]+$/, "");
 function ctTandas() { const p = cxp(); if (!Array.isArray(p.tandas)) p.tandas = []; return p.tandas; }
 function ctEstadoVideo(t, v) {
-  const info = ctDatos && ctDatos.cortarProgreso && ctDatos.cortarProgreso[t.dst] && ctDatos.cortarProgreso[t.dst][v.sub];
+  let info = ctDatos && ctDatos.cortarProgreso && ctDatos.cortarProgreso[t.dst] && ctDatos.cortarProgreso[t.dst][v.sub];
+  // la subcarpeta puede venir de un intento anterior del mismo video: solo cuenta lo escrito después de este envío
+  const desde = t.inicio - 5000, nuevo = (ms) => !ms || ms >= desde;
+  if (info && info.mod !== undefined && info.mod < desde) info = null;
+  else if (info) info = Object.assign({}, info, { clips: info.clips.filter((c) => nuevo(c.mod)), listo: info.listo && nuevo(info.listoMod), progreso: nuevo(info.progresoMod) ? info.progreso : "" });
   const clips = info ? info.clips : [], prog = info ? info.progreso : "", viejo = Date.now() - t.inicio > CT_HORAS * 3600e3;
+  if ((info && info.canceladoMod && nuevo(info.canceladoMod) && !info.listo) || (t.cancelado && !(info && info.listo))) return { k: "cancelado", txt: "✖ Cancelado" + (clips.length ? " · " + clips.length + (clips.length === 1 ? " clip quedó hecho" : " clips quedaron hechos") : ""), clips, pct: 0 };
   if (info && info.listo) return { k: "listo", txt: "✔ Listo · " + clips.length + (clips.length === 1 ? " clip" : " clips"), clips, pct: 100 };
   const { pct, texto } = ctPorcentaje(prog);
+  const L = t.fondo && ctDatos && ctDatos.cortarLogs ? ctDatos.cortarLogs[t.id] : null;   // envío en segundo plano: se sabe si el proceso sigue vivo
+  if (L && L.fin) return { k: "error", txt: L.fin.error ? "⚠ Claude Code terminó con un error (míralo en «Lo que hace Claude»)." : "⚠ Claude Code terminó sin marcar este video como listo" + (clips.length ? " · " + clips.length + " clips" : "") + ".", clips, pct };
+  if (L && !L.vivo && Date.now() - t.inicio > 30000) return { k: "error", txt: "⚠ Claude Code se detuvo antes de terminar." + (L.errores ? " " + L.errores.slice(-200) : ""), clips, pct };
+  if (t.fondo && L && L.vivo) return info ? { k: "trabajando", txt: "▶ " + (texto || "Trabajando…") + (clips.length ? " · " + clips.length + (clips.length === 1 ? " clip listo" : " clips listos") : ""), clips, pct: Math.max(pct, 2) } : { k: "espera", txt: "⏳ En espera", clips, pct: 0 };
   if (/^ERROR/i.test(texto)) return { k: "error", txt: "⚠ " + texto, clips, pct };
   if (viejo) return { k: "error", txt: "⚠ Sin noticias desde hace más de " + CT_HORAS + " h (¿se cerró la ventana de Claude Code?)" + (clips.length ? " · " + clips.length + " clips" : ""), clips, pct };
   const quieto = (ms) => Date.now() - ms > CT_QUIETO * 60000, mins = (ms) => Math.round((Date.now() - ms) / 60000);
   const pista = " Revisa la ventana negra de Claude Code: si hay una pregunta, respóndela (elige «Sí»). Si está haciendo un paso largo, solo espera.";
   if (!info) {   // nadie empezó todavía: si es el primero de la tanda y ya pasó un rato, probablemente Claude espera un permiso
-    const nadie = !t.videos.some((x) => ctDatos && ctDatos.cortarProgreso && ctDatos.cortarProgreso[t.dst] && ctDatos.cortarProgreso[t.dst][x.sub]);
+    const nadie = !t.videos.some((x) => { const o = ctDatos && ctDatos.cortarProgreso && ctDatos.cortarProgreso[t.dst] && ctDatos.cortarProgreso[t.dst][x.sub]; return o && !(o.mod < desde); });
     if (nadie && t.videos[0] === v && quieto(t.inicio)) return { k: "quieto", txt: "⏸ Aún no empieza (enviado hace " + mins(t.inicio) + " min)." + pista, clips, pct: 0 };
     return { k: "espera", txt: "⏳ En espera", clips, pct: 0 };
   }
@@ -624,7 +642,7 @@ function ctPorcentaje(linea) {
   return { pct: t ? 5 : 0, texto: t };
 }
 const ctBarra = (pct) => '<div class="ct-barra"><i style="width:' + Math.max(0, Math.min(100, pct)) + '%"></i></div><span class="ct-pct">' + Math.round(pct) + "%</span>";
-const ctPctTanda = (t) => Math.round(t.videos.reduce((s, v) => { const e = ctEstadoVideo(t, v); return s + (e.k === "error" ? 100 : e.pct); }, 0) / t.videos.length);
+const ctPctTanda = (t) => Math.round(t.videos.reduce((s, v) => { const e = ctEstadoVideo(t, v); return s + e.pct; }, 0) / t.videos.length);
 const ctTandaActiva = (t) => t.videos.some((v) => { const k = ctEstadoVideo(t, v).k; return k === "espera" || k === "trabajando" || k === "quieto"; });
 function hace(ms) { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? "hace un momento" : m < 60 ? "hace " + m + " min" : "hace " + Math.floor(m / 60) + " h " + (m % 60) + " min"; }
 function pintarCtProceso(forzar) {
@@ -636,7 +654,7 @@ function pintarCtProceso(forzar) {
   if (!forzar && firma === ctFirmaProc) {
     $$(".ct-hace", cont).forEach((e) => (e.textContent = hace(Number(e.dataset.t))));
     $$(".ct-vid", cont).forEach((f) => { const t = T.find((x) => x.id === f.dataset.t), v = t && t.videos[Number(f.dataset.i)]; if (!v) return; const e = ctEstadoVideo(t, v); f.className = "ct-vid ct-" + e.k; $(".ct-vid-e", f).textContent = e.txt; $(".ct-vid-p", f).innerHTML = ctBarra(e.pct); });
-    $$(".ct-tanda", cont).forEach((c) => { const t = T.find((x) => x.id === c.dataset.t); if (t) { c.classList.toggle("activa", ctTandaActiva(t)); $(".ct-tanda-p", c).innerHTML = ctBarra(ctPctTanda(t)); } });
+    $$(".ct-tanda", cont).forEach((c) => { const t = T.find((x) => x.id === c.dataset.t); if (t) { const a = ctTandaActiva(t); c.classList.toggle("activa", a); $(".ct-cancelar", c).classList.toggle("oculto", !a); $(".ct-tanda-p", c).innerHTML = ctBarra(ctPctTanda(t)); ctPintarLog(c, t); } });
     return;
   }
   ctFirmaProc = firma; cont.innerHTML = "";
@@ -644,10 +662,13 @@ function pintarCtProceso(forzar) {
   for (const t of [...T].reverse()) {
     const c = document.createElement("div"); c.className = "ct-tanda" + (ctTandaActiva(t) ? " activa" : ""); c.dataset.t = t.id;
     const h = document.createElement("div"); h.className = "ct-tanda-h";
-    h.innerHTML = '<b></b> · <span class="ct-hace"></span> · <span class="chico"></span>';
+    h.innerHTML = '<b></b> · <span class="ct-hace"></span> · <span class="chico"></span><button class="mini peligro ct-cancelar" type="button">Cancelar</button>';
+    $(".ct-cancelar", h).classList.toggle("oculto", !ctTandaActiva(t));
+    $(".ct-cancelar", h).addEventListener("click", (ev) => ctCancelar(t, ev.currentTarget));
     $("b", h).textContent = t.videos.length + (t.videos.length === 1 ? " video" : " videos"); const hc = $(".ct-hace", h); hc.dataset.t = t.inicio; hc.textContent = hace(t.inicio); $(".chico", h).textContent = "destino: " + t.dst;
     c.appendChild(h);
     const tp = document.createElement("div"); tp.className = "ct-tanda-p ct-prog"; tp.innerHTML = ctBarra(ctPctTanda(t)); c.appendChild(tp);
+    if (t.fondo) { const dl = document.createElement("details"); dl.className = "ct-log-caja"; dl.open = ctTandaActiva(t); dl.innerHTML = '<summary>Lo que hace Claude <span class="chico"></span></summary><pre class="ct-log"></pre>'; c.appendChild(dl); ctPintarLog(c, t); }
     for (const [i, v] of t.videos.entries()) {
       const e = ctEstadoVideo(t, v), f = document.createElement("div"); f.className = "ct-vid ct-" + e.k; f.dataset.t = t.id; f.dataset.i = i;
       f.innerHTML = '<div class="ct-vid-h"><span class="ct-vid-n"></span><span class="ct-vid-e"></span><button class="mini" type="button">Abrir carpeta</button></div>';
@@ -666,6 +687,28 @@ function pintarCtProceso(forzar) {
 }
 // vigilante: mientras estés en esta sección y haya algo en marcha, se lee el avance cada 10 s
 setInterval(() => { if (ajustes && $("#v-cortar").classList.contains("activa") && ctTandas().some(ctTandaActiva)) ctListar(); else if ($("#ct-proceso")) $$(".ct-hace").forEach((e) => (e.textContent = hace(Number(e.dataset.t)))); }, 10000);
+// Registro en vivo de lo que hace Claude Code en un envío en segundo plano (se actualiza en su sitio y baja solo al final)
+function ctPintarLog(c, t) {
+  const pre = $(".ct-log", c); if (!pre) return;
+  const L = ctDatos && ctDatos.cortarLogs ? ctDatos.cortarLogs[t.id] : null;
+  const txt = !L ? "Arrancando Claude Code…" : (L.lineas.length ? (L.total > L.lineas.length ? "… (" + (L.total - L.lineas.length) + " pasos anteriores)\n" : "") + L.lineas.join("\n") : "Claude Code está leyendo las instrucciones…");
+  const abajo = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+  if (pre.textContent !== txt) { pre.textContent = txt; if (abajo) pre.scrollTop = pre.scrollHeight; }
+  $("summary .chico", c).textContent = !L ? "" : L.vivo ? "· trabajando · último cambio " + hace(L.mod) : L.fin ? "· terminó" : "· detenido";
+}
+// Cancelar un envío: cierra su ventana de Claude Code (y el ffmpeg que estuviera corriendo) y lo marca como cancelado; los clips ya hechos se quedan
+async function ctCancelar(t, btn) {
+  const n = t.videos.length;
+  if (!confirm("¿Cancelar este corte (" + n + (n === 1 ? " video" : " videos") + ")?\n\nSe cerrará su ventana de Claude Code y se detiene lo que esté haciendo. Los clips que ya estén terminados se quedan en la carpeta de destino.")) return;
+  btn.disabled = true; btn.textContent = "Cancelando…";
+  const p = cxp(); p.cancelar = { id: t.fondo ? t.id : "", inicio: t.inicio, dst: t.dst, subs: t.videos.map((v) => v.sub) };
+  ajustes.presets.lineaActiva = "personalizados"; await guardarAuto();
+  const r = await window.ctv.run({ linea: "infografias", modo: "cancelar", slugs: [] });
+  delete p.cancelar;
+  if (r && r.ok) { t.cancelado = true; $("#ct-claude-estado").textContent = "✖ Corte cancelado. Mira el registro de abajo para ver si se cerró la ventana."; }
+  else { $("#ct-claude-estado").textContent = "⚠ No se pudo cancelar" + (r && r.error ? ": " + r.error : "; revisa el registro de abajo.") + " Puedes cerrar a mano la ventana negra de Claude Code."; btn.disabled = false; btn.textContent = "Cancelar"; }
+  await guardarAuto(); await ctListar(true);
+}
 $("#b-ct-proc-ref").addEventListener("click", () => ctListar(true));
 $("#b-ct-proc-limpiar").addEventListener("click", async () => { const p = cxp(); p.tandas = ctTandas().filter(ctTandaActiva); await guardarAuto(); pintarCtProceso(true); });
 function ctContar() {
@@ -744,11 +787,17 @@ $("#b-cortar").addEventListener("click", async () => {
     "- AVANCE (la app lo muestra en vivo con una barra de %): al empezar con un video crea su subcarpeta y su archivo _progreso.txt, y agrega al final una línea corta en español por cada paso, SIEMPRE empezando con el porcentaje de ese video. Usa esta escala: «5% Preparando», «10% Transcribiendo», «28% Quitando silencios», «40% Eligiendo clips», luego de 45% a 95% repartido entre los clips (por ejemplo con 5 clips: «45% Exportando clip 1 de 5», «55% Exportando clip 2 de 5»… «85% Exportando clip 5 de 5»), «97% Verificando los clips». Cuando ese video esté terminado crea en su subcarpeta _LISTO.txt con el número de clips. Si un video falla, agrega a _progreso.txt una línea que empiece con «ERROR:» y el motivo.",
     usar.length > 1 ? "- Es un trabajo por lotes: procesa los " + usar.length + " videos uno tras otro, sin detenerte a preguntar entre uno y otro. Si un video falla, anótalo y sigue con el siguiente. Al final muestra un resumen (video → número de clips o el error)." : "",
     "- No modifiques ni borres los videos originales.", (vids.length > usar.length ? "- En la carpeta de entrada hay otros videos: NO los cortes, solo los de esta lista." : "")].filter(Boolean).join("\n");
-  const abierto = await enviarClaude("por-cortar", $("#txt-cortar").value.trim() + "\n\n" + lote + "\n\n" + cxEspecificacion());
-  if (!abierto) { st.textContent = "⚠ No se pudo abrir Claude Code; revisa el registro de abajo."; btn.disabled = false; return; }
-  ctTandas().push({ id: Date.now().toString(36), inicio: Date.now(), dst, videos: usar.map((a) => ({ nombre: a.nombre, sub: ctSub(a.nombre) })) });
-  await guardarAuto(); pintarCtProceso(true); soltar();
-  st.textContent = "▶ Se abrió la ventana de Claude Code (fondo negro) con " + usar.length + (usar.length === 1 ? " video" : " videos") + ". Allí trabaja y te puede pedir permisos; el avance se ve abajo, en «4 · Proceso».";
+  const cs = await window.ctv.claudeStatus();
+  if (cs.instalado && !cs.sesion) { st.textContent = "⚠ Primero inicia sesión en Claude con tu cuenta (sección Claude Code)."; btn.disabled = false; return; }
+  const id = Date.now().toString(36), texto = "Trabaja en la carpeta ./por-cortar. Antes de empezar lee ./por-cortar/CLAUDE.md, ./por-cortar/prompt/PROMPT_cortar.md y ./por-cortar/prompt/AJUSTES.md.\n\n" + CT_AUTONOMO + "\n\n" + $("#txt-cortar").value.trim() + "\n\n" + lote + "\n\n" + cxEspecificacion();
+  const p = cxp(); p.lanzar = { id, instruccion: texto };
+  ajustes.presets.lineaActiva = "personalizados"; await guardarAuto();
+  const inicio = Date.now(), r = await window.ctv.run({ linea: "infografias", modo: "cortar_lanzar", slugs: [] });
+  delete p.lanzar;
+  if (!r || !r.ok) { await guardarAuto(); st.textContent = "⚠ No se pudo iniciar Claude Code" + (r && r.error ? ": " + r.error : "; revisa el registro de abajo."); btn.disabled = false; return; }
+  ctTandas().push({ id, inicio, dst, fondo: true, videos: usar.map((a) => ({ nombre: a.nombre, sub: ctSub(a.nombre) })) });
+  await guardarAuto(); await ctListar(true); soltar();
+  st.textContent = "▶ Claude Code está cortando " + usar.length + (usar.length === 1 ? " video" : " videos") + " en segundo plano, sin preguntas. Lo que va haciendo se ve abajo, en «4 · Proceso».";
   $("#ct-proceso-caja").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
