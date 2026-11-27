@@ -97,7 +97,31 @@ def progreso_cortes():
         out[dst] = subs
     return out
 
+def permisos_claude():
+    """Claude Code trabaja SIN pedir permisos (lo eligio la persona): se deja en <carpeta de trabajo>/.claude/settings.local.json
+    permiso para todas sus herramientas y acceso a las carpetas elegidas en la app (aunque esten fuera, p. ej. Descargas).
+    Se mezcla con lo que ya hubiera y solo se escribe si cambia. Vale para las ventanas de Claude Code que se abran desde ahora."""
+    f = os.path.join(WS, ".claude", "settings.local.json")
+    try: S = json.load(open(f, encoding="utf-8"))
+    except Exception: S = {}
+    if not isinstance(S, dict): S = {}
+    antes = json.dumps(S, sort_keys=True)
+    perm = S.setdefault("permissions", {})
+    allow = perm.setdefault("allow", [])
+    for h in ("Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch", "TodoWrite"):
+        if h not in allow: allow.append(h)
+    dirs = perm.setdefault("additionalDirectories", [])
+    tandas = ((AJ.get("presets", {}) or {}).get("cortar", {}) or {}).get("tandas") or []
+    for d in [v for v in DIRS.values() if isinstance(v, str)] + [t.get("dst") for t in tandas]:
+        if d and os.path.isdir(d) and not os.path.normcase(os.path.abspath(d)).startswith(os.path.normcase(os.path.abspath(WS))):
+            d = os.path.abspath(d).replace("\\", "/")
+            if d not in dirs: dirs.append(d)
+    if json.dumps(S, sort_keys=True) != antes:
+        os.makedirs(os.path.dirname(f), exist_ok=True); json.dump(S, open(f, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
 def listar():
+    try: permisos_claude()
+    except Exception as e: print("Aviso permisos: %s" % e, file=sys.stderr)
     refs = leer_refs(); data = {k: {"ruta": ruta(k), "archivos": archivos(k)} for k in CARPETAS}
     for a in data["referencias"]["archivos"]: a["descripcion"] = refs.get(a["nombre"], "")
     try: data["cortarProgreso"] = progreso_cortes()
