@@ -16,6 +16,7 @@ function ir(v) {
   $("#barra-estado").classList.toggle("oculto", v !== "dianchi" && v !== "diegao" && !(gen && !gen.fin));   // el conteo de videos queda fijo al pie, solo en Dianchi y Diegao
   if (v === "ajustes") comprobarEntorno();
   if (v === "personalizados") pzListar();
+  if (v === "cortar") ctListar();
   if (v === "claude") { actualizarCuenta(); setTimeout(() => $("#txt-claude").focus(), 50); }
 }
 $$(".nav-b").forEach((b) => b.addEventListener("click", () => ir(b.dataset.v)));
@@ -565,8 +566,94 @@ function pintarCortar() {
   if (document.activeElement !== $("#cx-max")) $("#cx-max").value = p.clipMax;
   $("#cx-clip-v").textContent = p.clipMin + " a " + Math.max(p.clipMax, p.clipMin) + " s";
   $("#cx-previa").textContent = cxEspecificacion();
+  pintarCtDestino();
 }
-$("#b-cortar").addEventListener("click", () => enviarClaude("por-cortar", $("#txt-cortar").value.trim() + "\n\n" + cxEspecificacion()));
+// Videos a cortar (trabajo masivo): se arrastran o eligen uno o varios, se copian a la carpeta de entrada y se marcan los que se cortan.
+let ctDatos = null; const ctSel = new Set();
+const CT_EXT = /\.(mp4|mov|mkv|webm|avi|m4v)$/i;
+async function ctListar() {
+  if (!ajustes) return;
+  ajustes.presets.lineaActiva = "personalizados"; await guardarAuto();   // el lister de Personalizados también lee las carpetas de Cortar
+  let r = await window.ctv.listar("infografias");
+  if (!(r && r.items && r.items.cortar)) { await new Promise((ok) => setTimeout(ok, 1500)); ajustes.presets.lineaActiva = "personalizados"; r = await window.ctv.listar("infografias"); }
+  if (r && r.items && r.items.cortar) { ctDatos = r.items; $("#ct-estado").textContent = ""; }
+  else if (r && r.items && r.items.sinEdicion) $("#ct-estado").textContent = "⚠ Pulsa «Actualizar ahora» (abajo a la izquierda) para poder ver los videos de esta sección.";
+  else { const m = (r && r.error) || "sin respuesta"; $("#ct-estado").textContent = "⚠ No se pudo leer la carpeta de entrada. Detalle: " + m.slice(-300); }
+  pintarCtLista();
+}
+function ctContar() {
+  const vids = ctDatos ? ctDatos.cortar.archivos.filter((a) => a.video) : [], n = vids.filter((a) => ctSel.has(a.nombre)).length;
+  $("#ct-n").textContent = !ctDatos ? "" : vids.length ? "· " + vids.length + (vids.length === 1 ? " video" : " videos") + " · " + (n ? n + " para cortar" : "se cortarán todos") : "· carpeta vacía";
+}
+function pintarCtDestino() {
+  if (!$("#ct-dest")) return;
+  $("#ct-dest").value = ajustes.dirs.cortarResultado || (ctDatos && ctDatos.cortarResultado ? ctDatos.cortarResultado.ruta : "(carpeta predeterminada: por-cortar\\resultado dentro de la carpeta de trabajo)");
+}
+function pintarCtLista() {
+  const lista = $("#ct-lista"); if (!lista) return; lista.innerHTML = ""; pintarCtDestino();
+  if (!ctDatos) { ctContar(); return; }
+  const d = ctDatos.cortar, vids = d.archivos.filter((a) => a.video);
+  for (const n of [...ctSel]) if (!vids.some((a) => a.nombre === n)) ctSel.delete(n);
+  if (!vids.length) { const v = document.createElement("div"); v.className = "pz-vacio"; v.textContent = "Todavía no hay videos: arrástralos al recuadro de arriba."; lista.appendChild(v); }
+  for (const a of vids) {
+    const f = document.createElement("div"); f.className = "pz-fila"; f.innerHTML = '<div class="pz-n"><b></b><span class="pz-mb"></span></div>';
+    $("b", f).textContent = a.nombre; $(".pz-mb", f).textContent = a.mb + " MB";
+    const v = document.createElement("video"); v.className = "pz-prev"; v.controls = true; v.preload = "metadata"; v.src = urlArchivo(d.ruta + "/" + a.nombre); f.insertBefore(v, f.firstChild);
+    const lb = document.createElement("label"); lb.className = "pz-elegir"; const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = ctSel.has(a.nombre); f.classList.toggle("sel", cb.checked);
+    cb.addEventListener("change", () => { if (cb.checked) ctSel.add(a.nombre); else ctSel.delete(a.nombre); f.classList.toggle("sel", cb.checked); ctContar(); });
+    lb.appendChild(cb); lb.appendChild(document.createTextNode("Cortar este video")); $(".pz-n", f).appendChild(lb);
+    lista.appendChild(f);
+  }
+  ctContar();
+}
+async function ctAgregar(rutas) {
+  rutas = rutas.filter((r) => CT_EXT.test(r));
+  const st = $("#ct-estado");
+  if (!rutas.length) { st.textContent = "⚠ Eso no parece un video (MP4, MOV, MKV, WEBM)."; return; }
+  st.textContent = "Copiando " + rutas.length + (rutas.length > 1 ? " videos" : " video") + " a la carpeta de entrada… (los videos grandes tardan un poco)";
+  if (!(await exigirUltimaVersion())) { st.textContent = "⚠ Primero hay que actualizar a la última versión."; return; }
+  pzp().pendiente = { destino: "cortar", archivos: rutas.map((r) => ({ ruta: r, descripcion: "" })) };
+  ajustes.presets.lineaActiva = "personalizados"; await guardarAuto();
+  const antes = new Set(ctDatos ? ctDatos.cortar.archivos.map((a) => a.nombre) : []);
+  const r = await window.ctv.run({ linea: "infografias", modo: "agregar", slugs: [] });
+  pzp().pendiente = null; await guardarAuto();
+  if (!r || !r.ok) { st.textContent = "⚠ No se pudieron copiar" + (r && r.error ? ": " + r.error : ". Revisa el registro de abajo."); return; }
+  await ctListar();
+  if (ctDatos) for (const a of ctDatos.cortar.archivos) if (!antes.has(a.nombre) || rutas.some((x) => x.split(/[\\/]/).pop() === a.nombre)) ctSel.add(a.nombre);
+  pintarCtLista(); st.textContent = "✔ " + rutas.length + (rutas.length > 1 ? " videos agregados y marcados para cortar." : " video agregado y marcado para cortar.");
+}
+const ctDrop = $("#ct-drop");
+// sin esto, soltar un archivo fuera del recuadro abre el video en la ventana y la app desaparece
+for (const ev of ["dragover", "drop"]) document.addEventListener(ev, (e) => { if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes("Files")) e.preventDefault(); });
+for (const ev of ["dragenter", "dragover"]) ctDrop.addEventListener(ev, (e) => { e.preventDefault(); ctDrop.classList.add("encima"); });
+ctDrop.addEventListener("dragleave", (e) => { if (!ctDrop.contains(e.relatedTarget)) ctDrop.classList.remove("encima"); });
+ctDrop.addEventListener("drop", (e) => {
+  e.preventDefault(); ctDrop.classList.remove("encima");
+  const fs = [...(e.dataTransfer.files || [])], rutas = fs.map((f) => (window.ctv.rutaArchivo ? window.ctv.rutaArchivo(f) : "") || f.path || "").filter(Boolean);
+  if (fs.length && !rutas.length) { $("#ct-estado").textContent = "⚠ Para arrastrar videos hace falta el instalador nuevo de CreaTuVideo. Mientras tanto, pulsa el recuadro para elegirlos."; return; }
+  ctAgregar(rutas);
+});
+const ctElegir = async () => { const r = await elegirVideos("Elegir uno o varios videos para cortar"); if (r.length) ctAgregar(r); };
+ctDrop.addEventListener("click", ctElegir);
+ctDrop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ctElegir(); } });
+$("#b-ct-todos").addEventListener("click", () => { if (ctDatos) ctDatos.cortar.archivos.filter((a) => a.video).forEach((a) => ctSel.add(a.nombre)); pintarCtLista(); });
+$("#b-ct-ninguno").addEventListener("click", () => { ctSel.clear(); pintarCtLista(); });
+$("#b-ct-refrescar").addEventListener("click", () => ctListar());
+$("#b-ct-dest").addEventListener("click", async () => { const p = await window.ctv.pickFolder("Carpeta de destino de los clips"); if (!p) return; ajustes.dirs.cortarResultado = p; await guardarAuto(); pintarCtDestino(); ctListar(); });
+$("#b-ct-dest-abrir").addEventListener("click", () => window.ctv.openPath(ajustes.dirs.cortarResultado || "por-cortar/resultado"));
+$("#b-cortar").addEventListener("click", async () => {
+  const st = $("#ct-claude-estado"); st.textContent = "Leyendo la carpeta de entrada…";
+  await ctListar(); if (!ctDatos) { st.textContent = "⚠ No se pudo leer la carpeta de entrada."; return; }
+  const vids = ctDatos.cortar.archivos.filter((a) => a.video), elegidos = vids.filter((a) => ctSel.has(a.nombre)), usar = elegidos.length ? elegidos : vids;
+  if (!usar.length) { st.textContent = "⚠ Primero arrastra al menos un video al recuadro de arriba."; return; }
+  const ent = ctDatos.cortar.ruta, dst = ctDatos.cortarResultado.ruta, sinExt = (n) => n.replace(/\.[^.]+$/, "");
+  const lote = ["VIDEOS A CORTAR (" + usar.length + "), todos en la carpeta de entrada " + ent + ":", ...usar.map((a, i) => (i + 1) + ". " + a.nombre + " (" + a.mb + " MB)"),
+    "", "CARPETA DE DESTINO: " + dst, "- Los clips de cada video van en su propia subcarpeta con el nombre del video, por ejemplo: " + dst + "\\" + sinExt(usar[0].nombre) + "\\",
+    usar.length > 1 ? "- Es un trabajo por lotes: procesa los " + usar.length + " videos uno tras otro, sin detenerte a preguntar entre uno y otro. Si un video falla, anótalo y sigue con el siguiente. Al final muestra un resumen (video → número de clips o el error)." : "",
+    "- No modifiques ni borres los videos originales.", (vids.length > usar.length ? "- En la carpeta de entrada hay otros videos: NO los cortes, solo los de esta lista." : "")].filter(Boolean).join("\n");
+  await enviarClaude("por-cortar", $("#txt-cortar").value.trim() + "\n\n" + lote + "\n\n" + cxEspecificacion());
+  st.textContent = "▶ Claude Code ya inició con " + usar.length + (usar.length === 1 ? " video." : " videos.") + " Sigue el avance en su ventana; los clips aparecen en la carpeta de destino.";
+});
 
 // ---------------------------------------------------------------- ajustes
 // Las carpetas y opciones se eligen en la misma pantalla de cada tipo de edicion y se guardan solas.

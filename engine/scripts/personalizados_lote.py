@@ -43,8 +43,11 @@ Aquí se hacen ediciones personalizadas a partir de los videos de la persona, to
 """
 AJUSTES_MD = "# Ajustes acumulados — Personalizados\n\nReglas que la persona fue pidiendo y que valen por defecto. Se agregan al final con fecha; si una nueva contradice una anterior, se reemplaza.\n\n- (Aún sin ajustes registrados.)\n"
 
+# Cortar y silencios usa el mismo mecanismo para copiar varios videos a su carpeta de entrada y listar la entrada y los resultados
+CARPETAS.update({"cortar": ("cortarEntrada", os.path.join("..", "por-cortar", "entrada")), "cortarResultado": ("cortarResultado", os.path.join("..", "por-cortar", "resultado"))})
+
 def ruta(k):
-    clave, sub = CARPETAS[k]; r = DIRS.get(clave) or os.path.join(WS, "personalizados", sub); os.makedirs(r, exist_ok=True); return r
+    clave, sub = CARPETAS[k]; r = DIRS.get(clave) or os.path.normpath(os.path.join(WS, "personalizados", sub)); os.makedirs(r, exist_ok=True); return r
 def preparar_prompt():
     d = os.path.join(WS, "personalizados"); os.makedirs(os.path.join(d, "prompt"), exist_ok=True)
     for f, txt in ((os.path.join(d, "CLAUDE.md"), CLAUDE_MD), (os.path.join(d, "prompt", "AJUSTES.md"), AJUSTES_MD)):
@@ -74,11 +77,12 @@ def listar():
     print(json.dumps(data, ensure_ascii=True))
 def agregar():
     pend = P.get("pendiente") or {}; destino = pend.get("destino"); lista = pend.get("archivos") or []
-    if destino not in ("sinEdicion", "referencias"): sys.exit("Destino no válido.")
+    if destino not in ("sinEdicion", "referencias", "cortar"): sys.exit("Destino no válido.")
     dst = ruta(destino); refs = leer_refs(); n = 0
     for a in lista:
         src = a.get("ruta") or ""
         if not os.path.isfile(src): print("No se encontró el archivo: " + src, flush=True); continue
+        if os.path.normcase(os.path.dirname(os.path.abspath(src))) == os.path.normcase(os.path.abspath(dst)): print("Ya está en la carpeta: " + os.path.basename(src), flush=True); n += 1; continue
         nom = nombre_libre(dst, os.path.basename(src)); print("Copiando %s …" % nom, flush=True); shutil.copy2(src, os.path.join(dst, nom)); n += 1
         if destino == "referencias": refs[nom] = (a.get("descripcion") or "").strip()
     if destino == "referencias": guardar_refs(refs)

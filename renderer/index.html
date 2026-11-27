@@ -353,16 +353,28 @@
 
     <section id="v-cortar" class="vista">
       <h1><span class="ico-t" data-ico="cortar" role="img" aria-label="Cortar y silencios" title="Cortar y silencios"></span> <span class="tit">Cortar y silencios</span></h1>
-      <p class="sub">Pon el video en la carpeta de entrada. Claude Code lo transcribe, quita los silencios, elige los clips y aplica solo el patrón de interrupción y los efectos que marques abajo (sin hook de mentor ni título).</p>
-      <div class="cfg"><h3>Carpetas de Cortar y silencios</h3>
-        <div id="cfg-cortar" class="filas"></div>
+      <p class="sub">Arrastra uno o varios videos, elige dónde se guardan los clips y pulsa «Cortar con Claude Code». Claude Code transcribe cada video, quita los silencios, elige los clips y aplica solo el patrón de interrupción y los efectos que marques abajo (sin hook de mentor ni título).</p>
+      <div class="cfg" id="ct-caja"><h3>1 · Videos a cortar <span class="chico" id="ct-n"></span></h3>
+        <div id="ct-drop" class="ct-drop" tabindex="0" role="button" aria-label="Arrastra aquí tus videos o pulsa para elegirlos">
+          <div class="ct-drop-t">Arrastra aquí uno o varios videos</div>
+          <div class="chico">o <b>pulsa para elegirlos</b> · MP4, MOV, MKV, WEBM · se copian a la carpeta de entrada</div>
+        </div>
+        <p class="chico" id="ct-estado"></p>
+        <div class="barra" style="margin:6px 0"><button class="mini" id="b-ct-todos" type="button">Marcar todos</button><button class="mini" id="b-ct-ninguno" type="button">Desmarcar</button><button class="mini" id="b-ct-refrescar" type="button">Actualizar lista</button></div>
+        <div id="ct-lista" class="pz-lista"></div>
       </div>
-      <div class="barra">
-        <button data-abrir="por-cortar/entrada">Abrir carpeta de entrada</button>
-        <button data-abrir="por-cortar/resultado">Abrir resultados</button>
-        <button data-nuevo-prompt="por-cortar">Crear un prompt nuevo con Claude</button>
+      <div class="cfg"><h3>2 · Carpeta de destino de los clips</h3>
+        <div class="fila ct-dest"><input readonly id="ct-dest" /><button class="p" id="b-ct-dest" type="button">Elegir carpeta de destino</button><button id="b-ct-dest-abrir" type="button">Abrir</button></div>
+        <p class="chico">Cada video tendrá su propia subcarpeta con sus clips dentro de esta carpeta.</p>
+        <details class="pz-carpeta"><summary>Más carpetas (opcional)</summary>
+          <div id="cfg-cortar" class="filas"></div>
+          <div class="barra">
+            <button data-abrir="por-cortar/entrada">Abrir carpeta de entrada</button>
+            <button data-nuevo-prompt="por-cortar">Crear un prompt nuevo con Claude</button>
+          </div>
+        </details>
       </div>
-      <div class="cfg" id="cfg-interrupcion"><h3>Patrón de interrupción y efectos</h3>
+      <div class="cfg" id="cfg-interrupcion"><h3>3 · Patrón de interrupción y efectos</h3>
         <p class="sub">Elige cada cuánto cambia la escena (patrón de interrupción), qué tipos de plano se alternan y qué efectos cinematográficos se usan. Puedes partir de un estilo ya armado y ajustarlo a tu gusto.</p>
         <label class="et">Estilo de ritmo</label><div id="cx-presets" class="chips-multi"></div><p class="ayuda" id="cx-presets-d"></p>
         <div class="grid2">
@@ -378,8 +390,8 @@
         <details style="margin:8px 0"><summary>Ver lo que se enviará a Claude Code</summary><pre id="cx-previa" style="white-space:pre-wrap;font-size:12px"></pre></details>
       </div>
       <label class="et">Instrucción para Claude Code</label>
-      <textarea id="txt-cortar" rows="4">Corta el video que está en ./por-cortar/entrada: transcríbelo, quita los silencios, elige los mejores clips y aplica solo el patrón de interrupción y los efectos indicados abajo. Deja los clips terminados en ./por-cortar/resultado y cuéntame cuántos hiciste.</textarea>
-      <div class="barra"><button class="p fuerte" id="b-cortar">Cortar con Claude Code</button></div>
+      <textarea id="txt-cortar" rows="4">Corta cada uno de los videos de la lista de abajo: transcríbelo, quita los silencios, elige los mejores clips y aplica solo el patrón de interrupción y los efectos indicados. Al terminar cuéntame cuántos clips hiciste de cada video.</textarea>
+      <div class="barra"><button class="p fuerte" id="b-cortar">Cortar con Claude Code</button><span class="chico" id="ct-claude-estado"></span></div>
     </section>
 
     <section id="v-subtitulado" class="vista">

@@ -468,3 +468,10 @@ code { background: var(--panel2); }
 .pz-fila.sel { border-color: #E4A511; box-shadow: 0 0 0 1px #E4A511; background: #241c14; }
 .pz-stage { border-color: #6b5420; background: #18141f; }
 a { color: #7aa5ff; }
+
+/* Cortar y silencios: recuadro para arrastrar uno o varios videos + carpeta de destino */
+.ct-drop { border: 2px dashed #6b5420; border-radius: 10px; padding: 26px 16px; text-align: center; cursor: pointer; background: #18141f; transition: background .15s, border-color .15s; margin-top: 8px; }
+.ct-drop:hover, .ct-drop:focus-visible { border-color: #E4A511; outline: none; }
+.ct-drop.encima { border-color: #E4A511; background: #241c14; }
+.ct-drop-t { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+.ct-dest input { flex: 1; min-width: 0; }

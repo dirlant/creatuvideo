@@ -1,5 +1,5 @@
 // Puente seguro entre la interfaz (renderer) y el proceso principal. La interfaz solo usa window.ctv.*
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 const inv = (canal) => (...a) => ipcRenderer.invoke(canal, ...a);
 contextBridge.exposeInMainWorld("ctv", {
   version: inv("version"),
@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("ctv", {
   pickFolder: inv("pick-folder"),
   pickFile: inv("pick-file"),
   pickImage: inv("pick-image"),
+  rutaArchivo: (f) => { try { return webUtils.getPathForFile(f) || ""; } catch { return ""; } },   // ruta real de un archivo arrastrado a la ventana
   imageThumb: inv("image-thumb"),
   checkEnv: inv("env:check"),
   installDep: inv("env:install"),
