@@ -392,6 +392,11 @@
       <label class="et">Instrucción para Claude Code</label>
       <textarea id="txt-cortar" rows="4">Corta cada uno de los videos de la lista de abajo: transcríbelo, quita los silencios, elige los mejores clips y aplica solo el patrón de interrupción y los efectos indicados. Al terminar cuéntame cuántos clips hiciste de cada video.</textarea>
       <div class="barra"><button class="p fuerte" id="b-cortar">Cortar con Claude Code</button><span class="chico" id="ct-claude-estado"></span></div>
+      <div class="cfg" id="ct-proceso-caja"><h3>4 · Proceso <span class="chico" id="ct-proceso-n"></span></h3>
+        <p class="chico">Claude Code trabaja en su ventana aparte (fondo negro); aquí ves en vivo el avance de cada video y sus clips a medida que salen. Se actualiza solo cada 10 segundos.</p>
+        <div id="ct-proceso"></div>
+        <div class="barra" style="margin-top:8px"><button class="mini" id="b-ct-proc-ref" type="button">Actualizar ahora</button><button class="mini" id="b-ct-proc-limpiar" type="button">Quitar los terminados de esta lista</button></div>
+      </div>
     </section>
 
     <section id="v-subtitulado" class="vista">

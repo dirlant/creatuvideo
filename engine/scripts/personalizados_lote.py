@@ -71,9 +71,33 @@ def nombre_libre(carpeta, nombre):
     while os.path.exists(os.path.join(carpeta, n)): n = "%s (%d)%s" % (base, i, ext); i += 1
     return n
 
+def progreso_cortes():
+    """Avance de los cortes enviados a Claude Code: por cada carpeta de destino de presets.cortar.tandas, cada subcarpeta (un video)
+    con sus clips, la ultima linea de _progreso.txt y si ya termino (archivo _LISTO.txt)."""
+    tandas = ((AJ.get("presets", {}) or {}).get("cortar", {}) or {}).get("tandas") or []
+    out = {}
+    for dst in {t.get("dst") for t in tandas if t.get("dst")}:
+        subs = {}
+        if os.path.isdir(dst):
+            for n in os.listdir(dst):
+                d = os.path.join(dst, n)
+                if not os.path.isdir(d): continue
+                clips = []; prog = ""
+                for f in os.listdir(d):   # solo los clips terminados (el trabajo intermedio va en otra carpeta)
+                    p = os.path.join(d, f)
+                    if os.path.isfile(p) and f.lower().endswith(VIDEO_EXT) and not f.startswith((".", "~", "_")):
+                        clips.append({"ruta": p, "nombre": f, "mb": round(os.path.getsize(p) / 1048576, 1)})
+                try: prog = [l.strip() for l in open(os.path.join(d, "_progreso.txt"), encoding="utf-8", errors="replace").read().splitlines() if l.strip()][-1][:200]
+                except Exception: pass
+                subs[n] = {"clips": sorted(clips, key=lambda c: c["nombre"].lower()), "progreso": prog, "listo": os.path.exists(os.path.join(d, "_LISTO.txt"))}
+        out[dst] = subs
+    return out
+
 def listar():
     refs = leer_refs(); data = {k: {"ruta": ruta(k), "archivos": archivos(k)} for k in CARPETAS}
     for a in data["referencias"]["archivos"]: a["descripcion"] = refs.get(a["nombre"], "")
+    try: data["cortarProgreso"] = progreso_cortes()
+    except Exception as e: data["cortarProgreso"] = {}; print("Aviso progreso: %s" % e, file=sys.stderr)
     print(json.dumps(data, ensure_ascii=True))
 def agregar():
     pend = P.get("pendiente") or {}; destino = pend.get("destino"); lista = pend.get("archivos") or []

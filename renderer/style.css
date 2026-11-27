@@ -475,3 +475,16 @@ a { color: #7aa5ff; }
 .ct-drop.encima { border-color: #E4A511; background: #241c14; }
 .ct-drop-t { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
 .ct-dest input { flex: 1; min-width: 0; }
+/* Cortar y silencios: proceso en vivo de cada envio a Claude Code */
+.ct-tanda { border: 1px solid var(--borde); border-radius: 10px; padding: 10px 12px; margin-top: 10px; background: #18141f; }
+.ct-tanda.activa { border-color: #E4A511; }
+.ct-tanda-h { margin-bottom: 6px; }
+.ct-vid { border-top: 1px solid var(--borde); padding: 8px 0; }
+.ct-vid-h { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ct-vid-n { font-weight: 700; }
+.ct-vid-e { flex: 1; min-width: 200px; color: var(--suave); }
+.ct-trabajando .ct-vid-e { color: #E4A511; }
+.ct-listo .ct-vid-e { color: #21B8A6; }
+.ct-error .ct-vid-e { color: #ff7a7a; }
+.ct-clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 8px; }
+.ct-clip video { width: 100%; aspect-ratio: 9 / 16; background: #000; border-radius: 8px; object-fit: contain; }
